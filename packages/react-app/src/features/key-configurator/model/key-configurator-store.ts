@@ -313,7 +313,7 @@ export function createKeyConfiguratorStore(projectId: string) {
         const currentState = get().isEditable;
         set({isEditable: !currentState});
         logger.debug(
-          `Edit mode toggled to ${!currentState ? 'enabled' : 'disabled'}`,
+          `Edit mode toggled to ${currentState ? 'disabled' : 'enabled'}`,
           {
             action: 'toggle_is_editable',
             component: 'KeyConfiguratorStore',

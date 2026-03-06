@@ -493,7 +493,7 @@ jest.mock('@qualcomm-ui/react/progress-ring', () => ({
           role: 'progressbar',
           ...props,
         },
-        value !== undefined ? `${value}%` : 'Loading...',
+        value === undefined ? 'Loading...' : `${value}%`,
       );
     }),
 }));

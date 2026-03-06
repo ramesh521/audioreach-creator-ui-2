@@ -199,11 +199,11 @@ const FlowContent: FC<UsecaseVisualizerProps> = ({
           currentSelection.selectedNodes[0].id === node.id &&
           currentSelection.selectedEdges.length === 0;
 
-        if (!isSameSelection) {
+        if (isSameSelection) {
+          updatedNodes = currentSelection.selectedNodes;
+        } else {
           updatedNodes = [node as RFNode];
           setSelection(projectId, updatedNodes, []);
-        } else {
-          updatedNodes = currentSelection.selectedNodes;
         }
       }
 

@@ -292,9 +292,7 @@ export function ModuleTagKeysConfigPanel({
           [valueId]: !prev[valueId],
         }));
         // Auto-select tag group when any value is selected
-        if (!selectedValues[valueId]) {
-          setSelectedTagGroup(tagGroupId);
-        } else {
+        if (selectedValues[valueId]) {
           // Check if any values are still selected in this tag group
           const tagGroupName = Object.keys(availableModuleTagsInfo).find(
             (name) => availableModuleTagsInfo[name].id === tagGroupId,
@@ -313,6 +311,8 @@ export function ModuleTagKeysConfigPanel({
               setSelectedTagGroup(null);
             }
           }
+        } else {
+          setSelectedTagGroup(tagGroupId);
         }
       }
     },
@@ -362,9 +362,7 @@ export function ModuleTagKeysConfigPanel({
       setSelectedValues(newSelectedValues);
 
       // Auto-select the tag group radio when selecting values
-      if (!allSelected) {
-        setSelectedTagGroup(tagGroupId);
-      } else {
+      if (allSelected) {
         // Check if any values are still selected in this tag group
         const tagGroup = availableModuleTagsInfo[tagGroupName];
         const hasAnySelected = Object.keys(tagGroup.keys).some((keyName) => {
@@ -377,6 +375,8 @@ export function ModuleTagKeysConfigPanel({
         if (!hasAnySelected) {
           setSelectedTagGroup(null);
         }
+      } else {
+        setSelectedTagGroup(tagGroupId);
       }
     },
     [selectedTagGroup, selectedValues, availableModuleTagsInfo],
@@ -537,9 +537,9 @@ export function ModuleTagKeysConfigPanel({
 
     // Get existing configs (exclude the one being edited)
     const existingConfigs =
-      editingIndex !== null
-        ? configuredTKVs.filter((_, i) => i !== editingIndex)
-        : configuredTKVs;
+      editingIndex === null
+        ? configuredTKVs
+        : configuredTKVs.filter((_, i) => i !== editingIndex);
 
     // Check for duplicates
     const uniqueNewConfigs: ConfiguredTkv[] = [];

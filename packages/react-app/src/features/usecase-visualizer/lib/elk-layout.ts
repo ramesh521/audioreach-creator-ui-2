@@ -447,7 +447,7 @@ async function layoutSubgraphsWithELK(
 
     // Group nodes by similar Y coordinates for alignment
     const nodePositions = layout.nodes;
-    const nodes = Array.from(nodePositions.entries());
+    const nodes = [...nodePositions.entries()];
     const groups: string[][] = [];
     const processed = new Set<string>();
     const tolerance = 50;

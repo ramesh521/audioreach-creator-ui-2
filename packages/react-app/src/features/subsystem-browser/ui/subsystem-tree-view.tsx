@@ -60,7 +60,7 @@ function collectAncestorIdsForMatches(
       ids.push(node.id, ...childMatches);
     }
   }
-  return Array.from(new Set(ids));
+  return [...new Set(ids)];
 }
 
 const SubsystemTreeView: FC<SubsystemTreeViewProps> = ({data, onClick}) => {

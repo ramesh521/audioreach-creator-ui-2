@@ -133,7 +133,7 @@ export const ArcCombobox = <T extends string = string>(
 
         <Combobox.Control>
           <Combobox.Input
-            aria-label={!label ? placeholder || 'Select option' : undefined}
+            aria-label={label ? undefined : placeholder || 'Select option'}
             placeholder={placeholder}
           />
           <Combobox.Trigger />

@@ -79,7 +79,7 @@ export function ThemeProvider({children}: ThemeProviderProps) {
   useEffect(() => {
     if (configReady) {
       const html = document.documentElement;
-      html.setAttribute('data-theme', theme);
+      html.dataset.theme = theme;
     }
   }, [theme, configReady]);
 

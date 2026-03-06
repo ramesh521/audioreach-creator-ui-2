@@ -117,7 +117,7 @@ export class ProjectTabEntity implements ProjectTab {
       typeof panelLayoutOrComponent === 'object' &&
       'flexLayoutData' in panelLayoutOrComponent
     ) {
-      this.panelLayout = panelLayoutOrComponent as ProjectTabLayout;
+      this.panelLayout = panelLayoutOrComponent;
       this.component = undefined;
     } else {
       this.component = panelLayoutOrComponent as ReactNode;
@@ -450,7 +450,9 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
       return false;
     }
 
-    if (!state.appGroups.find((ag) => ag.id === Id)) {
+    if (state.appGroups.find((ag) => ag.id === Id)) {
+      return false;
+    } else {
       const appGroupName = title || Id;
 
       // Assign permanent color ID and increment for next group
@@ -483,8 +485,6 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
         currentState.expandTabGroup(Id);
       }, 0);
       return true;
-    } else {
-      return false;
     }
   },
   // Creates layout configuration from JSON string
@@ -720,10 +720,10 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
       // Create new map with updated collapse states
       const finalTabGroups = new Map<string, TabGroup>();
       updatedTabGroups.forEach((tabGroup, key) => {
-        if (tabGroup.id !== groupId) {
-          finalTabGroups.set(key, {...tabGroup, isCollapsed: true});
-        } else {
+        if (tabGroup.id === groupId) {
           finalTabGroups.set(key, {...tabGroup, isCollapsed: false});
+        } else {
+          finalTabGroups.set(key, {...tabGroup, isCollapsed: true});
         }
       });
 

@@ -233,7 +233,7 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
         id: 'copy',
         label: 'Copy',
         shortcut: 'Ctrl+C',
-        tooltip: !hasSelection ? 'Copy is currently unavailable' : '',
+        tooltip: hasSelection ? '' : 'Copy is currently unavailable',
       },
       {
         group: 'Edit',

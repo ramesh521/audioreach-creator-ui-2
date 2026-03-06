@@ -604,9 +604,9 @@ export function CalibrationKeysConfigPanel({
 
     // Get existing configs (exclude the one being edited)
     const existingConfigs =
-      editingIndex !== null
-        ? configuredCKVs.filter((_, i) => i !== editingIndex)
-        : configuredCKVs;
+      editingIndex === null
+        ? configuredCKVs
+        : configuredCKVs.filter((_, i) => i !== editingIndex);
 
     // Check for duplicates using IDs
     const uniqueNewConfigs: ConfiguredCkv[] = [];

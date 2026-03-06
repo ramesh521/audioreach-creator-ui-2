@@ -251,11 +251,11 @@ export class ConfigFileManager {
         }
       } else {
         if (this.projectConfigMap.size > 0) {
-          const lastProjectId = Array.from(this.projectConfigMap.keys()).pop();
+          const lastProjectId = [...this.projectConfigMap.keys()].pop();
           const lastProjectConfig =
-            lastProjectId !== undefined
-              ? this.projectConfigMap.get(lastProjectId)
-              : undefined;
+            lastProjectId === undefined
+              ? undefined
+              : this.projectConfigMap.get(lastProjectId);
           if (lastProjectConfig !== undefined) {
             this.configDataMap = lastProjectConfig;
           }

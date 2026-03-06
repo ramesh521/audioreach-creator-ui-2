@@ -196,11 +196,9 @@ class ProjectLayoutManager extends Component<
           if (
             project.activeTabId === projectTab.id &&
             activeTabGroup?.id === project.id
-          ) {
-            if (!shouldSelect) {
+           && !shouldSelect) {
               selectedIndex = children.length - 1;
             }
-          }
         });
       }
     });
@@ -903,17 +901,15 @@ export class PanelIntegration {
             const currentRegistry = state.componentRegistry;
             const prevRegistry = prevState?.componentRegistry;
 
-            if (
+            if ((
               currentLayout !== prevLayout ||
               currentRegistry !== prevRegistry
-            ) {
-              if (this.globalManager) {
+            ) && this.globalManager) {
                 const newModel = this.globalManager.createFlexLayoutModel(
                   mainTab.id,
                 );
                 setModel(newModel);
               }
-            }
           },
         );
 
@@ -1183,14 +1179,12 @@ export class PanelIntegration {
                 projectTab.id,
               );
 
-              if (currentLayout !== prevLayout) {
-                if (this.globalManager) {
+              if (currentLayout !== prevLayout && this.globalManager) {
                   const newModel = this.globalManager.createFlexLayoutModel(
                     projectTab.id,
                   );
                   setModel(newModel);
                 }
-              }
             },
           );
 

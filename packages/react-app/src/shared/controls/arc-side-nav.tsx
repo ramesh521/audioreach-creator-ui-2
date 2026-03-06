@@ -82,13 +82,13 @@ export function ArcSideNav() {
     if (newOpen && !wasAutoExpanded) {
       // User manually expanded - this is a manual action
       setOpen(newOpen);
-    } else if (!newOpen) {
+    } else if (newOpen) {
+      // This is from our auto-expand, just update open state
+      setOpen(newOpen);
+    } else {
       // User manually collapsed
       setOpen(newOpen);
       setWasAutoExpanded(false);
-    } else {
-      // This is from our auto-expand, just update open state
-      setOpen(newOpen);
     }
   };
 
