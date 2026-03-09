@@ -114,13 +114,11 @@ export default function ArcProjectCard({
   }
 
   function handleMouseDown(e: React.MouseEvent) {
-    switch (e.button) {
-      case 2: // Right Click
-        // Prevent default context menu
-        e.preventDefault();
-
-        setIsContextMenuOpen(true);
-        break;
+    if (e.button == 2) {
+      // Right Click
+      // Prevent default context menu
+      e.preventDefault();
+      setIsContextMenuOpen(true);
     }
   }
 

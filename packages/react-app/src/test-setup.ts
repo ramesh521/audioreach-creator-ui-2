@@ -4,6 +4,13 @@
  */
 
 import '@testing-library/jest-dom';
+
+// Polyfill for structuredClone (not available in older Node.js versions)
+if (typeof globalThis.structuredClone === 'undefined') {
+  globalThis.structuredClone = function structuredClone<T>(value: T): T {
+    return JSON.parse(JSON.stringify(value));
+  };
+}
 import {
   Children,
   cloneElement,

@@ -61,7 +61,7 @@ export class Logger {
       const state = useProjectLayoutStore.getState();
       const activeProjectGroup = state.getActiveProjectGroup();
       return activeProjectGroup?.id || undefined;
-    } catch (error) {
+    } catch {
       // Store may not be initialized yet
       return undefined;
     }

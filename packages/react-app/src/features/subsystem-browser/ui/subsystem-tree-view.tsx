@@ -110,15 +110,11 @@ const SubsystemTreeView: FC<SubsystemTreeViewProps> = ({data, onClick}) => {
     if (isFullyExpanded) {
       setExpandedIds({});
     } else {
-      setExpandedIds(
-        allIds.reduce(
-          (acc, id) => {
-            acc[id] = true;
-            return acc;
-          },
-          {} as Record<number, boolean>,
-        ),
-      );
+      const expanded: Record<number, boolean> = {};
+      for (const id of allIds) {
+        expanded[id] = true;
+      }
+      setExpandedIds(expanded);
     }
   };
 

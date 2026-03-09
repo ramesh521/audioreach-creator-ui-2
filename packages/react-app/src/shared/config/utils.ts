@@ -80,19 +80,23 @@ export function getConfigData(
   rootKey?: string,
 ): any {
   const data = rootKey ? jsonData[rootKey] : jsonData;
-  return path
-    .split('.')
-    .reduce(
-      (accumulator, currentValue) => accumulator && accumulator[currentValue],
-      data,
-    );
+  const pathParts = path.split('.');
+  let result = data;
+  for (const part of pathParts) {
+    if (result && typeof result === 'object') {
+      result = result[part];
+    } else {
+      return undefined;
+    }
+  }
+  return result;
 }
 
 /*
 This function will overwrite primitives.
 Example:
 const jsonData = { arcconfig: { project1: 'data' } };
-setConfigData(jsonData, 'project1.modified', true); 
+setConfigData(jsonData, 'project1.modified', true);
 Output:{ arcconfig: { project1: { modified: true } } };
 */
 export function setConfigData(

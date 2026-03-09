@@ -84,6 +84,7 @@ export function ThemeProvider({children}: ThemeProviderProps) {
   }, [theme, configReady]);
 
   const setTheme = async (newTheme: Theme) => {
+    const previousTheme = theme;
     setThemeState(newTheme);
     // Save theme to config file
     try {
@@ -96,7 +97,7 @@ export function ThemeProvider({children}: ThemeProviderProps) {
         error: error instanceof Error ? error.message : String(error),
       });
       // revert to previous theme on save failure
-      setThemeState(theme);
+      setThemeState(previousTheme);
     }
   };
 

@@ -179,15 +179,14 @@ const ValidationResultToolbar: React.FC = () => {
     try {
       // Import the API request types and electron API
       const {ApiRequest} = await import('@audioreach-creator-ui/api-utils');
-      const {electronApi} = await import('~shared/api');
 
-      if (!electronApi) {
+      if (!globalThis.api) {
         logger.error('Electron API not available');
         return;
       }
 
       // Call the save validation results API
-      const response = await electronApi.send({
+      const response = await globalThis.api.send({
         data: {
           content: resultsText,
         },

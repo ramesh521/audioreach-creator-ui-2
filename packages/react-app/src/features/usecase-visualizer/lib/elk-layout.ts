@@ -78,10 +78,10 @@ export async function layoutWithELK(input: GraphView): Promise<GraphView> {
   logger.debug('[ELK-LAYOUT] Starting simplified ELK-based layout...');
 
   // Group nodes by type
-  const subsystemNodes = nodes.filter(isSubsystemNode);
-  const subgraphNodes = nodes.filter(isSubgraphNode);
-  const containerNodes = nodes.filter(isContainerNode);
-  const moduleNodes = nodes.filter(isModuleNode);
+  const subsystemNodes = nodes.filter((node) => isSubsystemNode(node));
+  const subgraphNodes = nodes.filter((node) => isSubgraphNode(node));
+  const containerNodes = nodes.filter((node) => isContainerNode(node));
+  const moduleNodes = nodes.filter((node) => isModuleNode(node));
 
   // First, layout modules within containers (same as manual approach)
   await layoutModulesInContainers(moduleNodes, containerNodes, edges);
@@ -299,7 +299,7 @@ async function layoutSubgraphsWithELK(
 
   // Build mapping of numeric subgraph IDs to full node IDs
   subgraphNodes.forEach((sg) => {
-    const match = sg.id.match(/subgraph-(\d+)/);
+    const match = /subgraph-(\d+)/.exec(sg.id);
     if (match) {
       const numericId = parseInt(match[1], 10);
       subgraphIdMap.set(numericId, sg.id);
@@ -478,11 +478,12 @@ async function layoutSubgraphsWithELK(
     // Calculate aligned Y for each group and apply positions
     const groupAlignments = new Map<string, number>();
     groups.forEach((group, groupIdx) => {
-      const avgY =
-        group.reduce((sum, nodeId) => {
-          const pos = nodePositions.get(nodeId);
-          return sum + (pos?.y || 0);
-        }, 0) / group.length;
+      let sum = 0;
+      for (const nodeId of group) {
+        const pos = nodePositions.get(nodeId);
+        sum += pos?.y || 0;
+      }
+      const avgY = sum / group.length;
 
       logger.debug(
         `[ELK-LAYOUT] Group ${groupIdx + 1}: ${group.length} nodes, avgY: ${avgY}, nodes: [${group.join(', ')}]`,

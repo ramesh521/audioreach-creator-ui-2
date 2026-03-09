@@ -51,7 +51,7 @@ export class ArcTextInput extends Component<
   ArcTextInputProps,
   ArcTextInputState
 > {
-  static displayName = 'ArcTextInput';
+  static readonly displayName = 'ArcTextInput';
 
   constructor(props: ArcTextInputProps) {
     super(props);
@@ -168,7 +168,6 @@ export class ArcTextInput extends Component<
   render() {
     const {
       // Extract native props
-      autoFocus,
       className,
       clearable,
       defaultValue,
@@ -208,7 +207,6 @@ export class ArcTextInput extends Component<
 
     return (
       <TextInput
-        autoFocus={autoFocus}
         className={className}
         clearable={clearable}
         defaultValue={defaultValue ? String(defaultValue) : undefined}
@@ -325,6 +323,7 @@ export class ArcTextInput extends Component<
           // Check if the entire string is a valid decimal number
           // parseFloat is too lenient and parses partial numbers like "45gghgg" ->
           // 45
+          //eslint-disable-next-line sonarjs/slow-regex
           if (!/^\d*\.?\d+$/.test(val)) {
             return 'Please enter a valid number or hexadecimal value';
           }
@@ -338,6 +337,7 @@ export class ArcTextInput extends Component<
 
         // Check if the entire string is a valid decimal number
         // parseFloat is too lenient and parses partial numbers like "45gghgg" -> 45
+        //eslint-disable-next-line sonarjs/slow-regex
         if (!/^\d*\.?\d+$/.test(val)) {
           return 'Please enter a valid number';
         }
@@ -365,11 +365,13 @@ export class ArcTextInput extends Component<
 
       // Validate numeric range constraints
       if (typeof min === 'number' && numValue < min) {
-        return `Value must be at least ${min}${isHex ? ` (0x${min.toString(16).toUpperCase()})` : ''}`;
+        const hexSuffix = isHex ? ` (0x${min.toString(16).toUpperCase()})` : '';
+        return `Value must be at least ${min}${hexSuffix}`;
       }
 
       if (typeof max === 'number' && numValue > max) {
-        return `Value must be at most ${max}${isHex ? ` (0x${max.toString(16).toUpperCase()})` : ''}`;
+        const hexSuffix = isHex ? ` (0x${max.toString(16).toUpperCase()})` : '';
+        return `Value must be at most ${max}${hexSuffix}`;
       }
     }
 

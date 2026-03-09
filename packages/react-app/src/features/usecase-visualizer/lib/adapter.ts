@@ -55,15 +55,6 @@ export function buildGraphViewFromUsecase(
   // Build sets for endpoint type deduction
   const subsystemIdSet = new Set(subsystems.map((s) => s.id));
 
-  // Build lookup map from systemId to ReactFlow node ID
-  const systemIdToNodeId = new Map<string, string>();
-  for (const m of modules) {
-    systemIdToNodeId.set(m.systemId, nodeId('module', m.id));
-  }
-  for (const ss of subsystems) {
-    systemIdToNodeId.set(ss.systemId, nodeId('subsystem', ss.id));
-  }
-
   // Build lookup maps for port systemIds (strings) to numeric port IDs
   const dataPortSystemIdToPortId = new Map<string, number>();
   const controlPortSystemIdToPortId = new Map<string, number>();

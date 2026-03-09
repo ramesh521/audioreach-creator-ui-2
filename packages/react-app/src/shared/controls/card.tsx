@@ -53,6 +53,7 @@ const CardMedia = forwardRef<HTMLImageElement, CardMediaProps>(
       <img
         ref={ref}
         className={cn('w-full rounded-t-lg object-cover', className)}
+        alt=""
         {...props}
       />
     );
@@ -95,7 +96,7 @@ CardContent.displayName = 'CardContent';
 const CardTitle = forwardRef<
   HTMLParagraphElement,
   HTMLAttributes<HTMLHeadingElement>
->(({className, ...props}, ref) => (
+>(({children, className, ...props}, ref) => (
   <h3
     ref={ref}
     className={cn(
@@ -103,7 +104,9 @@ const CardTitle = forwardRef<
       className,
     )}
     {...props}
-  />
+  >
+    {children}
+  </h3>
 ));
 CardTitle.displayName = 'CardTitle';
 

@@ -110,9 +110,7 @@ export class ConfigFileManager {
     let projectConfig = this.projectConfigMap.get(projectId);
     if (projectConfig === undefined) {
       // Deep copy to avoid mutation, changes to below obj doesn't affect the original data
-      projectConfig = JSON.parse(
-        JSON.stringify(this.configDataMap),
-      ) as JSONDataMap;
+      projectConfig = structuredClone(this.configDataMap);
       this.projectConfigMap.set(projectId, projectConfig);
       logger.verbose('Project config created', {
         action: 'create_project_config',

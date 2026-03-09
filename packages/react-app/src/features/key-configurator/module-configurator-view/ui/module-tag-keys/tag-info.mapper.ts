@@ -144,7 +144,7 @@ function transformTagKeyDefinitionToModuleTagKey(
   return {
     id: keyDto.keyId,
     name: keyDto.name,
-    values: keyDto.values.map(transformTagValueDefinition),
+    values: keyDto.values.map((value) => transformTagValueDefinition(value)),
   };
 }
 
@@ -156,13 +156,11 @@ function transformTagKeyDefinitionToModuleTagKey(
 function transformTagKeyDefinitionsToModuleTagKeys(
   keyDefinitions: TagKeyDefinitionInfo[],
 ): Record<string, ModuleTagKey> {
-  return keyDefinitions.reduce(
-    (acc, keyDef) => {
-      acc[keyDef.name] = transformTagKeyDefinitionToModuleTagKey(keyDef);
-      return acc;
-    },
-    {} as Record<string, ModuleTagKey>,
-  );
+  const result: Record<string, ModuleTagKey> = {};
+  for (const keyDef of keyDefinitions) {
+    result[keyDef.name] = transformTagKeyDefinitionToModuleTagKey(keyDef);
+  }
+  return result;
 }
 
 /**
@@ -188,11 +186,9 @@ function transformTagDefinitionToTagGroup(
 export function transformTagDefinitionsToTagGroups(
   tagDefinitions: TagDefinitionResponseDto[],
 ): Record<string, TagGroup> {
-  return tagDefinitions.reduce(
-    (acc, tagDef) => {
-      acc[tagDef.name] = transformTagDefinitionToTagGroup(tagDef);
-      return acc;
-    },
-    {} as Record<string, TagGroup>,
-  );
+  const result: Record<string, TagGroup> = {};
+  for (const tagDef of tagDefinitions) {
+    result[tagDef.name] = transformTagDefinitionToTagGroup(tagDef);
+  }
+  return result;
 }

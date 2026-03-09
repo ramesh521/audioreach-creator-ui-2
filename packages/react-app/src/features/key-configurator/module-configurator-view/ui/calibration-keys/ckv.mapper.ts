@@ -118,7 +118,7 @@ function transformKeyDefinitionToCalibrationKey(
   return {
     id: keyDto.keyId,
     name: keyDto.name,
-    values: keyDto.values.map(transformValueDefinition),
+    values: keyDto.values.map((valueDto) => transformValueDefinition(valueDto)),
   };
 }
 
@@ -135,11 +135,9 @@ export function transformKeyDefinitionsToCalibrationKeys(
     (keyDef) => keyDef.isCalibrationKey,
   );
 
-  return calibrationKeys.reduce(
-    (acc, keyDef) => {
-      acc[keyDef.name] = transformKeyDefinitionToCalibrationKey(keyDef);
-      return acc;
-    },
-    {} as Record<string, CalibrationKey>,
-  );
+  const result: Record<string, CalibrationKey> = {};
+  for (const keyDef of calibrationKeys) {
+    result[keyDef.name] = transformKeyDefinitionToCalibrationKey(keyDef);
+  }
+  return result;
 }

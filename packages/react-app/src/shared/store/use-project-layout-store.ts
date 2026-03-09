@@ -5,6 +5,7 @@
 
 import type {ReactNode} from 'react';
 
+import type {IJsonBorderNode, IJsonTabNode} from 'flexlayout-react';
 import {create} from 'zustand';
 
 import {logger} from '~shared/lib/logger';
@@ -40,17 +41,17 @@ const APP_CONFIG: ApplicationConfig = {
   STORAGE_VERSION: '1.0',
 };
 
-// Centralized ID generation function
+// Centralized ID generation function using crypto.randomUUID() for secure random IDs
 const generateId = (prefix: string): string => {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+  return `${prefix}-${crypto.randomUUID()}`;
 };
 
 // Represents app tabs like Welcome, Settings that persist across all projects
 export class AppTabEntity implements AppTab {
   component: ReactNode;
   id: string;
-  onAppClose?: OnTabClose | undefined;
-  onTabClose?: OnTabClose | undefined;
+  onAppClose?: OnTabClose;
+  onTabClose?: OnTabClose;
   tabType: TabType;
   title: string;
 
@@ -72,7 +73,7 @@ export class AppTabEntity implements AppTab {
 // Represents the main tab of a project group that contains panel layouts
 export class ProjectMainTabEntity implements ProjectMainTab {
   id: string;
-  onTabClose?: OnTabClose | undefined;
+  onTabClose?: OnTabClose;
   panelLayout: ProjectTabLayout;
   tabType: TabType;
   title: string;
@@ -92,11 +93,11 @@ export class ProjectMainTabEntity implements ProjectMainTab {
 
 // Represents additional tabs within a project group with panel layouts
 export class ProjectTabEntity implements ProjectTab {
-  component?: ReactNode | undefined;
+  component?: ReactNode;
   id: string;
-  onProjectClose?: OnProjectClose | undefined;
-  onTabClose?: OnTabClose | undefined;
-  panelLayout?: ProjectTabLayout | undefined;
+  onProjectClose?: OnProjectClose;
+  onTabClose?: OnTabClose;
+  panelLayout?: ProjectTabLayout;
   tabType: TabType;
   title: string;
 
@@ -130,8 +131,8 @@ export class ProjectTabEntity implements ProjectTab {
 export class PanelTabEntity implements PanelTab {
   component: ReactNode;
   id: string;
-  onProjectClose?: OnProjectClose | undefined;
-  onTabClose?: OnTabClose | undefined;
+  onProjectClose?: OnProjectClose;
+  onTabClose?: OnTabClose;
   title: string;
 
   constructor(
@@ -186,10 +187,10 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
       return false;
     }
 
-    const flexData = JSON.parse(JSON.stringify(layout.flexLayoutData));
+    const flexData = structuredClone(layout.flexLayoutData);
 
     // Create new tab definition for FlexLayout JSON
-    const newTab = {
+    const newTab: IJsonTabNode = {
       component: 'panel-tab',
       id: panelTab.id,
       name: panelTab.title,
@@ -216,13 +217,13 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
         }
 
         if (centerTabset.children) {
-          centerTabset.children.push(newTab);
+          (centerTabset.children as IJsonTabNode[]).push(newTab);
           updated = true;
         }
       }
     } else {
       // Add to border panels
-      const locationMap = {
+      const locationMap: Record<number, 'bottom' | 'left' | 'right' | 'top'> = {
         [PanelId.BottomPanel]: 'bottom',
         [PanelId.LeftPanel]: 'left',
         [PanelId.RightPanel]: 'right',
@@ -238,8 +239,8 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
         }
 
         // Find existing border or create new one
-        let border = flexData.borders.find(
-          (b: any) => b.location === targetLocation,
+        let border: IJsonBorderNode | undefined = flexData.borders.find(
+          (b) => b.location === targetLocation,
         );
 
         if (!border) {
@@ -253,7 +254,7 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
                 ? 150
                 : 200,
             type: 'border',
-          };
+          } as IJsonBorderNode;
           flexData.borders.push(border);
         }
 
@@ -874,8 +875,8 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
       const updatedTabGroups = new Map(state.tabGroups);
       updatedTabGroups.delete(appGroupId);
 
-      let newActiveTabGroup: TabGroup | null = null;
       let newActiveTab = state.activeTab;
+      let newActiveTabGroup = state.activeTabGroup;
 
       // If we removed the active app group, switch to another group
       if (state.activeTabGroup?.id === appGroupId) {
@@ -963,7 +964,7 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
     }
 
     // Clone the FlexLayout data to avoid mutations
-    const flexData = JSON.parse(JSON.stringify(layout.flexLayoutData));
+    const flexData = structuredClone(layout.flexLayoutData);
     let updated = false;
 
     // Remove from center panel

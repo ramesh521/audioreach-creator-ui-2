@@ -67,9 +67,10 @@ export function useProjectOpener({
     const flexLayoutConfig = GetFlexLayoutConfig();
 
     // Dynamically import GraphDesigner and create main tab via PanelIntegration
-    const GraphDesigner = (
-      await import('~widgets/graph-designer/ui/graph-designer')
-    ).default;
+    const graphDesignerModule = await import(
+      '~widgets/graph-designer/ui/graph-designer'
+    );
+    const GraphDesigner = graphDesignerModule.default;
 
     const mainTab = PanelIntegration.createProjectMainTab(
       `project_${project.id}`,

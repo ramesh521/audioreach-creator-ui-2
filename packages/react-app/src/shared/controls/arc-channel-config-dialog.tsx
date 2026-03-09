@@ -306,9 +306,9 @@ const ArcChannelConfigDialog: React.FC<ArcChannelConfigDialogProps> = ({
         <div className="popup-body">
           <div className="channel-config-container">
             <div className="channel-config-row">
-              <label className="channel-config-label-config">
+              <div className="channel-config-label-config">
                 Number of channels:
-              </label>
+              </div>
               <div className="channel-config-input-wrapper">
                 <ArcTextInput
                   max={maxChannelCount}

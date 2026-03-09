@@ -38,10 +38,63 @@ import {deepEqual} from '../utils/deep-equality';
 
 import 'flexlayout-react/style/combined.css';
 
-interface ProjectLayoutManagerProps {
-  // Empty props interface - using object type instead of empty interface
-  // to satisfy @typescript-eslint/no-empty-object-type
-}
+type ProjectLayoutManagerProps = Record<string, never>;
+
+// Utility functions for layout operations
+/**
+ * Recursively search for a tab by ID in a layout node tree
+ */
+const searchInLayout = (node: any, tabId: string): string | null => {
+  if (node.id === tabId) {
+    return node.name;
+  }
+  if (node.children) {
+    for (const child of node.children) {
+      const result = searchInLayout(child, tabId);
+      if (result) {
+        return result;
+      }
+    }
+  }
+  return null;
+};
+
+/**
+ * Search for a tab by ID in borders array
+ */
+const searchInBorders = (borders: any[], tabId: string): string | null => {
+  for (const border of borders) {
+    if (border.children) {
+      for (const tab of border.children) {
+        if (tab.id === tabId) {
+          return tab.name;
+        }
+      }
+    }
+  }
+  return null;
+};
+
+/**
+ * Strip 'selected' property from layout object for comparison
+ * This removes ephemeral state that shouldn't trigger layout saves
+ */
+const stripSelected = (object: any): any => {
+  if (object == undefined || typeof object !== 'object') {
+    return object;
+  }
+  if (Array.isArray(object)) {
+    return object.map((item) => stripSelected(item));
+  }
+  const out: any = {};
+  for (const key of Object.keys(object)) {
+    if (key === 'selected') {
+      continue;
+    }
+    out[key] = stripSelected(object[key]);
+  }
+  return out;
+};
 
 interface ProjectLayoutManagerState {
   initialized: boolean;
@@ -195,10 +248,11 @@ class ProjectLayoutManager extends Component<
           // Use group's activeTabId if global activeTab doesn't match
           if (
             project.activeTabId === projectTab.id &&
-            activeTabGroup?.id === project.id
-           && !shouldSelect) {
-              selectedIndex = children.length - 1;
-            }
+            activeTabGroup?.id === project.id &&
+            !shouldSelect
+          ) {
+            selectedIndex = children.length - 1;
+          }
         });
       }
     });
@@ -706,7 +760,6 @@ class ProjectLayoutManager extends Component<
                   this.rebuildModel();
                 },
               );
-            } else {
             }
           },
         },
@@ -901,15 +954,16 @@ export class PanelIntegration {
             const currentRegistry = state.componentRegistry;
             const prevRegistry = prevState?.componentRegistry;
 
-            if ((
-              currentLayout !== prevLayout ||
-              currentRegistry !== prevRegistry
-            ) && this.globalManager) {
-                const newModel = this.globalManager.createFlexLayoutModel(
-                  mainTab.id,
-                );
-                setModel(newModel);
-              }
+            if (
+              (currentLayout !== prevLayout ||
+                currentRegistry !== prevRegistry) &&
+              this.globalManager
+            ) {
+              const newModel = this.globalManager.createFlexLayoutModel(
+                mainTab.id,
+              );
+              setModel(newModel);
+            }
           },
         );
 
@@ -984,51 +1038,19 @@ export class PanelIntegration {
                   try {
                     const layoutData = JSON.parse(layoutJson);
 
-                    // Search in center layout
-                    const searchInLayout = (node: any): string | null => {
-                      if (node.id === tabId) {
-                        return node.name;
-                      }
-                      if (node.children) {
-                        for (const child of node.children) {
-                          const result = searchInLayout(child);
-                          if (result) {
-                            return result;
-                          }
-                        }
-                      }
-                      return null;
-                    };
-
-                    // Search in borders
-                    const searchInBorders = (borders: any[]): string | null => {
-                      for (const border of borders) {
-                        if (border.children) {
-                          for (const tab of border.children) {
-                            if (tab.id === tabId) {
-                              return tab.name;
-                            }
-                          }
-                        }
-                      }
-                      return null;
-                    };
-
                     let foundName = null;
-
                     // Search in layout first
                     if (layoutData.layout) {
-                      foundName = searchInLayout(layoutData.layout);
+                      foundName = searchInLayout(layoutData.layout, tabId);
                     }
 
                     // If not found, search in borders
                     if (!foundName && layoutData.borders) {
-                      foundName = searchInBorders(layoutData.borders);
+                      foundName = searchInBorders(layoutData.borders, tabId);
                     }
 
                     if (foundName) {
                       panelName = foundName;
-                    } else {
                     }
                   } catch (error) {
                     logger.error(`Error parsing layout JSON:${error}`);
@@ -1052,23 +1074,6 @@ export class PanelIntegration {
             // Compare with previously saved layout (ignore ephemeral 'selected' indices)
             const appStore = useProjectLayoutStore.getState();
             const prevStr = appStore.getLayoutConfig(mainTab.id);
-
-            const stripSelected = (obj: any): any => {
-              if (obj == null || typeof obj !== 'object') {
-                return obj;
-              }
-              if (Array.isArray(obj)) {
-                return obj.map(stripSelected);
-              }
-              const out: any = {};
-              for (const key of Object.keys(obj)) {
-                if (key === 'selected') {
-                  continue;
-                }
-                out[key] = stripSelected(obj[key]);
-              }
-              return out;
-            };
 
             try {
               const prev = prevStr ? JSON.parse(prevStr) : null;
@@ -1180,11 +1185,11 @@ export class PanelIntegration {
               );
 
               if (currentLayout !== prevLayout && this.globalManager) {
-                  const newModel = this.globalManager.createFlexLayoutModel(
-                    projectTab.id,
-                  );
-                  setModel(newModel);
-                }
+                const newModel = this.globalManager.createFlexLayoutModel(
+                  projectTab.id,
+                );
+                setModel(newModel);
+              }
             },
           );
 
@@ -1245,48 +1250,16 @@ export class PanelIntegration {
                     try {
                       const layoutData = JSON.parse(layoutJson);
 
-                      // Search in center layout
-                      const searchInLayout = (node: any): string | null => {
-                        if (node.id === tabId) {
-                          return node.name;
-                        }
-                        if (node.children) {
-                          for (const child of node.children) {
-                            const result = searchInLayout(child);
-                            if (result) {
-                              return result;
-                            }
-                          }
-                        }
-                        return null;
-                      };
-
-                      // Search in borders
-                      const searchInBorders = (
-                        borders: any[],
-                      ): string | null => {
-                        for (const border of borders) {
-                          if (border.children) {
-                            for (const tab of border.children) {
-                              if (tab.id === tabId) {
-                                return tab.name;
-                              }
-                            }
-                          }
-                        }
-                        return null;
-                      };
-
                       let foundName = null;
 
                       // Search in layout first
                       if (layoutData.layout) {
-                        foundName = searchInLayout(layoutData.layout);
+                        foundName = searchInLayout(layoutData.layout, tabId);
                       }
 
                       // If not found, search in borders
                       if (!foundName && layoutData.borders) {
-                        foundName = searchInBorders(layoutData.borders);
+                        foundName = searchInBorders(layoutData.borders, tabId);
                       }
 
                       if (foundName) {
@@ -1317,24 +1290,6 @@ export class PanelIntegration {
               // Compare with previously saved layout (ignore ephemeral 'selected' indices)
               const appStore = useProjectLayoutStore.getState();
               const prevStr = appStore.getLayoutConfig(projectTab.id);
-
-              const stripSelected = (obj: any): any => {
-                if (obj == null || typeof obj !== 'object') {
-                  return obj;
-                }
-                if (Array.isArray(obj)) {
-                  return obj.map(stripSelected);
-                }
-                const out: any = {};
-                for (const key of Object.keys(obj)) {
-                  if (key === 'selected') {
-                    continue;
-                  }
-                  out[key] = stripSelected(obj[key]);
-                }
-                return out;
-              };
-
               try {
                 const prev = prevStr ? JSON.parse(prevStr) : null;
                 const normalizedNew = stripSelected(layoutJson);

@@ -58,6 +58,7 @@ function backoffDelay(
 ): number {
   const exp = Math.min(attempt + 1, 8); // cap exponent
   const raw = baseMs * Math.pow(2, exp);
+  // eslint-disable-next-line sonarjs/pseudo-random
   const jitter = Math.floor(Math.random() * jitterMs);
   return raw + jitter;
 }
@@ -166,6 +167,7 @@ export class HttpClient {
     endpoint: string,
     options: RequestOptions,
   ): Promise<ApiResult<T>> {
+    // eslint-disable-next-line sonarjs/slow-regex
     const baseRoot = this.baseUrl.replace(/\/v\d+\/?$/, '').replace(/\/+$/, '');
     const chosenVersion = options.apiVersion ?? this.apiVersion;
     const ep = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;

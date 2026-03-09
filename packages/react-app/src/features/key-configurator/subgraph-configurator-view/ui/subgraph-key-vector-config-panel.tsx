@@ -456,12 +456,12 @@ export function SubgraphKeyVectorConfigPanel({
           borderColor: 'var(--color-border-neutral-02)',
         }}
       >
-        <label
+        <h3
           className="mb-2 block text-sm font-medium"
           style={{color: 'var(--color-text-neutral-primary)'}}
         >
           Subgraph Key Vector
-        </label>
+        </h3>
         <div className="flex items-center gap-2">
           <div
             className="min-h-[40px] flex-1 whitespace-pre-line rounded border p-3 text-left text-sm"

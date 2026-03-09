@@ -48,7 +48,7 @@ const UsecaseListPanel: React.FC<UsecaseListPanelProps> = ({
         style={{borderBottom: '1px solid var(--color-border-neutral-02)'}}
       >
         <div className="flex items-center justify-between">
-          <label
+          <div
             className="flex cursor-pointer items-center text-sm"
             style={{color: 'var(--color-text-neutral-primary)'}}
           >
@@ -63,7 +63,7 @@ const UsecaseListPanel: React.FC<UsecaseListPanelProps> = ({
               size="sm"
             />
             <span className="ml-2">Select All</span>
-          </label>
+          </div>
           <div className="flex items-center space-x-1">
             <IconButton
               aria-label="Expand All"

@@ -53,7 +53,7 @@ function nodeIdToNumber(nodeId: string): number {
   // Generate a numeric hash from the string
   let hash = 0;
   for (let i = 0; i < nodeId.length; i++) {
-    const char = nodeId.charCodeAt(i);
+    const char = nodeId.codePointAt(i) || 0;
     hash = (hash << 5) - hash + char;
     hash = hash & hash; // Convert to 32-bit integer
   }
@@ -141,7 +141,7 @@ export function mapNodeToConfigItem(node: RFNode): ConfigurationItem | null {
  */
 export function mapNodesToConfigItems(nodes: RFNode[]): ConfigurationItem[] {
   return nodes
-    .map(mapNodeToConfigItem)
+    .map((node) => mapNodeToConfigItem(node))
     .filter((item): item is ConfigurationItem => item !== null);
 }
 
@@ -162,5 +162,5 @@ export function configItemIdToNodeId(configItemId: number): string {
  * Convert multiple ConfigurationItem IDs to node IDs
  */
 export function configItemIdsToNodeIds(configItemIds: number[]): string[] {
-  return configItemIds.map(configItemIdToNodeId);
+  return configItemIds.map((node) => configItemIdToNodeId(node));
 }
