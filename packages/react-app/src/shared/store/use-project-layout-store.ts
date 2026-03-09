@@ -579,9 +579,9 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
         updatedTabGroups.set(Id, newProjectGroup);
 
         // Update tabGroups map with collapsed app groups
-        updatedAppGroups.forEach((appGroup) => {
+        for (const appGroup of updatedAppGroups) {
           updatedTabGroups.set(appGroup.id, appGroup);
-        });
+        }
 
         const newState = {
           activeTab: mainTab, // Set the main tab as the active tab
@@ -720,13 +720,13 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
 
       // Create new map with updated collapse states
       const finalTabGroups = new Map<string, TabGroup>();
-      updatedTabGroups.forEach((tabGroup, key) => {
+      for (const [key, tabGroup] of updatedTabGroups.entries()) {
         if (tabGroup.id === groupId) {
           finalTabGroups.set(key, {...tabGroup, isCollapsed: false});
         } else {
           finalTabGroups.set(key, {...tabGroup, isCollapsed: true});
         }
-      });
+      }
 
       const newState = {
         activeTab: newActiveTab, // Set appropriate active tab
@@ -816,18 +816,17 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
       [];
 
     // Always show app tabs (all tabs in the array)
-    state.appGroups.forEach((appGroup) => {
+    for (const appGroup of state.appGroups) {
       visibleTabs.push(...appGroup.appTabs);
-    });
+    }
     // Show project tabs based on collapse state
-    state.projectGroups.forEach((projectGroup) => {
+    for (const projectGroup of state.projectGroups) {
       if (projectGroup.isCollapsed) {
         visibleTabs.push(projectGroup);
       } else {
-        visibleTabs.push(projectGroup.mainTab);
-        visibleTabs.push(...projectGroup.projectTabs);
+        visibleTabs.push(projectGroup.mainTab, ...projectGroup.projectTabs);
       }
-    });
+    }
 
     return visibleTabs;
   },
@@ -1081,18 +1080,18 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
       newLayouts.delete(projectToRemove.mainTab.id);
 
       // Remove project tab layouts and their components
-      projectToRemove.projectTabs.forEach((tab) => {
+      for (const tab of projectToRemove.projectTabs) {
         const layout = newLayouts.get(tab.id);
         if (layout?.flexLayoutData) {
           // Find and remove all panel components
           const panelIds = extractPanelIds(layout.flexLayoutData);
-          panelIds.forEach((panelId) => {
+          for (const panelId of panelIds) {
             newComponentRegistry.delete(panelId);
             newPanelTabRegistry.delete(panelId);
-          });
+          }
         }
         newLayouts.delete(tab.id);
-      });
+      }
 
       let updatedProjectGroups = state.projectGroups.filter((projectGroup) => {
         if (projectGroup.id === projectGroupId) {
@@ -1238,7 +1237,7 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
       }
 
       // Call onProjectClose for each panel tab
-      panelTabIds.forEach((panelTabId) => {
+      for (const panelTabId of panelTabIds) {
         const panelTab = state.panelTabRegistry.get(panelTabId);
         if (panelTab && panelTab.onProjectClose) {
           // This is a dynamic panel with registered callback
@@ -1285,7 +1284,7 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
             projectTab.onProjectClose(panelTabId, panelName);
           }
         }
-      });
+      }
     }
 
     set((state) => ({

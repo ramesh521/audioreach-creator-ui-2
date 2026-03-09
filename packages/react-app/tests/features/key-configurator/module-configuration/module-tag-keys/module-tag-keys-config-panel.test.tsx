@@ -178,7 +178,7 @@ jest.mock('~shared/utils/converter-utils', () => ({
   ConvertNumberToHexString: (num: number) =>
     `0x${num.toString(16).toUpperCase()}`,
   ConvertStringToNumber: (str: string) => {
-    const num = parseInt(str, 16);
+    const num = Number.parseInt(str, 16);
     return isNaN(num) ? null : num;
   },
 }));
@@ -186,10 +186,10 @@ jest.mock('~shared/utils/converter-utils', () => ({
 describe('ModuleTagKeysConfigPanel', () => {
   const mockTagGroups = {
     'Tag 1': {
-      id: 123456,
+      id: 123_456,
       keys: {
         Instance: {
-          id: 0xab000000,
+          id: 0xab_00_00_00,
           name: 'Instance',
           values: [
             {id: 1, name: 'Instance_1'},
@@ -197,11 +197,11 @@ describe('ModuleTagKeysConfigPanel', () => {
           ],
         },
         StreamRX: {
-          id: 0xa1000000,
+          id: 0xa1_00_00_00,
           name: 'StreamRX',
           values: [
-            {id: 0xa1000001, name: 'PCM_Deep_Buffer'},
-            {id: 0xa1000013, name: 'Incall_Music'},
+            {id: 0xa1_00_00_01, name: 'PCM_Deep_Buffer'},
+            {id: 0xa1_00_00_13, name: 'Incall_Music'},
           ],
         },
       },
@@ -211,7 +211,7 @@ describe('ModuleTagKeysConfigPanel', () => {
       id: 2346,
       keys: {
         Volume: {
-          id: 0xa4000000,
+          id: 0xa4_00_00_00,
           name: 'Volume',
           values: [
             {id: 0, name: 'Level_0'},
@@ -224,14 +224,14 @@ describe('ModuleTagKeysConfigPanel', () => {
   };
 
   const mockParameters = [
-    {checked: false, name: 'PARAM_ID_MODULE_TAG_1', pid: 0x8001020},
-    {checked: false, name: 'PARAM_ID_MODULE_TAG_2', pid: 0x8001021},
+    {checked: false, name: 'PARAM_ID_MODULE_TAG_1', pid: 0x8_00_10_20},
+    {checked: false, name: 'PARAM_ID_MODULE_TAG_2', pid: 0x8_00_10_21},
   ];
 
   const mockConfiguredTKVs = [
     {
       keyValuePairs: [{key: 'Instance', value: 'Instance_1'}],
-      pidConfig: [0x8001020],
+      pidConfig: [0x8_00_10_20],
       tagGroup: 'Tag 1',
     },
   ];
@@ -400,14 +400,14 @@ describe('ModuleTagKeysConfigPanel', () => {
   });
 
   it('shows alert when no tag group is selected on Apply', () => {
-    window.alert = jest.fn();
+    globalThis.alert = jest.fn();
 
     render(<ModuleTagKeysConfigPanel instanceId={1} isEditable moduleId={1} />);
 
     fireEvent.click(screen.getByText('Add'));
     fireEvent.click(screen.getByText('Apply'));
 
-    expect(window.alert).toHaveBeenCalledWith('Please select a tag group');
+    expect(globalThis.alert).toHaveBeenCalledWith('Please select a tag group');
   });
 
   it('edits existing TKV configuration', () => {
@@ -443,14 +443,14 @@ describe('ModuleTagKeysConfigPanel', () => {
   });
 
   it('cancels without confirmation when no selections exist', () => {
-    window.confirm = jest.fn();
+    globalThis.confirm = jest.fn();
 
     render(<ModuleTagKeysConfigPanel instanceId={1} isEditable moduleId={1} />);
 
     fireEvent.click(screen.getByText('Add'));
     fireEvent.click(screen.getByText('Cancel'));
 
-    expect(window.confirm).not.toHaveBeenCalled();
+    expect(globalThis.confirm).not.toHaveBeenCalled();
     expect(
       screen.queryByPlaceholderText('Search module tag keys or values...'),
     ).not.toBeInTheDocument();

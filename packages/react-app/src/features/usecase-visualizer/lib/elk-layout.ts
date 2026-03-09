@@ -108,13 +108,13 @@ async function layoutModulesInContainers(
 ): Promise<void> {
   // Group modules by container
   const modulesByContainer = new Map<string, Node<RFModuleNodeData>[]>();
-  moduleNodes.forEach((n) => {
+  for (const n of moduleNodes) {
     const parent = n.parentId || 'none';
     if (!modulesByContainer.has(parent)) {
       modulesByContainer.set(parent, []);
     }
     modulesByContainer.get(parent)!.push(n);
-  });
+  }
 
   // Layout modules within each container using elkjs
   for (const [containerId, modules] of modulesByContainer.entries()) {
@@ -153,7 +153,7 @@ async function layoutModulesInContainers(
 
       // Apply positions
       if (layouted.children) {
-        layouted.children.forEach((elkNode) => {
+        for (const elkNode of layouted.children) {
           const module = modules.find((m) => m.id === elkNode.id);
           if (module) {
             module.position = {
@@ -161,7 +161,7 @@ async function layoutModulesInContainers(
               y: elkNode.y || 0,
             };
           }
-        });
+        }
       }
 
       // Calculate container size based on module positions
@@ -180,9 +180,9 @@ async function layoutModulesInContainers(
         `Failed to layout container ${containerId}: ${String(error)}`,
       );
       // Fallback positioning
-      modules.forEach((m, i) => {
+      for (const [i, m] of modules.entries()) {
         m.position = {x: 15 + i * 125, y: 40};
-      });
+      }
       const container = containerNodes.find((c) => c.id === containerId);
       if (container) {
         container.style = {
@@ -201,27 +201,27 @@ function layoutContainersInSubgraphs(
 ): void {
   // Group containers by subgraph
   const containersBySubgraph = new Map<string, Node<RFContainerNodeData>[]>();
-  containerNodes.forEach((n) => {
+  for (const n of containerNodes) {
     const parent = n.parentId || 'none';
     if (!containersBySubgraph.has(parent)) {
       containersBySubgraph.set(parent, []);
     }
     containersBySubgraph.get(parent)!.push(n);
-  });
+  }
 
   // Position containers within subgraphs and calculate subgraph sizes
-  containersBySubgraph.forEach((containers, subgraphId) => {
+  for (const [subgraphId, containers] of containersBySubgraph.entries()) {
     let xOffset = PADDING;
     let maxHeight = 0;
 
-    containers.forEach((c) => {
+    for (const c of containers) {
       c.position = {x: xOffset, y: PADDING + SUBGRAPH_HEADER};
       const cWidth = typeof c.style?.width === 'number' ? c.style.width : 400;
       const cHeight =
         typeof c.style?.height === 'number' ? c.style.height : 150;
       xOffset += cWidth + 10;
       maxHeight = Math.max(maxHeight, cHeight);
-    });
+    }
 
     // Set subgraph size
     const subgraph = subgraphNodes.find((s) => s.id === subgraphId);
@@ -232,7 +232,7 @@ function layoutContainersInSubgraphs(
         width: xOffset + PADDING - 20,
       };
     }
-  });
+  }
 }
 
 /**
@@ -248,17 +248,17 @@ function findConnectedComponents(
 
   // Build bidirectional graph for undirected connectivity
   const bidirectionalGraph = new Map<string, Set<string>>();
-  subgraphIds.forEach((id) => {
+  for (const id of subgraphIds) {
     bidirectionalGraph.set(id, new Set());
-  });
+  }
 
   // Add forward edges
-  connections.forEach((targets, source) => {
-    targets.forEach((target) => {
+  for (const [source, targets] of connections.entries()) {
+    for (const target of targets) {
       bidirectionalGraph.get(source)?.add(target);
       bidirectionalGraph.get(target)?.add(source);
-    });
-  });
+    }
+  }
 
   // DFS to find connected components
   function dfs(nodeId: string, component: string[]) {
@@ -266,21 +266,21 @@ function findConnectedComponents(
     component.push(nodeId);
 
     const neighbors = bidirectionalGraph.get(nodeId) || new Set();
-    neighbors.forEach((neighbor) => {
+    for (const neighbor of neighbors) {
       if (!visited.has(neighbor)) {
         dfs(neighbor, component);
       }
-    });
+    }
   }
 
   // Find all connected components
-  subgraphIds.forEach((id) => {
+  for (const id of subgraphIds) {
     if (!visited.has(id)) {
       const component: string[] = [];
       dfs(id, component);
       pipelines.push(component);
     }
-  });
+  }
 
   return pipelines;
 }
@@ -298,21 +298,21 @@ async function layoutSubgraphsWithELK(
   const subgraphIdMap = new Map<number, string>(); // numeric ID to full ID
 
   // Build mapping of numeric subgraph IDs to full node IDs
-  subgraphNodes.forEach((sg) => {
+  for (const sg of subgraphNodes) {
     const match = /subgraph-(\d+)/.exec(sg.id);
     if (match) {
-      const numericId = parseInt(match[1], 10);
+      const numericId = Number.parseInt(match[1], 10);
       subgraphIdMap.set(numericId, sg.id);
     }
-  });
+  }
 
   // Map module connections to subgraph connections
-  dataEdges.forEach((edge) => {
+  for (const edge of dataEdges) {
     const sourceModule = moduleNodes.find((n) => n.id === edge.source);
     const targetModule = moduleNodes.find((n) => n.id === edge.target);
 
     if (!sourceModule || !targetModule) {
-      return;
+      continue;
     }
 
     const sourceSubgraphId = sourceModule.data.subgraphId;
@@ -333,7 +333,7 @@ async function layoutSubgraphsWithELK(
         subgraphConnections.get(sourceFullId)!.add(targetFullId);
       }
     }
-  });
+  }
 
   logger.debug(
     `[ELK-LAYOUT] Found ${subgraphConnections.size} subgraph connections`,
@@ -347,11 +347,11 @@ async function layoutSubgraphsWithELK(
   );
 
   logger.debug(`[ELK-LAYOUT] Found ${pipelines.length} separate pipelines`);
-  pipelines.forEach((pipeline, idx) => {
+  for (const [idx, pipeline] of pipelines.entries()) {
     logger.debug(
       `[ELK-LAYOUT] Pipeline ${idx + 1}: ${pipeline.length} subgraphs`,
     );
-  });
+  }
 
   // Layout each pipeline independently
   const pipelineLayouts: Array<{
@@ -376,9 +376,9 @@ async function layoutSubgraphsWithELK(
     // Create ELK edges for this pipeline
     const elkEdges: ElkEdge[] = [];
     let edgeIndex = 0;
-    subgraphConnections.forEach((targets, source) => {
+    for (const [source, targets] of subgraphConnections.entries()) {
       if (pipeline.includes(source)) {
-        targets.forEach((target) => {
+        for (const target of targets) {
           if (pipeline.includes(target)) {
             elkEdges.push({
               id: `edge-${edgeIndex++}`,
@@ -386,9 +386,9 @@ async function layoutSubgraphsWithELK(
               targets: [target],
             });
           }
-        });
+        }
       }
-    });
+    }
 
     // Layout this pipeline horizontally
     const elkGraph: ElkGraph = {
@@ -410,12 +410,12 @@ async function layoutSubgraphsWithELK(
       // Store layout results
       const nodePositions = new Map<string, {x: number; y: number}>();
       if (layouted.children) {
-        layouted.children.forEach((elkNode) => {
+        for (const elkNode of layouted.children) {
           nodePositions.set(elkNode.id, {
             x: elkNode.x || 0,
             y: elkNode.y || 0,
           });
-        });
+        }
       }
 
       pipelineLayouts.push({
@@ -427,9 +427,9 @@ async function layoutSubgraphsWithELK(
       logger.error(`Failed to layout pipeline: ${String(error)}`);
       // Fallback: simple horizontal layout
       const nodePositions = new Map<string, {x: number; y: number}>();
-      pipelineNodes.forEach((sg, i) => {
+      for (const [i, sg] of pipelineNodes.entries()) {
         nodePositions.set(sg.id, {x: 50 + i * 850, y: 50});
-      });
+      }
       pipelineLayouts.push({
         height: 500,
         nodes: nodePositions,
@@ -442,7 +442,7 @@ async function layoutSubgraphsWithELK(
   const VERTICAL_SPACING = 0; // ELK's natural padding provides sufficient spacing
   let currentY = 0;
 
-  pipelines.forEach((pipeline, pipelineIdx) => {
+  for (const [pipelineIdx, pipeline] of pipelines.entries()) {
     const layout = pipelineLayouts[pipelineIdx];
 
     // Group nodes by similar Y coordinates for alignment
@@ -453,16 +453,16 @@ async function layoutSubgraphsWithELK(
     const tolerance = 50;
 
     // Group nodes with similar Y coordinates
-    nodes.forEach(([nodeId, position]) => {
+    for (const [nodeId, position] of nodes) {
       if (processed.has(nodeId)) {
-        return;
+        continue;
       }
 
       const group = [nodeId];
       processed.add(nodeId);
 
       // Find other nodes with similar Y coordinates
-      nodes.forEach(([otherId, otherPos]) => {
+      for (const [otherId, otherPos] of nodes) {
         if (
           !processed.has(otherId) &&
           Math.abs(position.y - otherPos.y) <= tolerance
@@ -470,14 +470,14 @@ async function layoutSubgraphsWithELK(
           group.push(otherId);
           processed.add(otherId);
         }
-      });
+      }
 
       groups.push(group);
-    });
+    }
 
     // Calculate aligned Y for each group and apply positions
     const groupAlignments = new Map<string, number>();
-    groups.forEach((group, groupIdx) => {
+    for (const [groupIdx, group] of groups.entries()) {
       let sum = 0;
       for (const nodeId of group) {
         const pos = nodePositions.get(nodeId);
@@ -489,13 +489,13 @@ async function layoutSubgraphsWithELK(
         `[ELK-LAYOUT] Group ${groupIdx + 1}: ${group.length} nodes, avgY: ${avgY}, nodes: [${group.join(', ')}]`,
       );
 
-      group.forEach((nodeId) => {
+      for (const nodeId of group) {
         groupAlignments.set(nodeId, avgY);
-      });
-    });
+      }
+    }
 
     // Apply aligned positions
-    pipeline.forEach((subgraphId) => {
+    for (const subgraphId of pipeline) {
       const subgraph = subgraphNodes.find((sg) => sg.id === subgraphId);
       const position = layout.nodes.get(subgraphId);
       const alignedY = groupAlignments.get(subgraphId);
@@ -509,14 +509,14 @@ async function layoutSubgraphsWithELK(
           `[ELK-LAYOUT] Aligned ${subgraphId} at (${subgraph.position.x}, ${subgraph.position.y}) [original Y: ${position.y}, aligned Y: ${alignedY}]`,
         );
       }
-    });
+    }
 
     // Move to next vertical position
     currentY += layout.height + VERTICAL_SPACING;
-  });
+  }
 
   // Position subsystems based on their child subgraphs
-  subsystemNodes.forEach((subsystem) => {
+  for (const subsystem of subsystemNodes) {
     const childSubgraphs = subgraphNodes.filter(
       (sg) => sg.parentId === subsystem.id,
     );
@@ -547,16 +547,16 @@ async function layoutSubgraphsWithELK(
       };
 
       // Adjust child positions to be relative to subsystem
-      childSubgraphs.forEach((sg) => {
+      for (const sg of childSubgraphs) {
         sg.position = {
           x: sg.position.x - minX,
           y: sg.position.y - minY,
         };
-      });
+      }
 
       logger.debug(
         `[ELK-LAYOUT] Positioned subsystem ${subsystem.id} at (${subsystem.position.x}, ${subsystem.position.y})`,
       );
     }
-  });
+  }
 }

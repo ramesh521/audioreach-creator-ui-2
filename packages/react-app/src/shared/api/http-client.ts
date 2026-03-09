@@ -80,7 +80,7 @@ export class HttpClient {
 
   constructor(config: HttpClientConfig = {}) {
     this.baseUrl = config.baseUrl ?? getBackendBaseUrl();
-    this.timeoutMs = config.timeoutMs ?? 30000; // 30s default
+    this.timeoutMs = config.timeoutMs ?? 30_000; // 30s default
     this.maxRetries = config.maxRetries ?? 3;
     this.retryBaseDelayMs = config.retryBaseDelayMs ?? 500;
     this.retryJitterMs = config.retryJitterMs ?? 250;
@@ -127,7 +127,7 @@ export class HttpClient {
       body,
       headers: {
         'Content-Type': 'application/json',
-        ...(overrides?.headers ?? {}),
+        ...overrides?.headers,
       },
       method: 'PATCH',
       retries: overrides?.retries,
@@ -145,10 +145,10 @@ export class HttpClient {
     // Don't set Content-Type for FormData - browser will set it with boundary
     const isFormData = body instanceof FormData;
     const headers = isFormData
-      ? {...(overrides?.headers ?? {})}
+      ? {...overrides?.headers}
       : {
           'Content-Type': 'application/json',
-          ...(overrides?.headers ?? {}),
+          ...overrides?.headers,
         };
 
     return this.request<T>(endpoint, {

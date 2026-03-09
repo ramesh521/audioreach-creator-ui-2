@@ -126,9 +126,9 @@ export async function ensureRegistered(): Promise<boolean> {
         .incrementFail(result.message || 'Registration failed');
       useBackendConnectionStore.getState().markUnavailable(result.message);
       return false;
-    } catch (e) {
+    } catch (error) {
       // Network/timeout error propagated by httpClient
-      const message = e instanceof Error ? e.message : String(e);
+      const message = error instanceof Error ? error.message : String(error);
       logger.error('Exception during registration', {
         action: 'register_exception',
         component: 'RegisterClient',

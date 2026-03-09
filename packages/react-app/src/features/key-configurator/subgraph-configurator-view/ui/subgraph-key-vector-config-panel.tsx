@@ -229,9 +229,9 @@ export function SubgraphKeyVectorConfigPanel({
     // Load configured keys into selection state
     const keys = new Set(configuredKeyValues.map((kv) => kv.keyInfo.id));
     const values: Record<number, number> = {};
-    configuredKeyValues.forEach((kv) => {
+    for (const kv of configuredKeyValues) {
       values[kv.keyInfo.id] = kv.valueInfo.id;
-    });
+    }
 
     setSelectedKeys(keys);
     setSelectedValues(values);
@@ -250,7 +250,7 @@ export function SubgraphKeyVectorConfigPanel({
   };
 
   const handleDeleteClick = () => {
-    if (window.confirm('Are you sure you want to delete this configuration?')) {
+    if (globalThis.confirm('Are you sure you want to delete this configuration?')) {
       updateConfiguredKeyValues(subgraphId, []);
       // Clear selections if in edit mode
       if (showKeysList) {
@@ -348,7 +348,7 @@ export function SubgraphKeyVectorConfigPanel({
     // Build configuration from selected keys and values
     const newConfigs: ConfiguredSubgraphKeyValue[] = [];
 
-    selectedKeys.forEach((keyId) => {
+    for (const keyId of selectedKeys) {
       const valueId = selectedValues[keyId];
       if (valueId !== undefined) {
         // Find the key by ID
@@ -366,7 +366,7 @@ export function SubgraphKeyVectorConfigPanel({
           }
         }
       }
-    });
+    }
 
     if (newConfigs.length === 0) {
       alert('Please select at least one key-value pair.');
@@ -379,9 +379,9 @@ export function SubgraphKeyVectorConfigPanel({
     }
 
     // Add new configurations using the store's addConfiguredKey method
-    newConfigs.forEach((config) => {
+    for (const config of newConfigs) {
       addConfiguredKey(subgraphId, config);
-    });
+    }
 
     setShowKeysList(false);
     setIsEditing(false);
@@ -703,7 +703,7 @@ export function SubgraphKeyVectorConfigPanel({
                           if (target.value) {
                             handleValueSelect(
                               key.id,
-                              parseInt(target.value, 10),
+                              Number.parseInt(target.value, 10),
                             );
                           }
                         }}

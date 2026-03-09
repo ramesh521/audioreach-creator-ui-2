@@ -169,9 +169,9 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
             error: errorMsg,
           });
         }
-      } catch (err) {
+      } catch (error_) {
         const errorMsg =
-          err instanceof Error ? err.message : 'Unknown error occurred';
+          error_ instanceof Error ? error_.message : 'Unknown error occurred';
         setError(errorMsg);
         logger.error('Error fetching usecase components', {
           action: 'fetch_graph_data',

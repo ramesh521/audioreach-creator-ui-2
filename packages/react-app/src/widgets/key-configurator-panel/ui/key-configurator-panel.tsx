@@ -17,7 +17,6 @@ import {
   type ConfigurationItem,
   ConfigurationItemType,
   ConfiguratorPanel,
-  ConfiguratorUtils,
 } from '~widgets/configurator-panel';
 
 export const KeyConfiguratorPanel: React.FC = () => {
@@ -39,7 +38,7 @@ export const KeyConfiguratorPanel: React.FC = () => {
     }
 
     // Initialize configuration for each selected item
-    selectedItems.forEach((item) => {
+    for (const item of selectedItems) {
       const context = mapItemToConfigurationContext(item);
       if (context) {
         initializeConfiguration(context);
@@ -48,7 +47,7 @@ export const KeyConfiguratorPanel: React.FC = () => {
           component: 'KeyConfiguratorPanel',
         });
       }
-    });
+    }
   }, [selectedItems, projectId, initializeConfiguration]);
 
   // Helper function to map ConfigurationItem to ConfigurationContext
@@ -65,12 +64,6 @@ export const KeyConfiguratorPanel: React.FC = () => {
         };
 
       case ConfigurationItemType.SUBGRAPH:
-        return {
-          entityId: item.id,
-          entityType: item.type,
-          systemId: item.systemId,
-        };
-
       case ConfigurationItemType.SUBSYSTEM:
         return {
           entityId: item.id,
@@ -194,4 +187,5 @@ export const KeyConfiguratorPanel: React.FC = () => {
 };
 
 // Re-export utilities for convenience
-export {ConfiguratorUtils};
+
+export {ConfiguratorUtils} from '~widgets/configurator-panel';

@@ -16,11 +16,11 @@ export function ConvertStringToNumber(searchTerm: string): number | null {
 
   // explicit hex prefix
   if (/^0x[0-9a-f]+$/.test(strToLower)) {
-    result = parseInt(strToLower, 16);
+    result = Number.parseInt(strToLower, 16);
   }
   // digits only -> decimal
   else if (/^\d+$/.test(strToLower)) {
-    result = parseInt(strToLower, 10);
+    result = Number.parseInt(strToLower, 10);
   } else {
     return null;
   }

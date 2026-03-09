@@ -89,19 +89,19 @@ jest.mock('~shared/utils/converter-utils', () => ({
   ConvertNumberToHexString: (num: number) =>
     `0x${num.toString(16).toUpperCase()}`,
   ConvertStringToNumber: (str: string) => {
-    const num = parseInt(str, 16);
+    const num = Number.parseInt(str, 16);
     return isNaN(num) ? null : num;
   },
 }));
 
 describe('SubsystemConfigPanel', () => {
   const mockAvailableKeys = [
-    {id: 0xa1000000, name: 'StreamRx'},
-    {id: 0xb1000000, name: 'StreamTx'},
-    {id: 0xa2000000, name: 'DeviceRx'},
+    {id: 0xa1_00_00_00, name: 'StreamRx'},
+    {id: 0xb1_00_00_00, name: 'StreamTx'},
+    {id: 0xa2_00_00_00, name: 'DeviceRx'},
   ];
 
-  const mockConfiguredKeys = [{id: 0xa1000000, name: 'StreamRx'}];
+  const mockConfiguredKeys = [{id: 0xa1_00_00_00, name: 'StreamRx'}];
 
   const mockStoreState = {
     addConfiguredKey: jest.fn(),
@@ -269,7 +269,7 @@ describe('SubsystemConfigPanel', () => {
 
     // Should call addConfiguredKey for StreamTx
     expect(mockStoreState.addConfiguredKey).toHaveBeenCalledWith(1, {
-      id: 0xb1000000,
+      id: 0xb1_00_00_00,
       name: 'StreamTx',
     });
 
@@ -293,7 +293,7 @@ describe('SubsystemConfigPanel', () => {
 
     // Should not call addConfiguredKey for StreamRx since it's already configured
     expect(mockStoreState.addConfiguredKey).not.toHaveBeenCalledWith(1, {
-      id: 0xa1000000,
+      id: 0xa1_00_00_00,
       name: 'StreamRx',
     });
   });
@@ -309,7 +309,7 @@ describe('SubsystemConfigPanel', () => {
     fireEvent.click(streamTxCheckbox);
 
     // Mock window.confirm to return true
-    window.confirm = jest.fn(() => true);
+    globalThis.confirm = jest.fn(() => true);
 
     // Click Cancel
     const cancelButton = screen.getByText('Cancel');
@@ -377,12 +377,12 @@ describe('SubsystemConfigPanel', () => {
     render(<SubsystemConfigPanel isEditable subsystemId={1} />);
 
     // Click delete button for StreamRx
-    const deleteButton = screen.getByText(`Delete ${0xa1000000}`);
+    const deleteButton = screen.getByText(`Delete ${0xa1_00_00_00}`);
     fireEvent.click(deleteButton);
 
     expect(mockStoreState.removeConfiguredKey).toHaveBeenCalledWith(
       1,
-      0xa1000000,
+      0xa1_00_00_00,
     );
   });
 

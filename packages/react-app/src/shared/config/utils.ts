@@ -107,7 +107,7 @@ export function setConfigData(
 ): void {
   let presentData = rootKey ? jsonData[rootKey] : jsonData;
   const pathArray = path.split('.');
-  pathArray.forEach((currentElement, index) => {
+  for (const [index, currentElement] of pathArray.entries()) {
     if (index === pathArray.length - 1) {
       // Set the value at the final path element
       presentData[currentElement] = newValue;
@@ -122,5 +122,5 @@ export function setConfigData(
       }
       presentData = presentData[currentElement];
     }
-  });
+  }
 }

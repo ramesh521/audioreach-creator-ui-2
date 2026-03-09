@@ -287,9 +287,9 @@ const FlowContent: FC<UsecaseVisualizerProps> = ({
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
+    globalThis.addEventListener('keydown', handleKeyDown);
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      globalThis.removeEventListener('keydown', handleKeyDown);
     };
   }, [clearSelection, clearKeyConfiguratorSelection, projectId]);
 

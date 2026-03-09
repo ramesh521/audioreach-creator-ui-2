@@ -76,12 +76,12 @@ export default function UnifiedListView({
         return dateB - dateA;
       });
 
-      sortedProjects.forEach((p) => combined.push({data: p, type: 'project'}));
+      for (const p of sortedProjects) combined.push({data: p, type: 'project'});
     }
 
     // Add devices (as-is, after projects)
     if (showDevices) {
-      devices.forEach((d) => combined.push({data: d, type: 'device'}));
+      for (const d of devices) combined.push({data: d, type: 'device'});
     }
 
     return combined;

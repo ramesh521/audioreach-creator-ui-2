@@ -86,7 +86,7 @@ jest.mock('~shared/controls/arc-combobox', () => {
 
     // Combine style with minWidth
     const style = {
-      ...(originalStyle || {}),
+      ...originalStyle,
       minWidth: minWidth || (fullWidth ? undefined : '200px'),
       width: fullWidth ? '100%' : undefined,
     };

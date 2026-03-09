@@ -141,7 +141,7 @@ class ProjectLayoutManager extends Component<
     const activeTabGroup = freshStore.activeTabGroup;
 
     // Add App Group tabs (if any)
-    freshStore.appGroups.forEach((appGroup) => {
+    for (const appGroup of freshStore.appGroups) {
       const colorNumber = appGroup.colorId; // Use stored colorId for App Groups
 
       // Always add app group label (whether collapsed or not)
@@ -160,7 +160,7 @@ class ProjectLayoutManager extends Component<
       // Only add app tabs if not collapsed
       if (!appGroup.isCollapsed) {
         // Add all app tabs from the array
-        appGroup.appTabs.forEach((appTab) => {
+        for (const appTab of appGroup.appTabs) {
           children.push({
             className: `border-t-2 border-${getColorName(colorNumber)}`,
             component: 'app-tab',
@@ -175,12 +175,12 @@ class ProjectLayoutManager extends Component<
           if (activeTab && activeTab.id === appTab.id) {
             selectedIndex = children.length - 1;
           }
-        });
+        }
       }
-    });
+    }
 
     // Add Project Groups using fresh store
-    freshStore.projectGroups.forEach((project, _index) => {
+    for (const [_index, project] of freshStore.projectGroups.entries()) {
       const colorNumber = project.colorId; // Use stored colorId
 
       // Add project group label
@@ -222,7 +222,7 @@ class ProjectLayoutManager extends Component<
         }
 
         // Add project tabs
-        project.projectTabs.forEach((projectTab, _tabIndex) => {
+        for (const [_tabIndex, projectTab] of project.projectTabs.entries()) {
           // This converts each project tab from  store into FlexLayout tab format
           const tabDef = {
             className: `border-t-2 border-${getColorName(colorNumber)}`,
@@ -253,9 +253,9 @@ class ProjectLayoutManager extends Component<
           ) {
             selectedIndex = children.length - 1;
           }
-        });
+        }
       }
-    });
+    }
 
     // Return complete FlexLayout JSON structure
     // recreates the FlexLayout configuration structure that tells FlexLayout how to display tabs like horizontal
@@ -624,14 +624,14 @@ class ProjectLayoutManager extends Component<
           }
 
           // Notify all project tabs before group destruction
-          project.projectTabs.forEach((projectTab) => {
+          for (const projectTab of project.projectTabs) {
             if (
               'onProjectClose' in projectTab &&
               typeof projectTab.onProjectClose === 'function'
             ) {
               projectTab.onProjectClose(projectTab.id, projectTab.title);
             }
-          });
+          }
 
           // Proceed with group destruction
           PanelIntegration.cleanupProjectPanels(project.id);
@@ -798,8 +798,7 @@ class ProjectLayoutManager extends Component<
 
         if (selectedNode && selectedNode.getComponent() === 'group-label') {
           // Find the first actual tab (not group label) to select instead
-          for (let i = 0; i < children.length; i++) {
-            const child = children[i];
+          for (const [i, child] of children.entries()) {
             if (child.getComponent() !== 'group-label') {
               node.setSelected(i);
               break;

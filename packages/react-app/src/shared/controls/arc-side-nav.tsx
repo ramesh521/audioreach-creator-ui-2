@@ -25,12 +25,12 @@ export function ArcSideNav() {
     const groups: string[] = [];
     const seen = new Set<string>();
 
-    items.forEach((item) => {
+    for (const item of items) {
       if (item.group && !seen.has(item.group)) {
         groups.push(item.group);
         seen.add(item.group);
       }
-    });
+    }
 
     // Add ungrouped at the end so default items appear at bottom
     groups.push('ungrouped');

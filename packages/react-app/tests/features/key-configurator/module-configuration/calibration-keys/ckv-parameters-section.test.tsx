@@ -58,9 +58,9 @@ jest.mock('~shared/utils/converter-utils', () => ({
 
 describe('CKVParametersSection', () => {
   const mockParameters = [
-    {checked: true, name: 'PARAM_ID_HW_MF_CFG', pid: 134221847},
-    {checked: false, name: 'PARAM_ID_HW_EP_FRAME_SIZE', pid: 134221848},
-    {checked: true, name: 'PARAM_ID_I2S_INTF_CFG', pid: 134221849},
+    {checked: true, name: 'PARAM_ID_HW_MF_CFG', pid: 134_221_847},
+    {checked: false, name: 'PARAM_ID_HW_EP_FRAME_SIZE', pid: 134_221_848},
+    {checked: true, name: 'PARAM_ID_I2S_INTF_CFG', pid: 134_221_849},
   ];
 
   const mockOnParametersChange = jest.fn();
@@ -115,9 +115,9 @@ describe('CKVParametersSection', () => {
     fireEvent.click(secondParamCheckbox);
 
     expect(mockOnParametersChange).toHaveBeenCalledWith([
-      {checked: true, name: 'PARAM_ID_HW_MF_CFG', pid: 134221847},
-      {checked: true, name: 'PARAM_ID_HW_EP_FRAME_SIZE', pid: 134221848},
-      {checked: true, name: 'PARAM_ID_I2S_INTF_CFG', pid: 134221849},
+      {checked: true, name: 'PARAM_ID_HW_MF_CFG', pid: 134_221_847},
+      {checked: true, name: 'PARAM_ID_HW_EP_FRAME_SIZE', pid: 134_221_848},
+      {checked: true, name: 'PARAM_ID_I2S_INTF_CFG', pid: 134_221_849},
     ]);
   });
 
@@ -267,9 +267,9 @@ describe('CKVParametersSection', () => {
 
     expect(mockOnParametersChange).toHaveBeenCalledTimes(1);
     expect(mockOnParametersChange).toHaveBeenCalledWith([
-      {checked: false, name: 'PARAM_ID_HW_MF_CFG', pid: 134221847},
-      {checked: false, name: 'PARAM_ID_HW_EP_FRAME_SIZE', pid: 134221848},
-      {checked: true, name: 'PARAM_ID_I2S_INTF_CFG', pid: 134221849},
+      {checked: false, name: 'PARAM_ID_HW_MF_CFG', pid: 134_221_847},
+      {checked: false, name: 'PARAM_ID_HW_EP_FRAME_SIZE', pid: 134_221_848},
+      {checked: true, name: 'PARAM_ID_I2S_INTF_CFG', pid: 134_221_849},
     ]);
   });
 

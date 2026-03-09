@@ -151,7 +151,7 @@ jest.mock('~shared/utils/converter-utils', () => ({
   ConvertNumberToHexString: (num: number) =>
     `0x${num.toString(16).toUpperCase()}`,
   ConvertStringToNumber: (str: string) => {
-    const num = parseInt(str, 16);
+    const num = Number.parseInt(str, 16);
     return isNaN(num) ? null : num;
   },
 }));
@@ -159,7 +159,7 @@ jest.mock('~shared/utils/converter-utils', () => ({
 describe('CalibrationKeysConfigPanel', () => {
   const mockAvailableKeys = {
     Instance: {
-      id: 0xab000000,
+      id: 0xab_00_00_00,
       name: 'Instance',
       values: [
         {id: 1, name: 'Instance_1'},
@@ -167,15 +167,15 @@ describe('CalibrationKeysConfigPanel', () => {
       ],
     },
     StreamRX: {
-      id: 0xa1000000,
+      id: 0xa1_00_00_00,
       name: 'StreamRX',
       values: [
-        {id: 0xa1000001, name: 'PCM_Deep_Buffer'},
-        {id: 0xa1000013, name: 'Incall_Music'},
+        {id: 0xa1_00_00_01, name: 'PCM_Deep_Buffer'},
+        {id: 0xa1_00_00_13, name: 'Incall_Music'},
       ],
     },
     Volume: {
-      id: 0xa4000000,
+      id: 0xa4_00_00_00,
       name: 'Volume',
       values: [
         {id: 0, name: 'Level_0'},
@@ -186,19 +186,19 @@ describe('CalibrationKeysConfigPanel', () => {
   };
 
   const mockParameters = [
-    {checked: true, name: 'PARAM_ID_HW_MF_CFG', pid: 134221847},
-    {checked: false, name: 'PARAM_ID_HW_EP_FRAME_SIZE', pid: 134221848},
+    {checked: true, name: 'PARAM_ID_HW_MF_CFG', pid: 134_221_847},
+    {checked: false, name: 'PARAM_ID_HW_EP_FRAME_SIZE', pid: 134_221_848},
   ];
 
   const mockConfiguredCKVs = [
     {
       keyValuePairs: [
         {
-          key: {id: 0xa4000000, name: 'Volume'},
+          key: {id: 0xa4_00_00_00, name: 'Volume'},
           value: {id: 1, name: 'Level_1'},
         },
         {
-          key: {id: 0xab000000, name: 'Instance'},
+          key: {id: 0xab_00_00_00, name: 'Instance'},
           value: {id: 1, name: 'Instance_1'},
         },
       ],
@@ -224,7 +224,7 @@ describe('CalibrationKeysConfigPanel', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    window.alert = jest.fn();
+    globalThis.alert = jest.fn();
     (useCalibrationKeysStore as unknown as jest.Mock).mockImplementation(
       (selector) => selector(mockStoreState),
     );
@@ -504,7 +504,7 @@ describe('CalibrationKeysConfigPanel', () => {
   });
 
   it('cancels with confirmation when selections exist', () => {
-    window.confirm = jest.fn(() => true);
+    globalThis.confirm = jest.fn(() => true);
 
     render(
       <CalibrationKeysConfigPanel instanceId={1} isEditable moduleId={1} />,
@@ -524,7 +524,7 @@ describe('CalibrationKeysConfigPanel', () => {
   });
 
   it('cancels without confirmation when no selections exist', () => {
-    window.confirm = jest.fn();
+    globalThis.confirm = jest.fn();
 
     render(
       <CalibrationKeysConfigPanel instanceId={1} isEditable moduleId={1} />,
@@ -533,7 +533,7 @@ describe('CalibrationKeysConfigPanel', () => {
     fireEvent.click(screen.getByText('Add'));
     fireEvent.click(screen.getByText('Cancel'));
 
-    expect(window.confirm).not.toHaveBeenCalled();
+    expect(globalThis.confirm).not.toHaveBeenCalled();
     expect(screen.queryByTestId('search-bar')).not.toBeInTheDocument();
   });
 

@@ -10,9 +10,9 @@ import type {
   SaveValidationResultsResponseData,
 } from '@audioreach-creator-ui/api-utils/';
 import {dialog, shell} from 'electron';
-import {readFileSync, statSync, writeFileSync} from 'fs';
-import {readdir} from 'fs/promises';
-import {dirname, join} from 'path';
+import {readFileSync, statSync, writeFileSync} from 'node:fs';
+import {readdir} from 'node:fs/promises';
+import path from 'node:path';
 
 export function getFileModificationDateSync(path: string): Date | undefined {
   try {
@@ -52,7 +52,7 @@ export async function openProjectFile(
       const workspaceFileData = readFileSync(filepath);
 
       // Find .acdb file in the same directory
-      const dirPath = dirname(filepath);
+      const dirPath = path.dirname(filepath);
       let acdbFileData: Buffer | undefined;
 
       try {
@@ -67,7 +67,7 @@ export async function openProjectFile(
             );
           }
 
-          const acdbFilePath = join(dirPath, acdbFiles[0]);
+          const acdbFilePath = path.join(dirPath, acdbFiles[0]);
           acdbFileData = readFileSync(acdbFilePath);
         }
       } catch (error) {
@@ -133,7 +133,7 @@ export async function saveValidationResults(
   try {
     const currentDateTime = new Date()
       .toISOString()
-      .replace(/[T:]/g, '-')
+      .replaceAll(/[T:]/g, '-')
       .split('.')[0]; // YYYY-MM-DD-HH-MM-SS format
     const defaultFilename =
       request.defaultFilename || `validation_results_${currentDateTime}.txt`;

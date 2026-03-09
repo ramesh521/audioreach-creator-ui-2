@@ -79,9 +79,9 @@ export function ConfigSummaryView({
     const idsToDelete = filteredItems
       .map((item) => item.id)
       .sort((a, b) => b - a);
-    idsToDelete.forEach((id) => {
+    for (const id of idsToDelete) {
       onDeleteItem?.(id);
-    });
+    }
   };
 
   const handleAddClick = () => {

@@ -34,17 +34,17 @@ export function transformTagsToConfiguredTKVs(
   const configuredTKVs: ConfiguredTkv[] = [];
 
   // Iterate through each tag group
-  tags.forEach((tag) => {
+  for (const tag of tags) {
     // Transform each TKV in the tag to a ConfiguredTKV
-    tag.tkvs.forEach((tkv) => {
+    for (const tkv of tag.tkvs) {
       const configuredTKV = transformTkvToConfiguredTKV(
         tkv,
         tag.tagName,
         tag.tagId,
       );
       configuredTKVs.push(configuredTKV);
-    });
-  });
+    }
+  }
 
   return configuredTKVs;
 }

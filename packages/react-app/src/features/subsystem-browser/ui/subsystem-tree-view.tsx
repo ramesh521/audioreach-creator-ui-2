@@ -55,7 +55,7 @@ function collectAncestorIdsForMatches(
       // Expand the entire ancestor path so this node becomes visible
       ids.push(...path);
     }
-    if (childMatches.length) {
+    if (childMatches.length > 0) {
       // If any descendant matches, this node should also be expanded
       ids.push(node.id, ...childMatches);
     }
@@ -93,9 +93,9 @@ const SubsystemTreeView: FC<SubsystemTreeViewProps> = ({data, onClick}) => {
     const idsToExpand = collectAncestorIdsForMatches(data, term);
     setExpandedIds((prev) => {
       const next = {...prev};
-      idsToExpand.forEach((id) => {
+      for (const id of idsToExpand) {
         next[id] = true;
-      });
+      }
       return next;
     });
   }, [debouncedSearchTerm, data]);

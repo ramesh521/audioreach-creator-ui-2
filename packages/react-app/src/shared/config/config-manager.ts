@@ -194,7 +194,7 @@ export class ConfigFileManager {
   async initializeConfig(): Promise<void> {
     let isConfigSet = false;
     try {
-      const result = await window.configApi.loadConfigData();
+      const result = await globalThis.configApi.loadConfigData();
       if (!result.status) {
         logger.error('Config data loading failed', {
           action: 'initialize_config',
@@ -265,7 +265,7 @@ export class ConfigFileManager {
 
       // output JSON string should be formatted with an indentation of 2 spaces
       const space: number = 2;
-      const res = await window.configApi.saveConfigData(
+      const res = await globalThis.configApi.saveConfigData(
         JSON.stringify(this.configDataMap, null, space),
       );
       if (res.status) {

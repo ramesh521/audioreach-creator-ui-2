@@ -45,7 +45,7 @@ function generateDeterministicInstanceId(node: RFNode): number {
  */
 function nodeIdToNumber(nodeId: string): number {
   // Try to parse as number first
-  const parsed = parseInt(nodeId, 10);
+  const parsed = Number.parseInt(nodeId, 10);
   if (!isNaN(parsed)) {
     return parsed;
   }

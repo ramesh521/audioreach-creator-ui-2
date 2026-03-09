@@ -122,12 +122,12 @@ const ArcChannelConfigDialog: React.FC<ArcChannelConfigDialogProps> = ({
       }
 
       // Remove extra channels if count decreased
-      Object.keys(newChannelValues).forEach((key) => {
-        const channelNumber = parseInt(key, 10);
+      for (const key of Object.keys(newChannelValues)) {
+        const channelNumber = Number.parseInt(key, 10);
         if (channelNumber >= channelCount) {
           delete newChannelValues[channelNumber];
         }
-      });
+      }
 
       return newChannelValues;
     });
@@ -138,7 +138,7 @@ const ArcChannelConfigDialog: React.FC<ArcChannelConfigDialogProps> = ({
 
   // Handle channel count change
   const handleChannelCountChange = (value: string) => {
-    const count = parseInt(value, 10);
+    const count = Number.parseInt(value, 10);
     if (
       !isNaN(count) &&
       count >= 0 &&
@@ -176,22 +176,22 @@ const ArcChannelConfigDialog: React.FC<ArcChannelConfigDialogProps> = ({
     const valueToChannels: {[key: string]: number[]} = {};
 
     // Group channels by their values (excluding empty values)
-    Object.entries(channelValues).forEach(([channelKey, value]) => {
+    for (const [channelKey, value] of Object.entries(channelValues)) {
       if (value && value.trim() !== '') {
         const trimmedValue = value.trim();
         if (!valueToChannels[trimmedValue]) {
           valueToChannels[trimmedValue] = [];
         }
-        valueToChannels[trimmedValue].push(parseInt(channelKey, 10));
+        valueToChannels[trimmedValue].push(Number.parseInt(channelKey, 10));
       }
-    });
+    }
 
     // Find duplicates
-    Object.entries(valueToChannels).forEach(([value, channels]) => {
+    for (const [value, channels] of Object.entries(valueToChannels)) {
       if (channels.length > 1) {
         duplicates[value] = channels;
       }
-    });
+    }
 
     const isValid = Object.keys(duplicates).length === 0;
     const message = isValid

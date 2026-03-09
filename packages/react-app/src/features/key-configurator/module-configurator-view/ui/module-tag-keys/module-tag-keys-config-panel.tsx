@@ -155,7 +155,7 @@ export function ModuleTagKeysConfigPanel({
 
         // Check if any module keys or values match
         let hasMatchingContent = false;
-        Object.keys(tagGroup.keys).forEach((modKeyName) => {
+        for (const modKeyName of Object.keys(tagGroup.keys)) {
           const modKey = tagGroup.keys[modKeyName];
           const keyMatches =
             modKeyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -168,7 +168,7 @@ export function ModuleTagKeysConfigPanel({
           if (keyMatches || valueMatches) {
             hasMatchingContent = true;
           }
-        });
+        }
 
         return tagGroupMatches || hasMatchingContent;
       });
@@ -181,13 +181,13 @@ export function ModuleTagKeysConfigPanel({
 
       // Also expand all module keys in the filtered tag groups
       const allModKeys: Record<number, boolean> = {};
-      tagGroups.forEach((tagGroupName) => {
+      for (const tagGroupName of tagGroups) {
         const tagGroup = availableModuleTagsInfo[tagGroupName];
-        Object.keys(tagGroup.keys).forEach((modKeyName) => {
+        for (const modKeyName of Object.keys(tagGroup.keys)) {
           const modKeyId = tagGroup.keys[modKeyName].id;
           allModKeys[modKeyId] = true;
-        });
-      });
+        }
+      }
       setExpandedModKeys(allModKeys);
     } else {
       // When search is cleared, collapse everything
@@ -389,13 +389,13 @@ export function ModuleTagKeysConfigPanel({
     setExpandedTagGroups(tagGroupIds);
     // Expand all mod keys in expanded tag groups
     const allModKeys: Record<number, boolean> = {};
-    filteredAndSortedTagGroups.forEach((tagGroupName) => {
+    for (const tagGroupName of filteredAndSortedTagGroups) {
       const tagGroup = availableModuleTagsInfo[tagGroupName];
-      Object.keys(tagGroup.keys).forEach((modKeyName) => {
+      for (const modKeyName of Object.keys(tagGroup.keys)) {
         const modKeyId = tagGroup.keys[modKeyName].id;
         allModKeys[modKeyId] = true;
-      });
-    });
+      }
+    }
     setExpandedModKeys(allModKeys);
   }, [filteredAndSortedTagGroups, availableModuleTagsInfo]);
 
@@ -456,8 +456,8 @@ export function ModuleTagKeysConfigPanel({
       values: Array<{id: number; name: string}>;
     }> = [];
 
-    Object.keys(selectedValues).forEach((valueIdStr) => {
-      const valueId = parseInt(valueIdStr, 10);
+    for (const valueIdStr of Object.keys(selectedValues)) {
+      const valueId = Number.parseInt(valueIdStr, 10);
       if (selectedValues[valueId]) {
         // Find which key this value belongs to in the selected tag group
         for (const modKeyName in tagGroup.keys) {
@@ -482,7 +482,7 @@ export function ModuleTagKeysConfigPanel({
           }
         }
       }
-    });
+    }
 
     // Check if no values are selected
     if (selectedPerKey.length === 0) {
@@ -518,11 +518,11 @@ export function ModuleTagKeysConfigPanel({
       }
 
       const {key, values} = selectedPerKey[index];
-      values.forEach((value) => {
+      for (const value of values) {
         currentCombo.push({key, value});
         generateCombinations(index + 1, currentCombo);
         currentCombo.pop();
-      });
+      }
     }
 
     generateCombinations(0, []);
@@ -544,7 +544,7 @@ export function ModuleTagKeysConfigPanel({
     // Check for duplicates
     const uniqueNewConfigs: ConfiguredTkv[] = [];
 
-    newConfigs.forEach((newConfig) => {
+    for (const newConfig of newConfigs) {
       // Create a normalized string representation for comparison using IDs
       const newConfigStr = `${newConfig.tagGroupId}|${newConfig.keyValuePairs
         .map((p) => `${p.key.id}:${p.value.id}`)
@@ -563,7 +563,7 @@ export function ModuleTagKeysConfigPanel({
       if (!isDuplicate) {
         uniqueNewConfigs.push(newConfig);
       }
-    });
+    }
 
     // If no unique configs to add, don't proceed
     if (uniqueNewConfigs.length === 0) {
@@ -577,9 +577,9 @@ export function ModuleTagKeysConfigPanel({
     }
 
     // Add new configurations
-    uniqueNewConfigs.forEach((config) => {
+    for (const config of uniqueNewConfigs) {
       addConfiguredTagKeyValue(moduleId, instanceId, config);
-    });
+    }
 
     // Reset state including parameters
     setSelectedValues({});
@@ -637,13 +637,13 @@ export function ModuleTagKeysConfigPanel({
       const tagGroupId = tkv.tagGroupId;
 
       // Use the Key and KeyValue objects directly
-      tkv.keyValuePairs.forEach((pair) => {
+      for (const pair of tkv.keyValuePairs) {
         newSelectedValues[pair.value.id] = true;
         // Add key to expansion list
         if (!keysToExpand.includes(pair.key.id)) {
           keysToExpand.push(pair.key.id);
         }
-      });
+      }
 
       // Update parameters based on the TKV's pidConfig
       // Use storeParameters to ensure we have the latest data
@@ -667,9 +667,9 @@ export function ModuleTagKeysConfigPanel({
 
       // Expand keys with selected values
       const expandedKeysObj: Record<number, boolean> = {};
-      keysToExpand.forEach((keyId) => {
+      for (const keyId of keysToExpand) {
         expandedKeysObj[keyId] = true;
-      });
+      }
       setExpandedModKeys(expandedKeysObj);
 
       setShowSearchAndList(true);
@@ -759,7 +759,7 @@ export function ModuleTagKeysConfigPanel({
   );
 
   const handleCancel = useCallback(() => {
-    const hasSelections = Object.values(selectedValues).some((v) => v);
+    const hasSelections = Object.values(selectedValues).some(Boolean);
     const isConfirmed: boolean = true;
     if (hasSelections) {
       // if (
@@ -809,7 +809,7 @@ export function ModuleTagKeysConfigPanel({
     }
 
     const filtered: Record<string, ConfiguredTkv[]> = {};
-    Object.keys(groupedTKVs).forEach((tagGroupName) => {
+    for (const tagGroupName of Object.keys(groupedTKVs)) {
       const configs = groupedTKVs[tagGroupName].filter((config) => {
         const label = config.keyValuePairs
           .map((p) => `[${p.key.name}: ${p.value.name}]`)
@@ -822,7 +822,7 @@ export function ModuleTagKeysConfigPanel({
       if (configs.length > 0) {
         filtered[tagGroupName] = configs;
       }
-    });
+    }
     return filtered;
   }, [groupedTKVs, configSearchTerm]);
 
@@ -855,8 +855,8 @@ export function ModuleTagKeysConfigPanel({
   const handleDeleteFiltered = useCallback(() => {
     // Collect all indices first to avoid issues with state updates during iteration
     const filteredTKVIndices: number[] = [];
-    Object.keys(filteredGroupedTKVs).forEach((tagGroupName) => {
-      filteredGroupedTKVs[tagGroupName].forEach((config) => {
+    for (const tagGroupName of Object.keys(filteredGroupedTKVs)) {
+      for (const config of filteredGroupedTKVs[tagGroupName]) {
         const tkvId = `${config.tagGroupId}_${config.keyValuePairs
           .map((p) => `${p.key.id}_${p.value.id}`)
           .sort()
@@ -874,17 +874,17 @@ export function ModuleTagKeysConfigPanel({
         if (index !== -1) {
           filteredTKVIndices.push(index);
         }
-      });
-    });
+      }
+    }
 
     // Sort indices in descending order to delete from highest to lowest
     // This prevents index shifting issues
     filteredTKVIndices.sort((a, b) => b - a);
 
     // Delete each filtered TKV by index
-    filteredTKVIndices.forEach((index) => {
+    for (const index of filteredTKVIndices) {
       removeConfiguredTagKeyValue(moduleId, instanceId, index);
-    });
+    }
 
     // Clear search after deletion
     // setConfigSearchTerm('');

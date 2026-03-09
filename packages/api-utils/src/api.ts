@@ -21,7 +21,7 @@ export enum ApiRequest {
 export type ApiRequestType = ProjectFileApiRequestTypes;
 
 export type ApiResponse = {
-  data?: any;
+  data: undefined;
   message: string;
   requestType: ApiRequest;
 };

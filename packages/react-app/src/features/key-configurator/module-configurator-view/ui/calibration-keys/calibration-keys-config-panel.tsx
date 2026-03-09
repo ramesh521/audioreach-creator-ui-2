@@ -182,11 +182,11 @@ const generateCartesianProduct = (
     }
 
     const {key, values} = selectedPerKey[index];
-    values.forEach((value) => {
+    for (const value of values) {
       currentCombo.push({key, value});
       generate(index + 1, currentCombo);
       currentCombo.pop();
-    });
+    }
   };
 
   generate(0, []);
@@ -219,31 +219,31 @@ const groupSelectedValuesByKey = (
     values: Array<{id: number; name: string}>;
   }> = [];
 
-  Object.entries(selectedKeyValues).forEach(([keyIdStr, valueSelections]) => {
-    const keyId = parseInt(keyIdStr, 10);
+  for (const [keyIdStr, valueSelections] of Object.entries(selectedKeyValues)) {
+    const keyId = Number.parseInt(keyIdStr, 10);
 
     // Find the key name from the key ID
     const keyName = Object.keys(calibrationKeyData).find(
       (name) => calibrationKeyData[name].id === keyId,
     );
     if (!keyName) {
-      return;
+      continue;
     }
 
     const key = calibrationKeyData[keyName];
     const selectedValues: Array<{id: number; name: string}> = [];
 
-    Object.entries(valueSelections).forEach(([valueIdStr, isSelected]) => {
+    for (const [valueIdStr, isSelected] of Object.entries(valueSelections)) {
       if (!isSelected) {
-        return;
+        continue;
       }
 
-      const valueId = parseInt(valueIdStr, 10);
+      const valueId = Number.parseInt(valueIdStr, 10);
       const value = key.values.find((v) => v.id === valueId);
       if (value) {
         selectedValues.push({id: value.id, name: value.name});
       }
-    });
+    }
 
     if (selectedValues.length > 0) {
       selectedPerKey.push({
@@ -251,7 +251,7 @@ const groupSelectedValuesByKey = (
         values: selectedValues,
       });
     }
-  });
+  }
 
   return selectedPerKey;
 };
@@ -455,9 +455,9 @@ export function CalibrationKeysConfigPanel({
 
       setSelectedKeyValues((prev) => {
         const newKeySelections: Record<number, boolean> = {};
-        key.values.forEach((v) => {
+        for (const v of key.values) {
           newKeySelections[v.id] = !allSelected;
-        });
+        }
         return {
           ...prev,
           [keyId]: newKeySelections,
@@ -474,14 +474,14 @@ export function CalibrationKeysConfigPanel({
       }
 
       const newSelectedKeyValues: Record<number, Record<number, boolean>> = {};
-      filteredAndSortedKeys.forEach((keyName) => {
+      for (const keyName of filteredAndSortedKeys) {
         const key = availableKeys[keyName];
         const keySelections: Record<number, boolean> = {};
-        key.values.forEach((v) => {
+        for (const v of key.values) {
           keySelections[v.id] = checked;
-        });
+        }
         newSelectedKeyValues[key.id] = keySelections;
-      });
+      }
       setSelectedKeyValues(newSelectedKeyValues);
     },
     [filteredAndSortedKeys, availableKeys],
@@ -610,7 +610,7 @@ export function CalibrationKeysConfigPanel({
 
     // Check for duplicates using IDs
     const uniqueNewConfigs: ConfiguredCkv[] = [];
-    newConfigs.forEach((newConfig) => {
+    for (const newConfig of newConfigs) {
       const newConfigStr = newConfig.keyValuePairs
         .map((p) => `${p.key.id}:${p.value.id}`)
         .sort()
@@ -627,7 +627,7 @@ export function CalibrationKeysConfigPanel({
       if (!isDuplicate) {
         uniqueNewConfigs.push(newConfig);
       }
-    });
+    }
 
     if (uniqueNewConfigs.length === 0) {
       return;
@@ -649,9 +649,9 @@ export function CalibrationKeysConfigPanel({
     }
 
     // Add new configurations
-    uniqueNewConfigs.forEach((config) => {
+    for (const config of uniqueNewConfigs) {
       addConfiguredKey(moduleId, instanceId, config);
-    });
+    }
 
     // Update module parameters in store if PIDs were modified
     if (pidsModified) {
@@ -707,7 +707,7 @@ export function CalibrationKeysConfigPanel({
       const keysToExpand: number[] = [];
 
       // Use the Key and KeyValue objects directly
-      ckv.keyValuePairs.forEach((pair) => {
+      for (const pair of ckv.keyValuePairs) {
         if (!newSelectedValues[pair.key.id]) {
           newSelectedValues[pair.key.id] = {};
         }
@@ -715,7 +715,7 @@ export function CalibrationKeysConfigPanel({
         if (!keysToExpand.includes(pair.key.id)) {
           keysToExpand.push(pair.key.id);
         }
-      });
+      }
 
       // Update parameters based on the CKV's pidConfig
       if (ckv.pidConfig) {
@@ -764,7 +764,7 @@ export function CalibrationKeysConfigPanel({
   );
 
   const handleCancel = useCallback(() => {
-    const hasSelections = Object.values(selectedKeyValues).some((v) => v);
+    const hasSelections = Object.values(selectedKeyValues).some(Boolean);
     const isConfirmed: boolean = true;
     if (hasSelections) {
       // TODO: Notify and confirm from user

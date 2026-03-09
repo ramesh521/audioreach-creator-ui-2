@@ -80,7 +80,7 @@ jest.mock('~shared/utils/converter-utils', () => ({
   ConvertNumberToHexString: (num: number) =>
     `0x${num.toString(16).toUpperCase()}`,
   ConvertStringToNumber: (str: string) => {
-    const num = parseInt(str, 16);
+    const num = Number.parseInt(str, 16);
     return isNaN(num) ? null : num;
   },
 }));
@@ -247,8 +247,8 @@ describe('ConfigSummaryView', () => {
 
   it('filters by ID when search term is a hex number', () => {
     const items = [
-      {id: 0xa1000000, label: '[StreamRx]'},
-      {id: 0xb3000000, label: '[VSID]'},
+      {id: 0xa1_00_00_00, label: '[StreamRx]'},
+      {id: 0xb3_00_00_00, label: '[VSID]'},
     ];
 
     render(<ConfigSummaryView {...defaultProps} items={items} />);

@@ -258,7 +258,7 @@ export function createKeyConfiguratorStore(projectId: string) {
           ]);
 
           // Check if all saves succeeded
-          const success = results.every((result) => result);
+          const success = results.every(Boolean);
 
           if (success) {
             logger.info('All configurations saved successfully', {

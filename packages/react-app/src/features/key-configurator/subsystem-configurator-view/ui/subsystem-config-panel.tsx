@@ -171,9 +171,9 @@ export function SubsystemConfigPanel({
 
     if (keysToAdd.length > 0) {
       // Add each key individually
-      keysToAdd.forEach((key) => {
+      for (const key of keysToAdd) {
         addConfiguredKey(subsystemId, key);
-      });
+      }
     }
 
     setSelectedKeys([]);

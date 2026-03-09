@@ -145,7 +145,7 @@ export class ArcTextInput extends Component<
    */
   private hexToDecimal = (hexVal: string): number => {
     const cleanVal = hexVal.toLowerCase().replace(/^0x/, '');
-    return parseInt(cleanVal, 16);
+    return Number.parseInt(cleanVal, 16);
   };
 
   /**
@@ -310,7 +310,7 @@ export class ArcTextInput extends Component<
           }
         } else {
           // Try parsing as decimal first
-          numValue = parseFloat(val);
+          numValue = Number.parseFloat(val);
           if (isNaN(numValue)) {
             // If it's not a valid decimal and acceptHex is true,
             // check if it might be an invalid hex attempt
@@ -330,7 +330,7 @@ export class ArcTextInput extends Component<
         }
       } else {
         // Parse as regular decimal number only
-        numValue = parseFloat(val);
+        numValue = Number.parseFloat(val);
         if (isNaN(numValue)) {
           return 'Please enter a valid number';
         }

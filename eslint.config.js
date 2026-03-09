@@ -33,8 +33,14 @@ export default [
       'eslint.config.js',
       // Config files that cause parsing errors
       '**/jest.config.mjs',
+      '**/jest.config.js',
+      '**/jest.config.ts',
+      '**/jest.*.js',
+      '**/jest.*.mjs',
       '**/postcss.config.js',
       '**/tailwind.config.js',
+      // Scripts
+      'scripts/**',
     ],
   },
   // Base configurations
@@ -42,25 +48,9 @@ export default [
   ...tseslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
 
-  // Override problematic rules from base configs
+  // Configuration files - disable type-checked rules EARLY (before main config)
   {
-    rules: {
-      '@/preserve-caught-error': 'off',
-    },
-  },
-
-  // Configuration files - disable type-checked rules EARLY
-  {
-    files: [
-      '**/*.config.{js,ts,mjs}',
-      '**/*.conf.{js,ts}',
-      '**/vite.config.ts',
-      '**/playwright.config.ts',
-      '**/electron-builder.config.ts',
-      '**/tailwind.config.js',
-      '**/postcss.config.js',
-      '**/jest.config.{js,mjs,ts}',
-    ],
+    files: ['**/*.config.{js,ts,mjs}', '**/*.conf.{js,ts}'],
     ...tseslint.configs.disableTypeChecked,
   },
 
@@ -71,74 +61,6 @@ export default [
   sonarjsPlugin.configs.recommended,
   unicornPlugin.configs['recommended'],
   promisePlugin.configs['flat/recommended'],
-
-  // GRADUAL MIGRATION: Override all plugin errors to warnings
-  {
-    rules: {
-      // Downgrade base ESLint errors to warnings
-      'no-case-declarations': 'warn',
-
-      // Downgrade all unicorn errors to warnings
-      'unicorn/import-style': 'warn',
-      'unicorn/prefer-native-coercion-functions': 'warn',
-      'unicorn/prefer-array-some': 'warn',
-      'unicorn/no-for-loop': 'warn',
-      'unicorn/prefer-module': 'warn',
-      'unicorn/prefer-top-level-await': 'warn',
-      'unicorn/consistent-function-scoping': 'warn',
-      'unicorn/text-encoding-identifier-case': 'warn',
-      'unicorn/numeric-separators-style': [
-        'warn',
-        {
-          hexadecimal: {
-            onlyIfContainsSeparator: true,
-          },
-        },
-      ],
-      'unicorn/filename-case': 'warn',
-      'unicorn/prefer-global-this': 'warn',
-      'unicorn/no-static-only-class': 'warn',
-      'unicorn/prefer-string-replace-all': 'warn',
-      'unicorn/prefer-logical-operator-over-ternary': 'warn',
-      'unicorn/explicit-length-check': 'warn',
-      'unicorn/no-array-sort': 'warn',
-      'unicorn/consistent-existence-index-check': 'warn',
-      'unicorn/no-immediate-mutation': 'warn',
-      'unicorn/prefer-single-call': 'warn',
-      'unicorn/catch-error-name': 'warn',
-      'unicorn/prefer-optional-catch-binding': 'warn',
-      'unicorn/prefer-export-from': 'warn',
-      'unicorn/require-module-specifiers': 'warn',
-      'unicorn/prefer-number-properties': 'warn',
-      'unicorn/no-useless-fallback-in-spread': 'warn',
-
-      // Downgrade sonarjs errors to warnings
-      'sonarjs/no-os-command-from-path': 'warn',
-      'sonarjs/no-nested-functions': 'warn',
-      'sonarjs/no-ignored-exceptions': 'warn',
-      'sonarjs/no-invariant-returns': 'warn',
-      'sonarjs/different-types-comparison': 'warn',
-      'sonarjs/no-nested-conditional': 'warn',
-      'sonarjs/prefer-read-only-props': 'warn',
-      'sonarjs/no-duplicated-branches': 'warn',
-      'sonarjs/no-unused-vars': 'warn',
-      'sonarjs/no-alphabetical-sort': 'warn',
-      'sonarjs/use-type-alias': 'warn',
-      'sonarjs/no-all-duplicated-branches': 'warn',
-      'sonarjs/no-selector-parameter': 'warn',
-      'sonarjs/prefer-single-boolean-return': 'off', // Disabled: Can reduce code readability
-      'sonarjs/function-return-type': 'off', // Disabled: TypeScript provides type inference
-
-      // Downgrade node plugin errors to warnings
-      'n/no-unsupported-features/node-builtins': 'warn',
-
-      // Downgrade import errors to warnings
-      'import/export': 'warn',
-
-      // Downgrade TypeScript errors to warnings
-      '@typescript-eslint/unbound-method': 'warn',
-    },
-  },
 
   // Main configuration for all packages
   {
@@ -185,52 +107,6 @@ export default [
       },
     },
     rules: {
-      // GRADUAL MIGRATION: All strict rules set to "warn" initially
-      // These will be changed to "error" one category at a time after fixing
-
-      // TypeScript strict rules - START AS WARNINGS
-      '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-unsafe-argument': 'warn',
-      '@typescript-eslint/no-unsafe-assignment': 'warn',
-      '@typescript-eslint/no-unsafe-call': 'warn',
-      '@typescript-eslint/no-unsafe-member-access': 'warn',
-      '@typescript-eslint/no-unsafe-return': 'warn',
-      '@typescript-eslint/no-floating-promises': 'warn',
-      '@typescript-eslint/require-await': 'warn',
-      '@typescript-eslint/no-misused-promises': 'warn',
-      '@typescript-eslint/restrict-template-expressions': 'warn',
-
-      // Security rules - START AS WARNINGS
-      'security/detect-object-injection': 'warn',
-      'security/detect-non-literal-fs-filename': 'warn',
-
-      // SonarJS rules - START AS WARNINGS
-      'sonarjs/cognitive-complexity': 'warn',
-      'sonarjs/no-duplicate-string': 'warn',
-      'sonarjs/todo-tag': 'warn',
-
-      // Unicorn rules - START AS WARNINGS
-      'unicorn/prevent-abbreviations': 'off',
-      'unicorn/no-null': 'warn',
-      'unicorn/prefer-node-protocol': 'warn',
-      'unicorn/no-array-for-each': 'warn',
-      'unicorn/prefer-ternary': 'warn',
-      'unicorn/prefer-type-error': 'warn',
-      'unicorn/switch-case-braces': 'warn',
-
-      // Import rules - START AS WARNINGS
-      'import/no-unresolved': 'warn',
-      'import/no-cycle': 'warn',
-
-      // Promise rules - START AS WARNINGS
-      'promise/always-return': 'warn',
-      'promise/catch-or-return': 'warn',
-
-      // Keep these disabled permanently
-      'n/no-missing-import': 'off', // TypeScript handles this
-      'security/detect-object-injection': 'off', // Too many false positives
-      '@/preserve-caught-error': 'off', // Rule not available in current ESLint version
-
       // Configure unused vars to ignore parameters/variables prefixed with underscore
       '@typescript-eslint/no-unused-vars': [
         'error',
@@ -271,35 +147,41 @@ export default [
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
 
-      // JSX Accessibility rules - START AS WARNINGS
+      // JSX Accessibility rules
       ...jsxA11yPlugin.configs.recommended.rules,
 
       // React-specific overrides
       'react/prop-types': 'off', // TypeScript provides type checking
       'react/react-in-jsx-scope': 'off', // Not needed in React 17+
       'import/no-default-export': 'off', // React components often use default exports
-
-      // Apply same gradual migration warnings for React files
-      '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-unsafe-argument': 'warn',
-      '@typescript-eslint/no-unsafe-assignment': 'warn',
-      '@typescript-eslint/no-unsafe-call': 'warn',
-      '@typescript-eslint/no-unsafe-member-access': 'warn',
-      '@typescript-eslint/no-unsafe-return': 'warn',
-      'sonarjs/cognitive-complexity': 'warn',
-      'unicorn/prevent-abbreviations': 'warn',
-      'unicorn/no-null': 'warn',
-
-      // Downgrade jsx-a11y errors to warnings (React-specific)
-      'jsx-a11y/click-events-have-key-events': 'warn',
-      'jsx-a11y/no-static-element-interactions': 'warn',
-      'jsx-a11y/role-has-required-aria-props': 'warn',
-      'jsx-a11y/interactive-supports-focus': 'warn',
-      'jsx-a11y/no-redundant-roles': 'warn',
     },
   },
 
-  // Test files configuration - relaxed rules
+  // Configuration files
+  {
+    files: ['**/*.config.{js,ts,mjs}', '**/*.conf.{js,ts}'],
+    ...tseslint.configs.disableTypeChecked,
+    rules: {
+      'import/no-default-export': 'off',
+      '@typescript-eslint/no-var-requires': 'off',
+      'unicorn/prefer-module': 'off',
+      'n/no-unpublished-import': 'off',
+      'unicorn/import-style': 'off',
+      'unicorn/prevent-abbreviations': 'off',
+      'unicorn/prefer-node-protocol': 'off',
+    },
+  },
+
+  // Main entry files
+  {
+    files: ['**/main.ts', '**/main.tsx', '**/index.ts'],
+    rules: {
+      'unicorn/no-process-exit': 'off',
+      'n/no-process-exit': 'off',
+    },
+  },
+
+  // Test files configuration
   {
     files: [
       '**/*.spec.ts',
@@ -307,7 +189,9 @@ export default [
       '**/*.test.ts',
       '**/*.test.tsx',
       '**/test/**/*.ts',
+      '**/test/**/*.tsx',
       '**/tests/**/*.ts',
+      '**/tests/**/*.tsx',
       '**/test-setup.ts',
     ],
     rules: {
@@ -326,11 +210,25 @@ export default [
       'sonarjs/no-duplicate-string': 'off',
       'sonarjs/cognitive-complexity': 'off',
       'sonarjs/no-useless-catch': 'off',
+      'sonarjs/no-nested-functions': 'off',
+      'sonarjs/no-unused-vars': 'off',
 
       // Unicorn rules - relaxed for testing
       'unicorn/no-array-for-each': 'off',
       'unicorn/no-null': 'off',
       'unicorn/prevent-abbreviations': 'off',
+      'unicorn/consistent-function-scoping': 'off',
+      'unicorn/numeric-separators-style': 'off',
+      'unicorn/prefer-number-properties': 'off',
+      'unicorn/prefer-global-this': 'off',
+      'unicorn/no-useless-fallback-in-spread': 'off',
+
+      // JSX Accessibility rules - relaxed for testing
+      'jsx-a11y/click-events-have-key-events': 'off',
+      'jsx-a11y/no-static-element-interactions': 'off',
+      'jsx-a11y/role-has-required-aria-props': 'off',
+      'jsx-a11y/interactive-supports-focus': 'off',
+      'jsx-a11y/no-redundant-roles': 'off',
 
       // Security and other rules
       'security/detect-object-injection': 'off',
@@ -339,45 +237,26 @@ export default [
     },
   },
 
-  // Configuration files - additional rules
-  {
-    files: [
-      '**/*.config.{js,ts,mjs}',
-      '**/*.conf.{js,ts}',
-      '**/vite.config.ts',
-      '**/playwright.config.ts',
-      '**/electron-builder.config.ts',
-      '**/tailwind.config.js',
-      '**/postcss.config.js',
-      '**/jest.config.{js,mjs,ts}',
-    ],
-    rules: {
-      'import/no-default-export': 'off',
-      '@typescript-eslint/no-var-requires': 'off',
-      'unicorn/prefer-module': 'off',
-      'n/no-unpublished-import': 'off',
-      // Downgrade unicorn rules to warnings for config files
-      'unicorn/import-style': 'warn',
-      'unicorn/prevent-abbreviations': 'warn',
-      'unicorn/prefer-node-protocol': 'warn',
-    },
-  },
-
-  // Main entry files
-  {
-    files: ['**/main.ts', '**/main.tsx', '**/index.ts'],
-    rules: {
-      'unicorn/no-process-exit': 'off',
-      'n/no-process-exit': 'off',
-    },
-  },
-
   // TypeScript-specific rules
   {
     files: ['**/*.ts', '**/*.tsx'],
     rules: {
-      // Disabled: Node plugin doesn't understand TypeScript imports
+      // Disabled: Node plugin doesn't understand TypeScript imports. Using import/no-unresolved instead.
       'n/no-missing-import': 'off',
+      // Disabled: Too many false positives for safe array access patterns used by major style guides
+      'security/detect-object-injection': 'off',
+      // Disabled: Allow TODO comments in development/placeholder code
+      'sonarjs/todo-tag': 'off',
+      // Disabled: Allow abbreviations in variable names for better readability
+      'unicorn/prevent-abbreviations': 'off',
+      // Disabled: Switch case braces are not required for our codebase style
+      'unicorn/switch-case-braces': 'off',
+      // Disabled: Prefer explicit if-else over ternary for better readability
+      'unicorn/prefer-ternary': 'off',
+      // Disabled: TypeError should only be used for JavaScript type errors, not data validation errors
+      'unicorn/prefer-type-error': 'off',
+      // Disabled: Allow null where it has semantic meaning (e.g., database NULL, explicit absence)
+      'unicorn/no-null': 'off',
     },
   },
 
