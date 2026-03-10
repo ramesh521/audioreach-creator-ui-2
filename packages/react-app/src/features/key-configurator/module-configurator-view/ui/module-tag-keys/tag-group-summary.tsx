@@ -14,13 +14,13 @@ import {ConvertNumberToHexString} from '~shared/utils/converter-utils';
 import type {ConfiguredTkv} from './module-tag-keys-config.types';
 
 interface TagGroupSummaryProps {
-  configurations: ConfiguredTkv[];
-  hasActiveSearch?: boolean;
-  isEditable: boolean;
-  onDeleteItem: (id: string) => void;
-  onDeleteTagGroup: (tagGroupName: string) => void;
-  onEditItem: (id: string) => void;
-  tagGroupName: string;
+  readonly configurations: ConfiguredTkv[];
+  readonly hasActiveSearch?: boolean;
+  readonly isEditable: boolean;
+  readonly onDeleteItem: (id: string) => void;
+  readonly onDeleteTagGroup: (tagGroupName: string) => void;
+  readonly onEditItem: (id: string) => void;
+  readonly tagGroupName: string;
 }
 
 export function TagGroupSummary({
@@ -50,7 +50,7 @@ export function TagGroupSummary({
   const generateTKVId = (config: ConfiguredTkv): string => {
     return `${config.tagGroupId}_${config.keyValuePairs
       .map((p) => `${p.key.id}_${p.value.id}`)
-      .sort()
+      .toSorted()
       .join('_')}`;
   };
 

@@ -4,6 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "description": "AudioReach Creator to create/view use cases and tune audio modules",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "build": "cross-env FORCE_COLOR=1 turbo run build",

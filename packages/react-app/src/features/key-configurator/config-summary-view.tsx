@@ -25,13 +25,13 @@ interface ConfigSummaryItem {
 }
 
 interface ConfigSummaryViewProps {
-  isEditable: boolean;
-  items: ConfigSummaryItem[];
-  onAddClick?: () => void;
-  onDeleteItem?: (id: number) => void;
-  onEditItem?: (id: number) => void;
-  showEditIcon?: boolean;
-  title: string;
+  readonly isEditable: boolean;
+  readonly items: ConfigSummaryItem[];
+  readonly onAddClick?: () => void;
+  readonly onDeleteItem?: (id: number) => void;
+  readonly onEditItem?: (id: number) => void;
+  readonly showEditIcon?: boolean;
+  readonly title: string;
 }
 
 export function ConfigSummaryView({

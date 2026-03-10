@@ -38,9 +38,9 @@ import type {
 import {CkvParametersSection} from './ckv-parameters-section';
 
 interface CalibrationKeysConfigPanelProps {
-  instanceId: number;
-  isEditable: boolean;
-  moduleId: number;
+  readonly instanceId: number;
+  readonly isEditable: boolean;
+  readonly moduleId: number;
 }
 
 // Helper functions
@@ -97,7 +97,7 @@ const sortKeys = (
     return keys;
   }
 
-  return [...keys].sort((a, b) => {
+  return keys.toSorted((a, b) => {
     let comparison: number;
     if (sortColumn === 'id') {
       comparison = calibrationKeyData[a].id - calibrationKeyData[b].id;
@@ -558,8 +558,8 @@ export function CalibrationKeysConfigPanel({
     }
 
     // Check if PIDs were modified
-    const currentCheckedPids = [...checkedPids].sort();
-    const initialPids = [...initialPidConfig].sort();
+    const currentCheckedPids = checkedPids.toSorted();
+    const initialPids = initialPidConfig.toSorted();
     const pidsModified =
       currentCheckedPids.length !== initialPids.length ||
       currentCheckedPids.some((pid, index) => pid !== initialPids[index]);
@@ -613,13 +613,13 @@ export function CalibrationKeysConfigPanel({
     for (const newConfig of newConfigs) {
       const newConfigStr = newConfig.keyValuePairs
         .map((p) => `${p.key.id}:${p.value.id}`)
-        .sort()
+        .toSorted()
         .join('|');
 
       const isDuplicate = existingConfigs.some((existingConfig) => {
         const existingConfigStr = existingConfig.keyValuePairs
           .map((p) => `${p.key.id}:${p.value.id}`)
-          .sort()
+          .toSorted()
           .join('|');
         return existingConfigStr === newConfigStr;
       });

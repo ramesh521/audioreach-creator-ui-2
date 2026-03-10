@@ -36,8 +36,8 @@ import {useSubgraphConfigStore} from '../../model/subgraph-config-store';
 import type {ConfiguredSubgraphKeyValue} from './subgraph-config.types';
 
 interface SubgraphKeyVectorConfigPanelProps {
-  isEditable: boolean;
-  subgraphId: number;
+  readonly isEditable: boolean;
+  readonly subgraphId: number;
 }
 
 export function SubgraphKeyVectorConfigPanel({
@@ -250,7 +250,9 @@ export function SubgraphKeyVectorConfigPanel({
   };
 
   const handleDeleteClick = () => {
-    if (globalThis.confirm('Are you sure you want to delete this configuration?')) {
+    if (
+      globalThis.confirm('Are you sure you want to delete this configuration?')
+    ) {
       updateConfiguredKeyValues(subgraphId, []);
       // Clear selections if in edit mode
       if (showKeysList) {

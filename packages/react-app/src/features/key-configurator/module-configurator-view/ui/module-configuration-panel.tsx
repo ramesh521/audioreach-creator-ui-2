@@ -11,9 +11,9 @@ import {CalibrationKeysConfigPanel} from './calibration-keys/calibration-keys-co
 import {ModuleTagKeysConfigPanel} from './module-tag-keys/module-tag-keys-config-panel';
 
 interface ModuleConfigurationPanelProps {
-  instanceId: number;
-  isEditable: boolean;
-  moduleId: number;
+  readonly instanceId: number;
+  readonly isEditable: boolean;
+  readonly moduleId: number;
 }
 
 export function ModuleConfigurationPanel({

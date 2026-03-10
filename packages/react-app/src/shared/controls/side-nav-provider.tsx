@@ -39,7 +39,7 @@ export function useSideNavContext() {
 }
 
 interface SideNavProviderProps {
-  children: ReactNode;
+  readonly children: ReactNode;
 }
 
 export function SideNavProvider({children}: SideNavProviderProps) {

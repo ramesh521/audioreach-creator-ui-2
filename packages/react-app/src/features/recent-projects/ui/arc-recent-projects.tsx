@@ -8,11 +8,11 @@ import ArcProjectCard from '~shared/controls/arc-project-card';
 import type ProjectInfo from '~shared/types/project-info.types';
 
 interface ArcProjectSectionProps {
-  onOpenProject?: (project: ProjectInfo) => void;
-  onRemoveFromRecent?: (projectId: string) => void;
-  onShowInExplorer?: (projectId: string) => Promise<void>;
-  projects?: ProjectInfo[];
-  ref?: React.Ref<HTMLElement>;
+  readonly onOpenProject?: (project: ProjectInfo) => void;
+  readonly onRemoveFromRecent?: (projectId: string) => void;
+  readonly onShowInExplorer?: (projectId: string) => Promise<void>;
+  readonly projects?: ProjectInfo[];
+  readonly ref?: React.Ref<HTMLElement>;
 }
 
 export default function ArcRecentProjects({

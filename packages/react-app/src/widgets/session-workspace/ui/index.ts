@@ -1,1 +1,1 @@
-export * from './SessionWorkspace';
+export * from './session-workspace';

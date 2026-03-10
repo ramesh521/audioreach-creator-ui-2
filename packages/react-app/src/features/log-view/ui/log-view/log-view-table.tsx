@@ -72,7 +72,7 @@ const getLogIcon = (logType: LogType) => {
 };
 
 // Renders message cell with expansion icon and overflow tooltip
-function MessageCell({logEntry}: {logEntry: LogEntry}) {
+function MessageCell({logEntry}: {readonly logEntry: LogEntry}) {
   const {selectedRowLogId, selectRowLog, toggleLogExpansion} =
     useLogViewStore();
   const isSelected = selectedRowLogId === logEntry.id;

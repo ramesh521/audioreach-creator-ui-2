@@ -4,6 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "description": "React FrontEnd for AudioReach Creator",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "dev:site": "vite -c vite.config.ts --host --clearScreen=false",
     "dev:ts": "tsc -b tsconfig.lib.json -w --preserveWatchOutput --force",

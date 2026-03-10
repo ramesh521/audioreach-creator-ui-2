@@ -9,9 +9,9 @@ import {TextInput} from '@qualcomm-ui/react/text-input';
 
 interface ArcSearchBarProps {
   /** A callback function thats triggered on every keystroke */
-  onSearchChange: (value: string) => void;
-  placeholder?: string;
-  searchTerm: string;
+  readonly onSearchChange: (value: string) => void;
+  readonly placeholder?: string;
+  readonly searchTerm: string;
 }
 
 export default function ArcSearchBar({

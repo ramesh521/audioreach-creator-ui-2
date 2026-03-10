@@ -8,9 +8,9 @@ import type DeviceInfo from '~shared/types/device-info.types';
 
 interface DeviceSectionProps {
   /** List of devices to display in the device list */
-  devices?: DeviceInfo[];
+  readonly devices?: DeviceInfo[];
   /** A callback triggered when double clicking a device card */
-  onOpenDevice?: (device: DeviceInfo) => void;
+  readonly onOpenDevice?: (device: DeviceInfo) => void;
 }
 
 export default function DeviceList({

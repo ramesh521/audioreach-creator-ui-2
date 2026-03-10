@@ -115,6 +115,8 @@ export default [
           varsIgnorePattern: '^_',
         },
       ],
+      // Disable SonarJS no-unused-vars as it duplicates TypeScript ESLint rule and doesn't respect underscore prefix
+      'sonarjs/no-unused-vars': 'off',
     },
   },
 

@@ -15,10 +15,10 @@ import {ConvertNumberToHexString} from '~shared/utils/converter-utils';
 import type {TkvParameter} from './module-tag-keys-config.types';
 
 interface TkvParametersSectionProps {
-  isEditable: boolean;
-  onParametersChange: (parameters: TkvParameter[]) => void;
-  parameters: TkvParameter[];
-  visible: boolean;
+  readonly isEditable: boolean;
+  readonly onParametersChange: (parameters: TkvParameter[]) => void;
+  readonly parameters: TkvParameter[];
+  readonly visible: boolean;
 }
 
 export function TkvParametersSection({

@@ -10,10 +10,10 @@ import {IconButton} from '@qualcomm-ui/react/button';
 import type ProjectInfo from '~shared/types/project-info.types';
 
 interface ProjectsListViewProps {
-  onOpenProject: (project: ProjectInfo) => void;
-  onRemoveFromRecent: (projectId: string) => void;
-  onShowInExplorer: (projectId: string) => void;
-  projects: ProjectInfo[];
+  readonly onOpenProject: (project: ProjectInfo) => void;
+  readonly onRemoveFromRecent: (projectId: string) => void;
+  readonly onShowInExplorer: (projectId: string) => void;
+  readonly projects: ProjectInfo[];
 }
 
 function formatDate(date: Date | undefined): string {

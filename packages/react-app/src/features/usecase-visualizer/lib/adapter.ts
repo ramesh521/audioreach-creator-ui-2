@@ -88,7 +88,7 @@ export function buildGraphViewFromUsecase(
   }
 
   // Infer subgraphs from modules
-  const subgraphIds = [...new Set(modules.map((m) => m.subgraphId))].sort();
+  const subgraphIds = [...new Set(modules.map((m) => m.subgraphId))].toSorted();
 
   // IMPORTANT: Parents must be added before children for ReactFlow nesting to work
 

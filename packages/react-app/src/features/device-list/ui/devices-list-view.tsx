@@ -8,8 +8,8 @@ import {Smartphone} from 'lucide-react';
 import type DeviceInfo from '~shared/types/device-info.types';
 
 interface DevicesListViewProps {
-  devices: DeviceInfo[];
-  onOpenDevice: (device: DeviceInfo) => void;
+  readonly devices: DeviceInfo[];
+  readonly onOpenDevice: (device: DeviceInfo) => void;
 }
 
 export default function DevicesListView({

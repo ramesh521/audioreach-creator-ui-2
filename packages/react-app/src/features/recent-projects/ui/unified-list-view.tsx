@@ -17,14 +17,14 @@ type UnifiedItem =
   | {data: DeviceInfo; type: 'device'};
 
 interface UnifiedListViewProps {
-  devices: DeviceInfo[];
-  onOpenDevice: (device: DeviceInfo) => void;
-  onOpenProject: (project: ProjectInfo) => void;
-  onRemoveFromRecent: (projectId: string) => void;
-  onShowInExplorer: (projectId: string) => void;
-  projects: ProjectInfo[];
-  showDevices: boolean;
-  showProjects: boolean;
+  readonly devices: DeviceInfo[];
+  readonly onOpenDevice: (device: DeviceInfo) => void;
+  readonly onOpenProject: (project: ProjectInfo) => void;
+  readonly onRemoveFromRecent: (projectId: string) => void;
+  readonly onShowInExplorer: (projectId: string) => void;
+  readonly projects: ProjectInfo[];
+  readonly showDevices: boolean;
+  readonly showProjects: boolean;
 }
 
 function formatDate(date: Date | undefined): string {

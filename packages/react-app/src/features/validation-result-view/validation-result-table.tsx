@@ -40,8 +40,8 @@ function ActionButtonCell({
   result,
   type,
 }: {
-  result: ValidationResult;
-  type: 'autoFix' | 'gotoError';
+  readonly result: ValidationResult;
+  readonly type: 'autoFix' | 'gotoError';
 }) {
   const handleClick = () => {
     if (type === 'autoFix' && result.autoFixCallback && result.canAutoFix) {
@@ -82,9 +82,9 @@ function TextCell({
   isSelected,
   text,
 }: {
-  className?: string;
-  isSelected: boolean;
-  text: string;
+  readonly className?: string;
+  readonly isSelected: boolean;
+  readonly text: string;
 }) {
   const spanRef = useRef<HTMLSpanElement>(null);
   // Track whether text is truncated (cut off with ellipses)

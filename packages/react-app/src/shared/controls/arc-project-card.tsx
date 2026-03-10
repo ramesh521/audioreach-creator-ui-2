@@ -27,25 +27,25 @@ import {
 
 export interface ArcProjectCardProps {
   /** A short description */
-  description: string;
+  readonly description: string;
   /** The image to display in the project card */
-  imgSource?: string;
+  readonly imgSource?: string;
   /** Indicates if the project activly open on the server. */
-  isActive: boolean;
+  readonly isActive: boolean;
   /** A label displayed at the top right area of the card */
-  label?: string;
+  readonly label?: string;
   /** The date of when a project was last modified */
-  lastModifiedDate?: Date;
+  readonly lastModifiedDate?: Date;
   /** A callback thats called when a card is double-clicked */
-  onDoubleClick?: () => void;
+  readonly onDoubleClick?: () => void;
   /** Callback when user selects to remove item from the recent files */
-  onRemoveFromRecent?: () => void;
+  readonly onRemoveFromRecent?: () => void;
   /** Show the selected project in the file explorer */
-  onShowInExplorer?: () => Promise<void>;
+  readonly onShowInExplorer?: () => Promise<void>;
   /** The title of the card */
-  title: string;
+  readonly title: string;
   /** Type indicator badge to show if this is a project or device */
-  typeIndicator?: 'project' | 'device';
+  readonly typeIndicator?: 'project' | 'device';
 }
 
 export default function ArcProjectCard({

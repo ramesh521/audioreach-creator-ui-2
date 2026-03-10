@@ -39,7 +39,7 @@ export function useTheme(): [Theme, (theme: Theme) => void] {
 }
 
 interface ThemeProviderProps {
-  children: ReactNode;
+  readonly children: ReactNode;
 }
 
 /**

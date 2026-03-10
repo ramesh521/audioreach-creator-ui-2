@@ -26,8 +26,8 @@ import {useSubsystemConfigStore} from '../../model/subsystem-config-store';
 import {AVAILABLE_KEYS, SAMPLE_CONFIGURED_KEYS} from './subsystem-config.types';
 
 export interface SubsystemConfigPanelProps {
-  isEditable: boolean;
-  subsystemId: number;
+  readonly isEditable: boolean;
+  readonly subsystemId: number;
 }
 
 export function SubsystemConfigPanel({

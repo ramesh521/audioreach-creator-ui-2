@@ -15,9 +15,9 @@ import {ConvertNumberToHexString} from '~shared/utils/converter-utils';
 import type {CkvParameter} from './calibration-keys-config.types';
 
 interface CkvParametersSectionProps {
-  isEditable: boolean;
-  onParametersChange: (parameters: CkvParameter[]) => void;
-  parameters: CkvParameter[];
+  readonly isEditable: boolean;
+  readonly onParametersChange: (parameters: CkvParameter[]) => void;
+  readonly parameters: CkvParameter[];
 }
 
 export function CkvParametersSection({

@@ -36,9 +36,9 @@ import {TagGroupSummary} from './tag-group-summary';
 import {TkvParametersSection} from './tkv-parameters-section';
 
 interface ModuleTagKeysConfigPanelProps {
-  instanceId: number;
-  isEditable: boolean;
-  moduleId: number;
+  readonly instanceId: number;
+  readonly isEditable: boolean;
+  readonly moduleId: number;
 }
 
 export function ModuleTagKeysConfigPanel({
@@ -197,7 +197,7 @@ export function ModuleTagKeysConfigPanel({
 
     // Sort tag groups
     if (sortColumn) {
-      tagGroups.sort((a, b) => {
+      tagGroups = tagGroups.toSorted((a, b) => {
         if (sortColumn === 'id') {
           const compareA = availableModuleTagsInfo[a].id;
           const compareB = availableModuleTagsInfo[b].id;
@@ -342,9 +342,9 @@ export function ModuleTagKeysConfigPanel({
       if (selectedTagGroup && selectedTagGroup !== tagGroupId) {
         const modKey = availableModuleTagsInfo[tagGroupName].keys[modKeyName];
         const newSelectedValues: Record<number, boolean> = {};
-        modKey.values.forEach((v: {id: number}) => {
+        for (const v of modKey.values) {
           newSelectedValues[v.id] = true;
-        });
+        }
         setSelectedValues(newSelectedValues);
         setSelectedTagGroup(tagGroupId);
         return;
@@ -356,9 +356,9 @@ export function ModuleTagKeysConfigPanel({
       );
 
       const newSelectedValues = {...selectedValues};
-      modKey.values.forEach((v: {id: number}) => {
+      for (const v of modKey.values) {
         newSelectedValues[v.id] = !allSelected;
-      });
+      }
       setSelectedValues(newSelectedValues);
 
       // Auto-select the tag group radio when selecting values
@@ -548,14 +548,14 @@ export function ModuleTagKeysConfigPanel({
       // Create a normalized string representation for comparison using IDs
       const newConfigStr = `${newConfig.tagGroupId}|${newConfig.keyValuePairs
         .map((p) => `${p.key.id}:${p.value.id}`)
-        .sort()
+        .toSorted()
         .join('|')}`;
 
       // Check if this configuration already exists
       const isDuplicate = existingConfigs.some((existingConfig) => {
         const existingConfigStr = `${existingConfig.tagGroupId}|${existingConfig.keyValuePairs
           .map((p) => `${p.key.id}:${p.value.id}`)
-          .sort()
+          .toSorted()
           .join('|')}`;
         return existingConfigStr === newConfigStr;
       });
@@ -620,7 +620,7 @@ export function ModuleTagKeysConfigPanel({
       const index = configuredTKVs.findIndex((tkv) => {
         const tkvId = `${tkv.tagGroupId}_${tkv.keyValuePairs
           .map((p) => `${p.key.id}_${p.value.id}`)
-          .sort()
+          .toSorted()
           .join('_')}`;
         return tkvId === id;
       });
@@ -692,7 +692,7 @@ export function ModuleTagKeysConfigPanel({
       const index = configuredTKVs.findIndex((tkv) => {
         const tkvId = `${tkv.tagGroupId}_${tkv.keyValuePairs
           .map((p) => `${p.key.id}_${p.value.id}`)
-          .sort()
+          .toSorted()
           .join('_')}`;
         return tkvId === id;
       });
@@ -866,7 +866,7 @@ export function ModuleTagKeysConfigPanel({
         const index = configuredTKVs.findIndex((tkv) => {
           const id = `${tkv.tagGroupId}_${tkv.keyValuePairs
             .map((p) => `${p.key.id}_${p.value.id}`)
-            .sort()
+            .toSorted()
             .join('_')}`;
           return id === tkvId;
         });
