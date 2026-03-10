@@ -13,19 +13,19 @@ import type {RFModuleNodeData} from '~features/usecase-visualizer/model/usecase-
 const ioToPosition = (io: 'Input' | 'Output') =>
   io === 'Input' ? Position.Left : Position.Right;
 
+// Helper to distribute control handles horizontally along top
+const getTopHandleStyle = (index: number, total: number) => {
+  if (total === 0) {
+    return {};
+  }
+  const step = total > 1 ? (100 / (total + 1)) * (index + 1) : 50;
+  return {left: `${step}%`, transform: 'translateX(-50%)'};
+};
+
 export const ModuleNode: FC<NodeProps> = ({data, selected}) => {
   const moduleData = data as RFModuleNodeData;
   const dataPorts = moduleData.dataPorts ?? [];
   const controlPorts = moduleData.controlPorts ?? [];
-
-  // Helper to distribute control handles horizontally along top
-  const getTopHandleStyle = (index: number, total: number) => {
-    if (total === 0) {
-      return {};
-    }
-    const step = total > 1 ? (100 / (total + 1)) * (index + 1) : 50;
-    return {left: `${step}%`, transform: 'translateX(-50%)'};
-  };
 
   return (
     <div

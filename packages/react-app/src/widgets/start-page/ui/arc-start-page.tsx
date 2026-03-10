@@ -46,6 +46,14 @@ import type ProjectInfo from '~shared/types/project-info.types';
 
 const projectTypes = ['Active', 'Inactive', 'Diff/Merge'];
 
+function handleOnFilterOptionChanged(value: string | undefined) {
+  logger.verbose(`Filter option changed: ${value}`, {
+    action: 'filter_option_changed',
+    component: 'ArcStartPage',
+  });
+  // TODO: Implement filter logic when needed
+}
+
 export type ArcStartPageProps = {
   /** An event triggered by double-clicking a device card */
   onOpenDeviceProject?: (device: DeviceInfo) => void;
@@ -130,14 +138,6 @@ export default function ArcStartPage({
       });
       showToast('Failed to open file in explorer', 'danger');
     }
-  }
-
-  function handleOnFilterOptionChanged(value: string | undefined) {
-    logger.verbose(`Filter option changed: ${value}`, {
-      action: 'filter_option_changed',
-      component: 'ArcStartPage',
-    });
-    // TODO: Implement filter logic when needed
   }
 
   // Side nav implementation - memoize items and handlers

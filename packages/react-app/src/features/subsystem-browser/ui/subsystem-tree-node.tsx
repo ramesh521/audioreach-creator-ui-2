@@ -11,6 +11,22 @@ import {ConvertStringToNumber} from '~shared/utils/converter-utils';
 
 import type {SubsystemBrowserTreeNode} from '../model/subsystem-browser.types';
 
+const searchMatches = (node: SubsystemBrowserTreeNode, searchTerm: string) => {
+  const termToLower = searchTerm.trim().toLowerCase();
+  if (!termToLower) {
+    // empty string, treat all nodes as matches
+    return true;
+  }
+
+  if (node.name.toLowerCase().includes(termToLower)) {
+    return true;
+  }
+
+  // convert a search term that may be decimal or hex ("0xFF" or "ff") into a number
+  const idNumber = ConvertStringToNumber(termToLower);
+  return idNumber !== null && idNumber === node.id;
+};
+
 interface SubsystemTreeNodeProps {
   isExpanded: (id: number) => boolean;
   onClick: (id: number) => void;
@@ -30,25 +46,6 @@ const SubsystemTreeNode: FC<SubsystemTreeNodeProps> = ({
 }) => {
   const hasChildren = !!(treeNode.children && treeNode.children.length > 0);
   const expanded = isExpanded(treeNode.id);
-
-  const searchMatches = (
-    node: SubsystemBrowserTreeNode,
-    searchTerm: string,
-  ) => {
-    const termToLower = searchTerm.trim().toLowerCase();
-    if (!termToLower) {
-      // empty string, treat all nodes as matches
-      return true;
-    }
-
-    if (node.name.toLowerCase().includes(termToLower)) {
-      return true;
-    }
-
-    // convert a search term that may be decimal or hex ("0xFF" or "ff") into a number
-    const idNumber = ConvertStringToNumber(termToLower);
-    return idNumber !== null && idNumber === node.id;
-  };
 
   // A treeNode is visible if it matches the search Input or has any matching descendants.
   const hasMatchInSubtree = (

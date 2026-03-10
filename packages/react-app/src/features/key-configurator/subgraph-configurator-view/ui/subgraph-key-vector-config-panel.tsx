@@ -279,18 +279,18 @@ export function SubgraphKeyVectorConfigPanel({
     setSelectedKeys(newSelectedKeys);
   };
 
-  const handleSelectAllKeys = (checked: boolean) => {
-    if (checked) {
-      const keyIds = filteredKeyNames.map(
-        (keyName) => availableGraphKeys[keyName].id,
-      );
-      setSelectedKeys(new Set(keyIds));
-      setExpandedKeys(new Set(keyIds));
-    } else {
-      setSelectedKeys(new Set());
-      setSelectedValues({});
-      setExpandedKeys(new Set());
-    }
+  const handleSelectAllKeys = () => {
+    const keyIds = filteredKeyNames.map(
+      (keyName) => availableGraphKeys[keyName].id,
+    );
+    setSelectedKeys(new Set(keyIds));
+    setExpandedKeys(new Set(keyIds));
+  };
+
+  const handleDeselectAllKeys = () => {
+    setSelectedKeys(new Set());
+    setSelectedValues({});
+    setExpandedKeys(new Set());
   };
 
   const handleValueSelect = (keyId: number, valueId: number) => {
@@ -590,7 +590,9 @@ export function SubgraphKeyVectorConfigPanel({
               checked={allFilteredKeysSelected}
               indeterminate={someFilteredKeysSelected}
               onChange={(e) =>
-                handleSelectAllKeys((e.target as HTMLInputElement).checked)
+                (e.target as HTMLInputElement).checked
+                  ? handleSelectAllKeys()
+                  : handleDeselectAllKeys()
               }
               size="sm"
             />

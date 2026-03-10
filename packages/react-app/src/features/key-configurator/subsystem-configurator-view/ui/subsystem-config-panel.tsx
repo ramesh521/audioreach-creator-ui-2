@@ -133,20 +133,20 @@ export function SubsystemConfigPanel({
     removeConfiguredKey(subsystemId, id);
   };
 
-  const handleKeySelection = (id: number, checked: boolean) => {
-    if (checked) {
-      setSelectedKeys((prev) => [...prev, id]);
-    } else {
-      setSelectedKeys((prev) => prev.filter((keyId) => keyId !== id));
-    }
+  const handleKeySelect = (id: number) => {
+    setSelectedKeys((prev) => [...prev, id]);
   };
 
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedKeys(displayKeys.map((key) => key.id));
-    } else {
-      setSelectedKeys([]);
-    }
+  const handleKeyDeselect = (id: number) => {
+    setSelectedKeys((prev) => prev.filter((keyId) => keyId !== id));
+  };
+
+  const handleSelectAll = () => {
+    setSelectedKeys(displayKeys.map((key) => key.id));
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedKeys([]);
   };
 
   const handleSort = (column: SortColumn) => {
@@ -263,7 +263,9 @@ export function SubsystemConfigPanel({
               checked={allKeysSelected}
               indeterminate={someKeysSelected}
               onChange={(e) =>
-                handleSelectAll((e.target as HTMLInputElement).checked)
+                (e.target as HTMLInputElement).checked
+                  ? handleSelectAll()
+                  : handleDeselectAll()
               }
               size="sm"
             />
@@ -313,10 +315,9 @@ export function SubsystemConfigPanel({
                       aria-label={`Select ${key.name}`}
                       checked={isSelected}
                       onChange={(e) =>
-                        handleKeySelection(
-                          key.id,
-                          (e.target as HTMLInputElement).checked,
-                        )
+                        (e.target as HTMLInputElement).checked
+                          ? handleKeySelect(key.id)
+                          : handleKeyDeselect(key.id)
                       }
                       size="sm"
                     />

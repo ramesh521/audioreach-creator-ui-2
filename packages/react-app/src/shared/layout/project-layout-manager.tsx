@@ -808,11 +808,11 @@ class ProjectLayoutManager extends Component<
       }
 
       if (node.getChildren && typeof node.getChildren === 'function') {
-        node.getChildren().forEach((child: any) => {
+        for (const child of node.getChildren()) {
           if (child && typeof child.getType === 'function') {
             fixSelectedTab(child);
           }
-        });
+        }
       }
     };
 

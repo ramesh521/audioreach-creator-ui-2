@@ -793,12 +793,12 @@ export function ModuleTagKeysConfigPanel({
   // Group configured TKVs by tag group
   const groupedTKVs = useMemo(() => {
     const groups: Record<string, ConfiguredTkv[]> = {};
-    configuredTKVs.forEach((tkv: ConfiguredTkv) => {
+    for (const tkv of configuredTKVs) {
       if (!groups[tkv.tagGroup]) {
         groups[tkv.tagGroup] = [];
       }
       groups[tkv.tagGroup].push(tkv);
-    });
+    }
     return groups;
   }, [configuredTKVs]);
 

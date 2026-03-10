@@ -211,7 +211,7 @@ export function buildGraphViewFromUsecase(
   const dataLinks = dtoArray.flatMap((dto) =>
     Array.isArray(dto.dataLinks) ? dto.dataLinks : [],
   );
-  dataLinks.forEach((dl: DataLinkDto, idx) => {
+  for (const [idx, dl] of dataLinks.entries()) {
     // For data links, we need to find the source and destination using the link's properties
     // The sourceId and destinationId in the DTO are numeric IDs that need to be mapped
     const srcModule = modules.find((m) => m.id === dl.sourceId);
@@ -234,7 +234,7 @@ export function buildGraphViewFromUsecase(
       logger.warn(
         `[Adapter] Data link endpoints not found: source=${dl.sourceId}, dest=${dl.destinationId}`,
       );
-      return;
+      continue;
     }
 
     // Look up the actual numeric port IDs from the systemIds
@@ -247,7 +247,7 @@ export function buildGraphViewFromUsecase(
       logger.warn(
         `[Adapter] Data link port IDs not found: sourcePortId=${dl.sourcePortId}, destPortId=${dl.destinationPortId}`,
       );
-      return;
+      continue;
     }
 
     edges.push({
@@ -259,13 +259,13 @@ export function buildGraphViewFromUsecase(
       targetHandle: makeHandleId('Data', destinationPortId),
       type: 'data-link',
     });
-  });
+  }
 
   // Control edges - merge from all DTOs
   const controlLinks = dtoArray.flatMap((dto) =>
     Array.isArray(dto.controlLinks) ? dto.controlLinks : [],
   );
-  controlLinks.forEach((cl: ControlLinkDto, idx) => {
+  for (const [idx, cl] of controlLinks.entries()) {
     // For control links, use the numeric IDs to find the components
     const srcModule = modules.find((m) => m.id === cl.sourceId);
     const dstModule = modules.find((m) => m.id === cl.destinationId);
@@ -287,7 +287,7 @@ export function buildGraphViewFromUsecase(
       logger.warn(
         `[Adapter] Control link endpoints not found: source=${cl.sourceId}, dest=${cl.destinationId}`,
       );
-      return;
+      continue;
     }
 
     // Look up the actual numeric port IDs from the systemIds
@@ -302,7 +302,7 @@ export function buildGraphViewFromUsecase(
       logger.warn(
         `[Adapter] Control link port IDs not found: sourcePortId=${cl.sourcePortId}, destPortId=${cl.destinationPortId}`,
       );
-      return;
+      continue;
     }
 
     edges.push({
@@ -314,7 +314,7 @@ export function buildGraphViewFromUsecase(
       targetHandle: `${makeHandleId('Control', destinationPortId)}-target`,
       type: 'control-link',
     });
-  });
+  }
 
   return {edges, nodes};
 }

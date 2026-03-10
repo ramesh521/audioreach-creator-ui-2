@@ -92,32 +92,29 @@ const UsecaseSelectionControl: React.FC<UsecaseSelectionControlProps> = ({
     };
   }, [isDropdownOpen]);
 
-  const handleSelectUsecase = (
-    formattedUsecase: string,
-    isSelected: boolean,
-  ) => {
-    if (isSelected) {
-      setSelectedUsecases(projectGroupId, [
-        ...selectedUsecases,
-        formattedUsecase,
-      ]);
-    } else {
-      setSelectedUsecases(
-        projectGroupId,
-        selectedUsecases.filter((uc) => uc !== formattedUsecase),
-      );
-    }
+  const handleSelectUsecase = (formattedUsecase: string) => {
+    setSelectedUsecases(projectGroupId, [
+      ...selectedUsecases,
+      formattedUsecase,
+    ]);
   };
 
-  const handleSelectAll = (isSelected: boolean) => {
-    if (isSelected) {
-      const allUsecaseStrings = usecaseData.flatMap((category) =>
-        category.usecases.map((uc: Usecase) => formatUsecaseDisplay(uc)),
-      );
-      setSelectedUsecases(projectGroupId, allUsecaseStrings);
-    } else {
-      setSelectedUsecases(projectGroupId, []);
-    }
+  const handleDeselectUsecase = (formattedUsecase: string) => {
+    setSelectedUsecases(
+      projectGroupId,
+      selectedUsecases.filter((uc) => uc !== formattedUsecase),
+    );
+  };
+
+  const handleSelectAll = () => {
+    const allUsecaseStrings = usecaseData.flatMap((category) =>
+      category.usecases.map((uc: Usecase) => formatUsecaseDisplay(uc)),
+    );
+    setSelectedUsecases(projectGroupId, allUsecaseStrings);
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedUsecases(projectGroupId, []);
   };
 
   // Utility to determine if a usecase is checked based on its current display
@@ -178,6 +175,8 @@ const UsecaseSelectionControl: React.FC<UsecaseSelectionControlProps> = ({
           <UsecaseListPanel
             expandedCategories={expandedCategories}
             formatUsecaseDisplay={formatUsecaseDisplay}
+            handleDeselectAll={handleDeselectAll}
+            handleDeselectUsecase={handleDeselectUsecase}
             handleSelectAll={handleSelectAll}
             handleSelectUsecase={handleSelectUsecase}
             isUsecaseChecked={isUsecaseChecked}

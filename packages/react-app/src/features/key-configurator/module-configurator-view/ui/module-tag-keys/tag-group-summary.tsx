@@ -13,6 +13,14 @@ import {ConvertNumberToHexString} from '~shared/utils/converter-utils';
 
 import type {ConfiguredTkv} from './module-tag-keys-config.types';
 
+// Generate unique ID from TKV's own IDs (tagGroupId + keyIds + valueIds)
+const generateTKVId = (config: ConfiguredTkv): string => {
+  return `${config.tagGroupId}_${config.keyValuePairs
+    .map((p) => `${p.key.id}_${p.value.id}`)
+    .toSorted()
+    .join('_')}`;
+};
+
 interface TagGroupSummaryProps {
   readonly configurations: ConfiguredTkv[];
   readonly hasActiveSearch?: boolean;
@@ -44,14 +52,6 @@ export function TagGroupSummary({
   const handleDeleteTagGroup = () => {
     // TODO: Notify and confirm from user
     onDeleteTagGroup(tagGroupName);
-  };
-
-  // Generate unique ID from TKV's own IDs (tagGroupId + keyIds + valueIds)
-  const generateTKVId = (config: ConfiguredTkv): string => {
-    return `${config.tagGroupId}_${config.keyValuePairs
-      .map((p) => `${p.key.id}_${p.value.id}`)
-      .toSorted()
-      .join('_')}`;
   };
 
   // Convert configurations to display format using ID-based identification

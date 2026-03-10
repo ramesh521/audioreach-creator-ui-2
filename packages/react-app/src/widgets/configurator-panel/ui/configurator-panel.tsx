@@ -74,37 +74,44 @@ export const ConfiguratorUtils = {
   },
 
   /**
-   * Handles item selection/unselection with support for single and multi-selection
+   * Handles single item selection
    * @param currentItems - Currently selected items
-   * @param newItem - Item to select/unselect
-   * @param isMultiSelect - Whether Ctrl key is pressed for multi-selection
+   * @param newItem - Item to select
    * @returns Updated selection array
    */
-  handleItemSelection: (
+  handleSingleSelection: (
     currentItems: ConfigurationItem[],
     newItem: ConfigurationItem,
-    isMultiSelect: boolean = false,
   ): ConfigurationItem[] => {
-    if (isMultiSelect) {
-      // Multi-selection: toggle item in selection
-      const exists = currentItems.find((item) => item.id === newItem.id);
-      if (exists) {
-        // Remove if already selected (unselect)
-        return currentItems.filter((item) => item.id !== newItem.id);
-      } else {
-        // Add to selection
-        return [...currentItems, newItem];
-      }
+    // Single selection: replace current selection
+    const exists = currentItems.find((item) => item.id === newItem.id);
+    if (exists && currentItems.length === 1) {
+      // If clicking the same single item, unselect it
+      return [];
     } else {
-      // Single selection: replace current selection
-      const exists = currentItems.find((item) => item.id === newItem.id);
-      if (exists && currentItems.length === 1) {
-        // If clicking the same single item, unselect it
-        return [];
-      } else {
-        // Replace with new selection
-        return [newItem];
-      }
+      // Replace with new selection
+      return [newItem];
+    }
+  },
+
+  /**
+   * Handles multi-item selection (toggle)
+   * @param currentItems - Currently selected items
+   * @param newItem - Item to toggle in selection
+   * @returns Updated selection array
+   */
+  handleMultiSelection: (
+    currentItems: ConfigurationItem[],
+    newItem: ConfigurationItem,
+  ): ConfigurationItem[] => {
+    // Multi-selection: toggle item in selection
+    const exists = currentItems.find((item) => item.id === newItem.id);
+    if (exists) {
+      // Remove if already selected (unselect)
+      return currentItems.filter((item) => item.id !== newItem.id);
+    } else {
+      // Add to selection
+      return [...currentItems, newItem];
     }
   },
 

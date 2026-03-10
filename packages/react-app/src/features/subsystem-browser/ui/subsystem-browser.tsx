@@ -9,12 +9,12 @@ import {useSubsystemBrowserStore} from '../model/use-subsystem-browser-store';
 
 import SubSystemTreeView from './subsystem-tree-view';
 
-export const SubsystemBrowser: FC = () => {
-  // _id is intentionally unused for now to satisfy lint rule
-  const handleOnClick = (_id: number) => {
-    // TODO: Implement actual navigation logic
-  };
+// _id is intentionally unused for now to satisfy lint rule
+const handleOnClick = (_id: number) => {
+  // TODO: Implement actual navigation logic
+};
 
+export const SubsystemBrowser: FC = () => {
   const subsystemData = useSubsystemBrowserStore((state) => state.data);
 
   return (

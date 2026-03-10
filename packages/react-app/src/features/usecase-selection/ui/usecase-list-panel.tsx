@@ -20,8 +20,10 @@ import type {KeyValue, Usecase, UsecaseCategory} from '../model/types';
 interface UsecaseListPanelProps {
   expandedCategories: string[];
   formatUsecaseDisplay: (usecase: Usecase) => string;
-  handleSelectAll: (isSelected: boolean) => void;
-  handleSelectUsecase: (formattedUsecase: string, isSelected: boolean) => void;
+  handleDeselectAll: () => void;
+  handleDeselectUsecase: (formattedUsecase: string) => void;
+  handleSelectAll: () => void;
+  handleSelectUsecase: (formattedUsecase: string) => void;
   isUsecaseChecked: (usecase: Usecase) => boolean;
   onClose: () => void;
   selectedUsecases: string[];
@@ -32,6 +34,8 @@ interface UsecaseListPanelProps {
 const UsecaseListPanel: React.FC<UsecaseListPanelProps> = ({
   expandedCategories,
   formatUsecaseDisplay,
+  handleDeselectAll,
+  handleDeselectUsecase,
   handleSelectAll,
   handleSelectUsecase,
   isUsecaseChecked,
@@ -59,7 +63,9 @@ const UsecaseListPanel: React.FC<UsecaseListPanelProps> = ({
                   usecaseData.flatMap((cat) => cat.usecases).length &&
                 usecaseData.flatMap((cat) => cat.usecases).length > 0
               }
-              onCheckedChange={(checked) => handleSelectAll(checked === true)}
+              onCheckedChange={(checked) =>
+                checked === true ? handleSelectAll() : handleDeselectAll()
+              }
               size="sm"
             />
             <span className="ml-2">Select All</span>
@@ -138,12 +144,14 @@ const UsecaseListPanel: React.FC<UsecaseListPanelProps> = ({
                     checked={allChecked}
                     indeterminate={someChecked}
                     onCheckedChange={(checked) => {
-                      category.usecases.forEach((uc: Usecase) =>
-                        handleSelectUsecase(
-                          formatUsecaseDisplay(uc),
-                          checked === true,
-                        ),
-                      );
+                      for (const uc of category.usecases) {
+                        const formattedUc = formatUsecaseDisplay(uc);
+                        if (checked === true) {
+                          handleSelectUsecase(formattedUc);
+                        } else {
+                          handleDeselectUsecase(formattedUc);
+                        }
+                      }
                     }}
                     size="sm"
                   />
@@ -172,10 +180,9 @@ const UsecaseListPanel: React.FC<UsecaseListPanelProps> = ({
                                 formattedUsecase,
                               )}
                               onCheckedChange={(checked) =>
-                                handleSelectUsecase(
-                                  formattedUsecase,
-                                  checked === true,
-                                )
+                                checked === true
+                                  ? handleSelectUsecase(formattedUsecase)
+                                  : handleDeselectUsecase(formattedUsecase)
                               }
                               size="sm"
                             />

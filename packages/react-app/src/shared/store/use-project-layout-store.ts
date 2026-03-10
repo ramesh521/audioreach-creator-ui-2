@@ -1055,7 +1055,9 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
             panelIds.push(node.id);
           }
           if (node.children) {
-            node.children.forEach((child: any) => extractFromNode(child));
+            for (const child of node.children) {
+              extractFromNode(child);
+            }
           }
         };
 
@@ -1066,11 +1068,13 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
 
         // Extract from borders
         if (flexLayoutData.borders) {
-          flexLayoutData.borders.forEach((border: any) => {
+          for (const border of flexLayoutData.borders) {
             if (border.children) {
-              border.children.forEach((tab: any) => extractFromNode(tab));
+              for (const tab of border.children) {
+                extractFromNode(tab);
+              }
             }
-          });
+          }
         }
 
         return panelIds;
@@ -1215,25 +1219,25 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
           (child: any) => child.type === 'tabset',
         );
         if (centerTabset && centerTabset.children) {
-          centerTabset.children.forEach((tab: any) => {
+          for (const tab of centerTabset.children as any[]) {
             if (tab.component === 'panel-tab') {
               panelTabIds.push(tab.id);
             }
-          });
+          }
         }
       }
 
       // Check border panels
       if (layout.flexLayoutData.borders) {
-        layout.flexLayoutData.borders.forEach((border: any) => {
+        for (const border of layout.flexLayoutData.borders) {
           if (border.children) {
-            border.children.forEach((tab: any) => {
+            for (const tab of border.children as any[]) {
               if (tab.component === 'panel-tab') {
                 panelTabIds.push(tab.id);
               }
-            });
+            }
           }
-        });
+        }
       }
 
       // Call onProjectClose for each panel tab

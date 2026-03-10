@@ -19,6 +19,32 @@ import {
   ConfiguratorPanel,
 } from '~widgets/configurator-panel';
 
+// Helper function to map ConfigurationItem to ConfigurationContext
+const mapItemToConfigurationContext = (
+  item: ConfigurationItem,
+): ConfigurationContext | null => {
+  switch (item.type) {
+    case ConfigurationItemType.MODULE:
+      return {
+        entityId: item.id,
+        entityType: item.type,
+        instanceId: item.instanceId,
+        systemId: item.systemId,
+      };
+
+    case ConfigurationItemType.SUBGRAPH:
+    case ConfigurationItemType.SUBSYSTEM:
+      return {
+        entityId: item.id,
+        entityType: item.type,
+        systemId: item.systemId,
+      };
+
+    default:
+      return null;
+  }
+};
+
 export const KeyConfiguratorPanel: React.FC = () => {
   // KeyConfigurator store - single source of truth for all state
   // Get the Zustand hook and use selectors to subscribe to specific state changes
@@ -49,32 +75,6 @@ export const KeyConfiguratorPanel: React.FC = () => {
       }
     }
   }, [selectedItems, projectId, initializeConfiguration]);
-
-  // Helper function to map ConfigurationItem to ConfigurationContext
-  const mapItemToConfigurationContext = (
-    item: ConfigurationItem,
-  ): ConfigurationContext | null => {
-    switch (item.type) {
-      case ConfigurationItemType.MODULE:
-        return {
-          entityId: item.id,
-          entityType: item.type,
-          instanceId: item.instanceId,
-          systemId: item.systemId,
-        };
-
-      case ConfigurationItemType.SUBGRAPH:
-      case ConfigurationItemType.SUBSYSTEM:
-        return {
-          entityId: item.id,
-          entityType: item.type,
-          systemId: item.systemId,
-        };
-
-      default:
-        return null;
-    }
-  };
 
   // KeyConfigurator-specific rendering logic
   const renderKeyConfigView = (

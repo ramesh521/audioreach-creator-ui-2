@@ -77,17 +77,11 @@ export function ArcSideNav() {
 
   // Handle manual expansion via collapse trigger
   const handleOpenChange = (newOpen: boolean) => {
-    // Only update state if this is a manual toggle (not from our setOpen call)
-    // We detect manual toggle by checking if wasAutoExpanded is false
-    if (newOpen && !wasAutoExpanded) {
-      // User manually expanded - this is a manual action
-      setOpen(newOpen);
-    } else if (newOpen) {
-      // This is from our auto-expand, just update open state
-      setOpen(newOpen);
-    } else {
-      // User manually collapsed
-      setOpen(newOpen);
+    // Update open state based on the new value
+    setOpen(newOpen);
+
+    // Reset auto-expand flag when manually closing
+    if (!newOpen) {
       setWasAutoExpanded(false);
     }
   };
