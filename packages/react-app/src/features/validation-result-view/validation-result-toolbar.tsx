@@ -177,26 +177,17 @@ const ValidationResultToolbar: React.FC = () => {
       .join('\n'); // Join all results with newlines
 
     try {
-      // Import the API request types and electron API
-      const {ApiRequest} = await import('@audioreach-creator-ui/api-utils');
-
-      if (!globalThis.api) {
-        logger.error('Electron API not available');
+      if (!globalThis.projectFileApi) {
+        logger.error('Project File API not available');
         return;
       }
 
       // Call the save validation results API
-      const response = await globalThis.api.send({
-        data: {
-          content: resultsText,
-        },
-        requestType: ApiRequest.SaveValidationResults,
-      });
+      const response =
+        await globalThis.projectFileApi.saveValidationResults(resultsText);
 
-      if (response.data && !response.data.cancelled) {
-        logger.info(
-          `Validation results exported to: ${response.data.filepath}`,
-        );
+      if (!response.cancelled) {
+        logger.info(`Validation results exported to: ${response.filepath}`);
       }
     } catch (error) {
       logger.error(`Failed to export validation results: ${error}`);

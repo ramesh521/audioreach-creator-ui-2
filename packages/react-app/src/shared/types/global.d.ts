@@ -1,9 +1,11 @@
 import type {
   ConfigApi,
+  ElectronApi,
   KeyConfiguratorViewApi,
   LogViewApi,
   MruStoreApi,
   ProjectContextApi,
+  ProjectFileApi,
 } from '@audioreach-creator-ui/api-utils';
 
 declare global {
@@ -19,4 +21,6 @@ declare global {
   var mruStoreApi: MruStoreApi;
   // eslint-disable-next-line no-var
   var projectContextApi: ProjectContextApi;
+  // eslint-disable-next-line no-var
+  var projectFileApi: ProjectFileApi;
 }

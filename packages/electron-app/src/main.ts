@@ -4,11 +4,10 @@
  */
 
 import {
-  ApiRequest,
-  type ApiRequestType,
-  type ApiResponse,
   type ConfigResult,
   type MruProjectInfo,
+  type OpenProjectFileResponseData,
+  type SaveValidationResultsResponseData,
 } from '@audioreach-creator-ui/api-utils';
 import {app, BrowserWindow, ipcMain, Menu} from 'electron';
 import Store from 'electron-store';
@@ -45,31 +44,38 @@ let isKeyConfiguratorViewOpen = false;
 function createApplicationMenu(): void {
   const isMac = process.platform === 'darwin';
 
-  const template: Electron.MenuItemConstructorOptions[] = [ {
-    label: 'File',
-    submenu: [isMac ? {role: 'close'} : {role: 'quit'}],
-  }];
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: 'File',
+      submenu: [isMac ? {role: 'close'} : {role: 'quit'}],
+    },
+  ];
 
-  // File menu
+  // File menu
 
   // View menu with log view toggle
   const viewSubmenu: Electron.MenuItemConstructorOptions[] = [];
 
   // Only show log view menu item when a project is active
   if (hasActiveProject) {
-    viewSubmenu.push({
-      click: () => {
-        win.webContents.send('menu:toggle-log-view');
+    viewSubmenu.push(
+      {
+        click: () => {
+          win.webContents.send('menu:toggle-log-view');
+        },
+        label: isLogViewOpen ? 'Hide Log View' : 'Show Log View',
       },
-      label: isLogViewOpen ? 'Hide Log View' : 'Show Log View',
-    }, {type: 'separator'}, {
-      click: () => {
-        win.webContents.send('menu:toggle-key-configurator-view');
+      {type: 'separator'},
+      {
+        click: () => {
+          win.webContents.send('menu:toggle-key-configurator-view');
+        },
+        label: isKeyConfiguratorViewOpen
+          ? 'Hide Key Configurator'
+          : 'Show Key Configurator',
       },
-      label: isKeyConfiguratorViewOpen
-        ? 'Hide Key Configurator'
-        : 'Show Key Configurator',
-    }, {type: 'separator'});
+      {type: 'separator'},
+    );
   }
 
   viewSubmenu.push(
@@ -233,50 +239,51 @@ app.on('activate', () => {
   }
 });
 
-// also see: packages/api-utils/api.ts
+// #region Project File IPC Handlers
+
+/** Get project file modification date */
 ipcMain.handle(
-  'ipc::message',
-  async (_, args: ApiRequestType): Promise<ApiResponse> => {
-    let response;
-    let data = undefined;
-
-    switch (args.requestType) {
-      case ApiRequest.GetProjectFileModificationDate:
-        const filepath = args.data.filepath;
-        const modifiedDate = getFileModificationDateSync(filepath);
-
-        data = {date: modifiedDate};
-        response = '';
-
-        if (modifiedDate === undefined) {
-          response = 'Unable to get modified date';
-        }
-
-        break;
-      case ApiRequest.OpenProjectFile:
-        const openFileResponse = await openProjectFile(win);
-
-        response = openFileResponse.response;
-        data = openFileResponse.data;
-        break;
-      case ApiRequest.ShowProjectFileInExplorer:
-        console.debug(`Showing project file in explorer: ${args.data}`);
-        showProjectInExplorer(args.data);
-        response = '';
-        break;
-      case ApiRequest.SaveValidationResults:
-        const saveFileResponse = await saveValidationResults(win, args.data);
-
-        response = saveFileResponse.response;
-        data = saveFileResponse.data;
-        break;
-      default:
-        response = 'Unknown request type';
-    }
-
-    return {data, message: response, requestType: args.requestType};
+  'project-file:get-modification-date',
+  async (_, filepath: string): Promise<Date | undefined> => {
+    return getFileModificationDateSync(filepath);
   },
 );
+
+/** Open project file dialog */
+ipcMain.handle(
+  'project-file:open',
+  async (): Promise<OpenProjectFileResponseData> => {
+    const result = await openProjectFile(win);
+    return result.data;
+  },
+);
+
+/** Show project file in system explorer */
+ipcMain.handle(
+  'project-file:show-in-explorer',
+  async (_, filepath: string): Promise<void> => {
+    console.debug(`Showing project file in explorer: ${filepath}`);
+    showProjectInExplorer(filepath);
+  },
+);
+
+/** Save validation results to file */
+ipcMain.handle(
+  'project-file:save-validation-results',
+  async (
+    _,
+    content: string,
+    defaultFilename?: string,
+  ): Promise<SaveValidationResultsResponseData> => {
+    const result = await saveValidationResults(win, {
+      content,
+      defaultFilename,
+    });
+    return result.data;
+  },
+);
+
+// #endregion Project File IPC Handlers
 
 //  #region Configuration file handling
 
@@ -552,5 +559,3 @@ ipcMain.handle('project-context:set', (_event, isActive: boolean): void => {
     isLogViewOpen = false;
   }
 });
-
-//  #endregion Project Context IPC Handlers

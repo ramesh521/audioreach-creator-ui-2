@@ -4,8 +4,6 @@
  */
 
 import type {
-  ApiRequestType,
-  ApiResponse,
   ConfigApi,
   ConfigResult,
   ElectronApi,
@@ -13,14 +11,14 @@ import type {
   LogViewApi,
   MruProjectInfo,
   MruStoreApi,
+  OpenProjectFileResponseData,
   ProjectContextApi,
+  ProjectFileApi,
+  SaveValidationResultsResponseData,
 } from '@audioreach-creator-ui/api-utils';
 import {contextBridge, ipcRenderer} from 'electron';
 
 const api: ElectronApi = {
-  send: (request: ApiRequestType): Promise<ApiResponse> => {
-    return ipcRenderer.invoke('ipc::message', request);
-  },
   versions: {
     chromeVersion: () => process.versions.chrome || '',
     electronVersion: () => process.versions.electron || '',
@@ -29,6 +27,32 @@ const api: ElectronApi = {
 };
 
 contextBridge.exposeInMainWorld('api', api);
+
+// Project File API - new pattern with dedicated handlers
+const projectFileApi: ProjectFileApi = {
+  getModificationDate: (filepath: string) =>
+    ipcRenderer.invoke(
+      'project-file:get-modification-date',
+      filepath,
+    ) as Promise<Date | undefined>,
+  openProjectFile: () =>
+    ipcRenderer.invoke(
+      'project-file:open',
+    ) as Promise<OpenProjectFileResponseData>,
+  saveValidationResults: (content: string, defaultFilename?: string) =>
+    ipcRenderer.invoke(
+      'project-file:save-validation-results',
+      content,
+      defaultFilename,
+    ) as Promise<SaveValidationResultsResponseData>,
+  showInExplorer: (filepath: string) =>
+    ipcRenderer.invoke(
+      'project-file:show-in-explorer',
+      filepath,
+    ) as Promise<void>,
+};
+
+contextBridge.exposeInMainWorld('projectFileApi', projectFileApi);
 
 const configApi: ConfigApi = {
   loadConfigData: () =>

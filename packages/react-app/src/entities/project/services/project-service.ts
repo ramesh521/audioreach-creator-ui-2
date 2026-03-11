@@ -3,14 +3,13 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-import {ApiRequest} from '@audioreach-creator-ui/api-utils';
-
 import {
   openProject,
   openWorkspaceProject,
 } from '~entities/project/api/projects-api';
 import {getAllUsecases} from '~entities/usecases/api/usecases-api';
 import {mapUsecaseDtoToCategories} from '~entities/usecases/model/usecase.mapper';
+import type {UsecaseCategory} from '~features/usecase-selection';
 import {logger} from '~shared/lib/logger';
 import type ProjectInfo from '~shared/types/project-info.types';
 
@@ -18,7 +17,7 @@ export interface ProjectOpenResponse {
   message?: string;
   project?: ProjectInfo;
   success: boolean;
-  usecaseData?: any[];
+  usecaseData?: UsecaseCategory[];
 }
 
 /**
@@ -31,7 +30,9 @@ export class ProjectService {
    * @param projectId - The project ID
    * @returns Promise with usecase data array
    */
-  private static async fetchUsecaseData(projectId: string): Promise<any[]> {
+  private static async fetchUsecaseData(
+    projectId: string,
+  ): Promise<UsecaseCategory[]> {
     try {
       const result = await getAllUsecases(projectId);
       if (result.success && result.data) {
@@ -110,26 +111,23 @@ export class ProjectService {
    * @returns Promise with project open result
    */
   static async openWorkspaceProjectFromFile(): Promise<ProjectOpenResponse> {
-    if (!globalThis.api) {
-      logger.error('Electron API not available', {
+    if (!globalThis.projectFileApi) {
+      logger.error('Project File API not available', {
         action: 'open_workspace_project',
         component: 'ProjectService',
       });
       return {
-        message: 'Electron API not available',
+        message: 'Project File API not available',
         success: false,
       };
     }
 
     try {
       // Open a project file using Electron API
-      const response = await globalThis.api.send({
-        data: null,
-        requestType: ApiRequest.OpenProjectFile,
-      });
+      const responseData = await globalThis.projectFileApi.openProjectFile();
 
       // Check if user cancelled the file selection
-      if (response.data.cancelled || !response.data.project) {
+      if (responseData.cancelled || !responseData.project) {
         logger.verbose('File selection cancelled', {
           action: 'open_workspace_project',
           component: 'ProjectService',
@@ -140,9 +138,10 @@ export class ProjectService {
         };
       }
 
-      const projectInfo = response.data.project;
-      const workspaceFileData = response.data.workspaceFileData;
-      const acdbFileData = response.data.acdbFileData;
+      // At this point, we know project exists due to the check above
+      const projectInfo = responseData.project;
+      const {workspaceFileData} = responseData;
+      const {acdbFileData} = responseData;
 
       // Validate that we have the required binary data
       if (!workspaceFileData) {
@@ -161,7 +160,7 @@ export class ProjectService {
 
       // Convert Buffer data to File objects
       const workspaceFileName =
-        projectInfo.filepath.split(/[\\/]/).pop() || 'workspace.awsp';
+        projectInfo.filepath.split(/[\\/]/).pop() ?? 'workspace.awsp';
       const workspaceFile = new File(
         [new Uint8Array(workspaceFileData)],
         workspaceFileName,
@@ -189,11 +188,8 @@ export class ProjectService {
         };
       }
 
-      const desc = result.data.description
-        ? result.data.description
-        : projectInfo.description;
-      const name =
-        result.data.name === undefined ? projectInfo.name : result.data.name;
+      const desc = result.data.description ?? projectInfo.description;
+      const name = result.data.name ?? projectInfo.name;
 
       // Create project info for recent projects list
       const project: ProjectInfo = {
@@ -231,19 +227,16 @@ export class ProjectService {
    * @returns Promise that resolves when operation completes
    */
   static async showInExplorer(filepath: string): Promise<void> {
-    if (!globalThis.api) {
-      logger.error('Electron API not available', {
+    if (!globalThis.projectFileApi) {
+      logger.error('Project File API not available', {
         action: 'show_in_explorer',
         component: 'ProjectService',
       });
-      throw new Error('Electron API not available');
+      throw new Error('Project File API not available');
     }
 
     try {
-      await globalThis.api.send({
-        data: filepath,
-        requestType: ApiRequest.ShowProjectFileInExplorer,
-      });
+      await globalThis.projectFileApi.showInExplorer(filepath);
     } catch (error) {
       logger.error('Error occurred while trying to open the file explorer', {
         action: 'show_in_explorer',

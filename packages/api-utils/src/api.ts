@@ -3,7 +3,11 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-import type {ProjectFileApiRequestTypes} from './project-file-api.types';
+import type {
+  OpenProjectFileResponseData,
+  ProjectFileApiRequestTypes,
+  SaveValidationResultsResponseData,
+} from './project-file-api.types';
 
 export enum ApiRequest {
   GetProjectFileModificationDate = 'file-prop-get-mod-date',
@@ -20,8 +24,8 @@ export enum ApiRequest {
  */
 export type ApiRequestType = ProjectFileApiRequestTypes;
 
-export type ApiResponse = {
-  data: undefined;
+export type ApiResponse<T = undefined> = {
+  data: T;
   message: string;
   requestType: ApiRequest;
 };
@@ -33,8 +37,18 @@ export interface Versions {
 }
 
 export interface ElectronApi {
-  send: (request: ApiRequestType) => Promise<ApiResponse>;
   versions: Versions;
+}
+
+/** Project File API exposed to renderer process */
+export interface ProjectFileApi {
+  getModificationDate: (filepath: string) => Promise<Date | undefined>;
+  openProjectFile: () => Promise<OpenProjectFileResponseData>;
+  saveValidationResults: (
+    content: string,
+    defaultFilename?: string,
+  ) => Promise<SaveValidationResultsResponseData>;
+  showInExplorer: (filepath: string) => Promise<void>;
 }
 
 export type WindowWithApi = Window & {api: ElectronApi};
