@@ -56,11 +56,11 @@ function handleOnFilterOptionChanged(value: string | undefined) {
 
 export type ArcStartPageProps = {
   /** An event triggered by double-clicking a device card */
-  onOpenDeviceProject?: (device: DeviceInfo) => void;
+  readonly onOpenDeviceProject?: (device: DeviceInfo) => void;
   /** An event triggered by double-clicking a project card */
-  onOpenWorkspaceProject?: (project: ProjectInfo) => void;
+  readonly onOpenWorkspaceProject?: (project: ProjectInfo) => void;
   /** Tab ID for side nav registration */
-  tabId?: string;
+  readonly tabId?: string;
 };
 
 export default function ArcStartPage({
@@ -96,20 +96,20 @@ export default function ArcStartPage({
   });
 
   // Hooks for Combobox collection
-  const {contains} = useFilter({sensitivity: 'base'});
+  const filter = useFilter({sensitivity: 'base'});
   const {collection} = useListCollection({
-    filter: contains,
+    filter: (textValue, inputValue) => filter.contains(textValue, inputValue),
     initialItems: projectTypes,
   });
 
   const filteredProjects = useMemo(() => {
-    if (recentProjects === undefined) {
+    if (!recentProjects) {
       return [];
     }
 
     return recentProjects.filter((project: ProjectInfo) => {
       // Check if searchTerm is valid
-      if (!searchTerm || searchTerm.trim() === '') {
+      if (!searchTerm || !searchTerm.trim()) {
         return true;
       }
 
@@ -355,7 +355,7 @@ export default function ArcStartPage({
           <Button
             emphasis="neutral"
             endIcon={ChevronRight}
-            onClick={openWorkspaceProject}
+            onClick={() => void openWorkspaceProject()}
             size="md"
             startIcon={Folder}
             variant="fill"
@@ -419,7 +419,9 @@ export default function ArcStartPage({
                 <UnifiedGridView
                   devices={filteredDevices}
                   onOpenDevice={openDevice}
-                  onOpenProject={openRecentProject}
+                  onOpenProject={(project) => {
+                    void openRecentProject(project);
+                  }}
                   onRemoveFromRecent={removeFromRecent}
                   onShowInExplorer={handleShowInExplorer}
                   projects={filteredProjects}
@@ -430,9 +432,13 @@ export default function ArcStartPage({
                 <UnifiedListView
                   devices={filteredDevices}
                   onOpenDevice={openDevice}
-                  onOpenProject={openRecentProject}
+                  onOpenProject={(project) => {
+                    void openRecentProject(project);
+                  }}
                   onRemoveFromRecent={removeFromRecent}
-                  onShowInExplorer={handleShowInExplorer}
+                  onShowInExplorer={(projectId) => {
+                    void handleShowInExplorer(projectId);
+                  }}
                   projects={filteredProjects}
                   showDevices={showDevices}
                   showProjects={showProjects}

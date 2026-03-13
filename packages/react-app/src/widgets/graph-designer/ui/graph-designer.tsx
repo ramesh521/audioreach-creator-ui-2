@@ -183,7 +183,7 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
       }
     };
 
-    fetchGraphData();
+    void fetchGraphData();
   }, [selectedUsecases, usecaseData, projectGroupId]);
 
   // Side nav implementation
@@ -445,6 +445,103 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
   // Register side nav with provider
   useRegisterSideNav(tabId, sideNav);
 
+  // Helper function to render graph content based on current state
+  const renderGraphContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex h-full items-center justify-center">
+          <div className="text-center">
+            <div
+              className="mb-2 text-lg font-semibold"
+              style={{color: 'var(--color-text-neutral-primary)'}}
+            >
+              Loading graph...
+            </div>
+            <div
+              className="text-sm"
+              style={{color: 'var(--color-text-neutral-secondary)'}}
+            >
+              Fetching usecase components
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="flex h-full items-center justify-center">
+          <div className="text-center">
+            <div
+              className="mb-2 text-lg font-semibold"
+              style={{color: 'var(--color-border-support-danger)'}}
+            >
+              Error loading graph
+            </div>
+            <div
+              className="text-sm"
+              style={{color: 'var(--color-text-neutral-secondary)'}}
+            >
+              {error}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (selectedUsecases.length === 0) {
+      return (
+        <div className="flex h-full items-center justify-center">
+          <div className="text-center">
+            <div
+              className="mb-2 text-lg font-semibold"
+              style={{color: 'var(--color-text-neutral-primary)'}}
+            >
+              No usecases selected
+            </div>
+            <div
+              className="text-sm"
+              style={{color: 'var(--color-text-neutral-secondary)'}}
+            >
+              Select usecases from the control above to view the graph
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (nodes.length === 0) {
+      return (
+        <div className="flex h-full items-center justify-center">
+          <div className="text-center">
+            <div
+              className="mb-2 text-lg font-semibold"
+              style={{color: 'var(--color-text-neutral-primary)'}}
+            >
+              No graph data available
+            </div>
+            <div
+              className="text-sm"
+              style={{color: 'var(--color-text-neutral-secondary)'}}
+            >
+              The selected usecases do not have any components to display
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <UsecaseVisualizer
+        edges={edges}
+        nodes={nodes}
+        onScreenshotReady={handleScreenshotReady}
+        projectId={projectGroupId}
+        userPreferences={preferences}
+      />
+    );
+  };
+
   return (
     <div className="flex h-full flex-col">
       {/* Usecase Selection Control at the top */}
@@ -466,83 +563,7 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
         className="flex-1 overflow-hidden"
         style={{backgroundColor: 'var(--color-surface-primary)'}}
       >
-        {isLoading ? (
-          <div className="flex h-full items-center justify-center">
-            <div className="text-center">
-              <div
-                className="mb-2 text-lg font-semibold"
-                style={{color: 'var(--color-text-neutral-primary)'}}
-              >
-                Loading graph...
-              </div>
-              <div
-                className="text-sm"
-                style={{color: 'var(--color-text-neutral-secondary)'}}
-              >
-                Fetching usecase components
-              </div>
-            </div>
-          </div>
-        ) : error ? (
-          <div className="flex h-full items-center justify-center">
-            <div className="text-center">
-              <div
-                className="mb-2 text-lg font-semibold"
-                style={{color: 'var(--color-border-support-danger)'}}
-              >
-                Error loading graph
-              </div>
-              <div
-                className="text-sm"
-                style={{color: 'var(--color-text-neutral-secondary)'}}
-              >
-                {error}
-              </div>
-            </div>
-          </div>
-        ) : selectedUsecases.length === 0 ? (
-          <div className="flex h-full items-center justify-center">
-            <div className="text-center">
-              <div
-                className="mb-2 text-lg font-semibold"
-                style={{color: 'var(--color-text-neutral-primary)'}}
-              >
-                No usecases selected
-              </div>
-              <div
-                className="text-sm"
-                style={{color: 'var(--color-text-neutral-secondary)'}}
-              >
-                Select usecases from the control above to view the graph
-              </div>
-            </div>
-          </div>
-        ) : nodes.length === 0 ? (
-          <div className="flex h-full items-center justify-center">
-            <div className="text-center">
-              <div
-                className="mb-2 text-lg font-semibold"
-                style={{color: 'var(--color-text-neutral-primary)'}}
-              >
-                No graph data available
-              </div>
-              <div
-                className="text-sm"
-                style={{color: 'var(--color-text-neutral-secondary)'}}
-              >
-                The selected usecases do not have any components to display
-              </div>
-            </div>
-          </div>
-        ) : (
-          <UsecaseVisualizer
-            edges={edges}
-            nodes={nodes}
-            onScreenshotReady={handleScreenshotReady}
-            projectId={projectGroupId}
-            userPreferences={preferences}
-          />
-        )}
+        {renderGraphContent()}
       </div>
     </div>
   );

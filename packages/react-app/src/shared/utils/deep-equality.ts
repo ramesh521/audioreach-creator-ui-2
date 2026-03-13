@@ -4,6 +4,71 @@
  */
 
 /**
+ * Checks if two Date objects are equal
+ */
+function areDatesEqual(a: Date, b: Date): boolean {
+  return a.getTime() === b.getTime();
+}
+
+/**
+ * Checks if two RegExp objects are equal
+ */
+function areRegExpsEqual(a: RegExp, b: RegExp): boolean {
+  return a.source === b.source && a.flags === b.flags;
+}
+
+/**
+ * Checks if two arrays are deeply equal
+ */
+function areArraysEqual<T>(
+  a: T[],
+  b: T[],
+  seen: WeakMap<object, unknown>,
+): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  for (const [index, item] of a.entries()) {
+    if (!deepEqual(item, b[index], seen)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Checks if two objects are deeply equal
+ */
+function areObjectsEqual(
+  a: Record<string, unknown>,
+  b: Record<string, unknown>,
+  seen: WeakMap<object, unknown>,
+): boolean {
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+
+  // Check if objects have the same number of keys
+  if (keysA.length !== keysB.length) {
+    return false;
+  }
+
+  // Check if all keys and values are equal
+  for (const key of keysA) {
+    if (!Object.prototype.hasOwnProperty.call(b, key)) {
+      return false;
+    }
+
+    if (!deepEqual(a[key], b[key], seen)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
  * Performs a deep equality comparison between two values.
  *
  * This utility function recursively compares objects and arrays to determine
@@ -13,6 +78,7 @@
  * @template T - The type of values being compared
  * @param a - First value to compare
  * @param b - Second value to compare
+ * @param seen - WeakMap to track circular references
  * @returns true if values are deeply equal, false otherwise
  *
  * @example
@@ -25,7 +91,11 @@
  * deepEqual(obj1, obj3); // false
  * ```
  */
-export function deepEqual<T>(a: T, b: T, seen = new WeakMap()): boolean {
+export function deepEqual<T>(
+  a: T,
+  b: T,
+  seen = new WeakMap<object, unknown>(),
+): boolean {
   // Handle primitive types and reference equality
   if (a === b) {
     return true;
@@ -43,16 +113,16 @@ export function deepEqual<T>(a: T, b: T, seen = new WeakMap()): boolean {
 
   // Handle Date objects
   if (a instanceof Date && b instanceof Date) {
-    return a.getTime() === b.getTime();
+    return areDatesEqual(a, b);
   }
 
   // Handle RegExp objects
   if (a instanceof RegExp && b instanceof RegExp) {
-    return a.source === b.source && a.flags === b.flags;
+    return areRegExpsEqual(a, b);
   }
 
   // Handle circular references for objects
-  if (typeof a === 'object' && a !== null) {
+  if (typeof a === 'object') {
     if (seen.has(a)) {
       return seen.get(a) === b;
     }
@@ -61,17 +131,7 @@ export function deepEqual<T>(a: T, b: T, seen = new WeakMap()): boolean {
 
   // Handle arrays
   if (Array.isArray(a) && Array.isArray(b)) {
-    if (a.length !== b.length) {
-      return false;
-    }
-
-    for (let i = 0; i < a.length; i++) {
-      if (!deepEqual(a[i], b[i])) {
-        return false;
-      }
-    }
-
-    return true;
+    return areArraysEqual(a, b, seen);
   }
 
   // If one is an array and the other is not, they're not equal
@@ -81,26 +141,11 @@ export function deepEqual<T>(a: T, b: T, seen = new WeakMap()): boolean {
 
   // Handle objects
   if (typeof a === 'object' && typeof b === 'object') {
-    const keysA = Object.keys(a as object);
-    const keysB = Object.keys(b as object);
-
-    // Check if objects have the same number of keys
-    if (keysA.length !== keysB.length) {
-      return false;
-    }
-
-    // Check if all keys and values are equal
-    for (const key of keysA) {
-      if (!Object.prototype.hasOwnProperty.call(b, key)) {
-        return false;
-      }
-
-      if (!deepEqual((a as any)[key], (b as any)[key])) {
-        return false;
-      }
-    }
-
-    return true;
+    return areObjectsEqual(
+      a as Record<string, unknown>,
+      b as Record<string, unknown>,
+      seen,
+    );
   }
 
   // For all other cases (functions, symbols, etc.)
