@@ -37,8 +37,8 @@ export function ConvertStringToNumber(searchTerm: string): number | null {
 export function ConvertNumberToHexString(id: number): string | null {
   if (
     typeof id !== 'number' || // Validate input is a number
-    isNaN(id) || // Check for NaN
-    !isFinite(id) || // Check for infinity
+    Number.isNaN(id) || // Check for NaN
+    !Number.isFinite(id) || // Check for infinity
     !Number.isSafeInteger(id) || // Validate the input is within safe integer range
     id < 0
   ) {

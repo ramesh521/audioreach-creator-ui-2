@@ -5,10 +5,57 @@
 
 import type {ReactNode} from 'react';
 
-import type {IJsonBorderNode, IJsonTabNode} from 'flexlayout-react';
+import type {
+  IJsonBorderNode,
+  IJsonModel,
+  IJsonRowNode,
+  IJsonTabNode,
+  IJsonTabSetNode,
+} from 'flexlayout-react';
 import {create} from 'zustand';
 
 import {logger} from '~shared/lib/logger';
+import crypto from 'node:crypto';
+
+// Type definitions for FlexLayout JSON structures
+type FlexLayoutChild = IJsonTabSetNode | IJsonRowNode;
+type FlexLayoutTab = IJsonTabNode;
+type FlexLayoutBorder = IJsonBorderNode;
+type VisibleTabItem = AppTab | ProjectBaseTab | ProjectGroup | ProjectTab;
+
+// Helper function to extract panel IDs from FlexLayout data
+const extractPanelIds = (flexLayoutData: IJsonModel): string[] => {
+  const panelIds: string[] = [];
+
+  const extractFromNode = (node: FlexLayoutChild | FlexLayoutTab): void => {
+    if ('id' in node && 'component' in node && node.component === 'panel-tab') {
+      panelIds.push(node.id as string);
+    }
+    if ('children' in node && node.children) {
+      for (const child of node.children) {
+        extractFromNode(child as FlexLayoutChild | FlexLayoutTab);
+      }
+    }
+  };
+
+  // Extract from center layout
+  if (flexLayoutData.layout) {
+    extractFromNode(flexLayoutData.layout);
+  }
+
+  // Extract from borders
+  if (flexLayoutData.borders) {
+    for (const border of flexLayoutData.borders) {
+      if (border.children) {
+        for (const tab of border.children) {
+          extractFromNode(tab);
+        }
+      }
+    }
+  }
+
+  return panelIds;
+};
 
 import {
   type AppGroup,
@@ -204,8 +251,8 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
       if (flexData.layout && flexData.layout.children) {
         // Find existing center tabset or create one
         let centerTabset = flexData.layout.children.find(
-          (child: any) => child.type === 'tabset',
-        );
+          (child: FlexLayoutChild) => child.type === 'tabset',
+        ) as IJsonTabSetNode | undefined;
         if (!centerTabset) {
           // Create center tabset if it doesn't exist
           centerTabset = {
@@ -217,7 +264,7 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
         }
 
         if (centerTabset.children) {
-          (centerTabset.children as IJsonTabNode[]).push(newTab);
+          centerTabset.children.push(newTab);
           updated = true;
         }
       }
@@ -363,9 +410,13 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
               if (confirmed) {
                 state.removeAppGroup(targetGroup.id);
               }
+              return confirmed;
             })
-            .catch((error) => {
-              logger.error('Error in app group close callback:', error);
+            .catch((error: unknown) => {
+              logger.error('Error in app group close callback:', {
+                error: error instanceof Error ? error.message : String(error),
+              });
+              return false;
             });
           return;
         } else {
@@ -451,7 +502,7 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
       return false;
     }
 
-    if (state.appGroups.find((ag) => ag.id === Id)) {
+    if (state.appGroups.some((ag) => ag.id === Id)) {
       return false;
     } else {
       const appGroupName = title || Id;
@@ -494,7 +545,7 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
     layoutConfigJSON: string,
   ): boolean => {
     try {
-      const layoutConfig = JSON.parse(layoutConfigJSON);
+      const layoutConfig = JSON.parse(layoutConfigJSON) as IJsonModel;
       const newLayout: ProjectTabLayout = {
         flexLayoutData: layoutConfig,
       };
@@ -505,8 +556,8 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
         return {projectTabLayouts: newLayouts};
       });
       return true;
-    } catch (error) {
-      logger.error(`Failed to create layout config from JSON:${error}`);
+    } catch (error: unknown) {
+      logger.error(`Failed to create layout config from JSON:${String(error)}`);
       return false;
     }
   },
@@ -812,8 +863,7 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
   // Dynamic tab visibility
   getVisibleTabs: () => {
     const state = get();
-    const visibleTabs: (AppTab | ProjectGroup | ProjectBaseTab | ProjectTab)[] =
-      [];
+    const visibleTabs: VisibleTabItem[] = [];
 
     // Always show app tabs (all tabs in the array)
     for (const appGroup of state.appGroups) {
@@ -901,7 +951,7 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
             // Use group's active tab or first project tab
             const targetTabId =
               firstProject.activeTabId &&
-              firstProject.projectTabs.find(
+              firstProject.projectTabs.some(
                 (t) => t.id === firstProject.activeTabId,
               )
                 ? firstProject.activeTabId
@@ -969,12 +1019,12 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
     // Remove from center panel
     if (flexData.layout && flexData.layout.children) {
       const centerTabset = flexData.layout.children.find(
-        (child: any) => child.type === 'tabset',
-      );
+        (child: FlexLayoutChild) => child.type === 'tabset',
+      ) as IJsonTabSetNode | undefined;
       if (centerTabset && centerTabset.children) {
         const initialLength = centerTabset.children.length;
         centerTabset.children = centerTabset.children.filter(
-          (tab: any) => tab.id !== tabId,
+          (tab: FlexLayoutTab) => tab.id !== tabId,
         );
         if (centerTabset.children.length < initialLength) {
           updated = true;
@@ -984,11 +1034,11 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
 
     // Remove from border panels
     if (flexData.borders) {
-      flexData.borders = flexData.borders.map((border: any) => {
+      flexData.borders = flexData.borders.map((border: FlexLayoutBorder) => {
         if (border.children) {
           const initialLength = border.children.length;
           const filteredChildren = border.children.filter(
-            (tab: any) => tab.id !== tabId,
+            (tab: FlexLayoutTab) => tab.id !== tabId,
           );
           if (filteredChildren.length < initialLength) {
             updated = true;
@@ -1000,7 +1050,8 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
 
       // Remove empty borders
       flexData.borders = flexData.borders.filter(
-        (border: any) => border.children && border.children.length > 0,
+        (border: FlexLayoutBorder) =>
+          border.children && border.children.length > 0,
       );
     }
 
@@ -1045,40 +1096,6 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
       const newLayouts = new Map(state.projectTabLayouts);
       const newComponentRegistry = new Map(state.componentRegistry);
       const newPanelTabRegistry = new Map(state.panelTabRegistry);
-
-      // Helper function to extract panel IDs from FlexLayout data
-      const extractPanelIds = (flexLayoutData: any): string[] => {
-        const panelIds: string[] = [];
-
-        const extractFromNode = (node: any): void => {
-          if (node.id && node.component === 'panel-tab') {
-            panelIds.push(node.id);
-          }
-          if (node.children) {
-            for (const child of node.children) {
-              extractFromNode(child);
-            }
-          }
-        };
-
-        // Extract from center layout
-        if (flexLayoutData.layout) {
-          extractFromNode(flexLayoutData.layout);
-        }
-
-        // Extract from borders
-        if (flexLayoutData.borders) {
-          for (const border of flexLayoutData.borders) {
-            if (border.children) {
-              for (const tab of border.children) {
-                extractFromNode(tab);
-              }
-            }
-          }
-        }
-
-        return panelIds;
-      };
 
       // Remove main tab layout
       newLayouts.delete(projectToRemove.mainTab.id);
@@ -1137,7 +1154,7 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
           // Use group's active tab or first project tab
           const targetTabId =
             groupToExpand.activeTabId &&
-            groupToExpand.projectTabs.find(
+            groupToExpand.projectTabs.some(
               (t) => t.id === groupToExpand.activeTabId,
             )
               ? groupToExpand.activeTabId
@@ -1216,12 +1233,12 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
         layout.flexLayoutData.layout.children
       ) {
         const centerTabset = layout.flexLayoutData.layout.children.find(
-          (child: any) => child.type === 'tabset',
-        );
+          (child: FlexLayoutChild) => child.type === 'tabset',
+        ) as IJsonTabSetNode | undefined;
         if (centerTabset && centerTabset.children) {
-          for (const tab of centerTabset.children as any[]) {
+          for (const tab of centerTabset.children) {
             if (tab.component === 'panel-tab') {
-              panelTabIds.push(tab.id);
+              panelTabIds.push(tab.id as string);
             }
           }
         }
@@ -1231,9 +1248,9 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
       if (layout.flexLayoutData.borders) {
         for (const border of layout.flexLayoutData.borders) {
           if (border.children) {
-            for (const tab of border.children as any[]) {
+            for (const tab of border.children) {
               if (tab.component === 'panel-tab') {
-                panelTabIds.push(tab.id);
+                panelTabIds.push(tab.id as string);
               }
             }
           }
@@ -1259,10 +1276,10 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
               for (const border of layout.flexLayoutData.borders) {
                 if (border.children) {
                   const foundTab = border.children.find(
-                    (tab: any) => tab.id === panelTabId,
+                    (tab: FlexLayoutTab) => tab.id === panelTabId,
                   );
                   if (foundTab && 'name' in foundTab) {
-                    panelName = foundTab.name || panelTabId;
+                    panelName = (foundTab.name as string) || panelTabId;
                     break;
                   }
                 }
@@ -1273,14 +1290,14 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
               layout.flexLayoutData.layout.children
             ) {
               const centerTabset = layout.flexLayoutData.layout.children.find(
-                (child: any) => child.type === 'tabset',
-              );
+                (child: FlexLayoutChild) => child.type === 'tabset',
+              ) as IJsonTabSetNode | undefined;
               if (centerTabset && centerTabset.children) {
                 const foundTab = centerTabset.children.find(
-                  (tab: any) => tab.id === panelTabId,
+                  (tab: FlexLayoutTab) => tab.id === panelTabId,
                 );
                 if (foundTab && 'name' in foundTab) {
-                  panelName = foundTab.name || panelTabId;
+                  panelName = (foundTab.name as string) || panelTabId;
                 }
               }
             }
@@ -1347,7 +1364,7 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
     layoutConfigJSON: string,
   ): boolean => {
     try {
-      const layoutConfig = JSON.parse(layoutConfigJSON);
+      const layoutConfig = JSON.parse(layoutConfigJSON) as IJsonModel;
       set((state) => {
         const newLayouts = new Map(state.projectTabLayouts);
         const newLayout: ProjectTabLayout = {
@@ -1357,8 +1374,8 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
         return {projectTabLayouts: newLayouts};
       });
       return true;
-    } catch (error) {
-      logger.error(`Failed to save layout config:${error}`);
+    } catch (error: unknown) {
+      logger.error(`Failed to save layout config:${String(error)}`);
       return false;
     }
   },
@@ -1506,15 +1523,15 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
             layout.flexLayoutData.layout.children
           ) {
             const centerTabset = layout.flexLayoutData.layout.children.find(
-              (child: any) => child.type === 'tabset',
-            );
+              (child: FlexLayoutChild) => child.type === 'tabset',
+            ) as IJsonTabSetNode | undefined;
             if (centerTabset && centerTabset.children) {
               const foundTab = centerTabset.children.find(
-                (tab: any) => tab.id === tabId,
+                (tab: FlexLayoutTab) => tab.id === tabId,
               );
               if (foundTab && 'name' in foundTab) {
                 panelExists = true;
-                panelName = foundTab.name || tabId;
+                panelName = (foundTab.name as string) || tabId;
                 break;
               }
             }
@@ -1525,11 +1542,11 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
             for (const border of layout.flexLayoutData.borders) {
               if (border.children) {
                 const foundTab = border.children.find(
-                  (tab: any) => tab.id === tabId,
+                  (tab: FlexLayoutTab) => tab.id === tabId,
                 );
                 if (foundTab) {
                   panelExists = true;
-                  panelName = foundTab.name || tabId;
+                  panelName = (foundTab.name as string) || tabId;
                   break;
                 }
               }
@@ -1577,22 +1594,19 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
 // Export configuration for external use
 export {APP_CONFIG};
 
+// Type alias for type guard parameters
+type TabOrGroupItem = AppTab | ProjectGroup | ProjectMainTab | ProjectTab;
+
 // Type guards for distinguishing tab and group types
-export const isAppTab = (
-  item: AppTab | ProjectGroup | ProjectMainTab | ProjectTab,
-): item is AppTab => {
+export const isAppTab = (item: TabOrGroupItem): item is AppTab => {
   return 'tabKey' in item;
 };
 
-export const isProjectGroup = (
-  item: AppTab | ProjectGroup | ProjectMainTab | ProjectTab,
-): item is ProjectGroup => {
+export const isProjectGroup = (item: TabOrGroupItem): item is ProjectGroup => {
   return 'filePath' in item && 'mainTab' in item && 'projectTabs' in item;
 };
 
-export const isMainTab = (
-  item: AppTab | ProjectGroup | ProjectMainTab | ProjectTab,
-): item is ProjectMainTab => {
+export const isMainTab = (item: TabOrGroupItem): item is ProjectMainTab => {
   return (
     'component' in item &&
     !('tabKey' in item) &&
@@ -1601,9 +1615,7 @@ export const isMainTab = (
   );
 };
 
-export const isProjectTab = (
-  item: AppTab | ProjectGroup | ProjectMainTab | ProjectTab,
-): item is ProjectTab => {
+export const isProjectTab = (item: TabOrGroupItem): item is ProjectTab => {
   return (
     'component' in item &&
     !('tabKey' in item) &&

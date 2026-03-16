@@ -3,4 +3,4 @@ export * from './properties-panel';
 export * from './editor-shell';
 export * from './session-workspace';
 export * from './configurator-panel';
-export * from './key-configurator-panel';
+export {KeyConfiguratorPanel} from './key-configurator-panel';
