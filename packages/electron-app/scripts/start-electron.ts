@@ -4,8 +4,16 @@
  */
 
 import {type ChildProcess, spawn} from 'node:child_process';
+import path from 'node:path';
 
 let electronProcess: ChildProcess | null = null;
+
+function cleanup() {
+  if (electronProcess) {
+    console.log('[build.ts] cleaning up electron process');
+    electronProcess.kill('SIGTERM');
+  }
+}
 
 export async function startElectron(mainDir: string): Promise<void> {
   try {
@@ -25,7 +33,12 @@ export async function startElectron(mainDir: string): Promise<void> {
 
     // Start new electron process
     console.log('[build.ts] starting electron app');
-    electronProcess = spawn('pnpm', ['electron', './dist/main.cjs'], {
+
+    // Use absolute path to pnpm to avoid PATH injection vulnerabilities
+    const pnpmPath = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+    const electronPath = path.resolve(mainDir, './dist/main.cjs');
+
+    electronProcess = spawn(pnpmPath, ['electron', electronPath], {
       cwd: mainDir,
       shell: process.platform === 'win32',
       stdio: 'inherit',
@@ -52,13 +65,6 @@ export async function startElectron(mainDir: string): Promise<void> {
 }
 
 export function setupProcessCleanup(): void {
-  const cleanup = () => {
-    if (electronProcess) {
-      console.log('[build.ts] cleaning up electron process');
-      electronProcess.kill('SIGTERM');
-    }
-  };
-
   process.on('SIGINT', cleanup);
   process.on('SIGTERM', cleanup);
   process.on('exit', cleanup);

@@ -1,11 +1,11 @@
 import * as esbuild from 'esbuild';
 import {cp, mkdir, rm} from 'node:fs/promises';
-import {dirname, resolve} from 'node:path';
+import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 import {startElectron} from './start-electron';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Utility functions to replace @qui/esbuild helpers
 function hasArg(argv: string[], flag: string): boolean {
@@ -49,10 +49,10 @@ function createLogPlugin(name: string): esbuild.Plugin {
 async function main(argv: string[]) {
   const IS_WATCH = hasArg(argv, '--watch');
   const BUILD_MODE = getArg(argv, '--mode') || 'development';
-  const PKG_DIR = resolve(__dirname, '../');
-  const DIST_DIR = resolve(PKG_DIR, 'dist');
-  const PUBLIC_DIR = resolve(PKG_DIR, 'public');
-  const RENDER_DIR = resolve(PKG_DIR, '../react-app');
+  const PKG_DIR = path.resolve(__dirname, '../');
+  const DIST_DIR = path.resolve(PKG_DIR, 'dist');
+  const PUBLIC_DIR = path.resolve(PKG_DIR, 'public');
+  const RENDER_DIR = path.resolve(PKG_DIR, '../react-app');
   const RELOAD_ON_CHANGE = hasArg(argv, '--reload-app-on-change') || false;
 
   // Clear the dist folder
@@ -69,7 +69,7 @@ async function main(argv: string[]) {
   if (BUILD_MODE === 'production' || BUILD_MODE === 'prerelease') {
     // Copy Web static resources
     console.log('[build.ts] copy web static dist');
-    await cp(resolve(RENDER_DIR, 'dist'), resolve(DIST_DIR), {
+    await cp(path.resolve(RENDER_DIR, 'dist'), path.resolve(DIST_DIR), {
       recursive: true,
     });
   }
@@ -163,4 +163,4 @@ async function main(argv: string[]) {
   }
 }
 
-void main(process.argv);
+await main(process.argv);

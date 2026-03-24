@@ -19,8 +19,10 @@ import {
   readFileSync,
   writeFileSync,
 } from 'node:fs';
-import {join, resolve} from 'node:path';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {setTimeout} from 'node:timers/promises';
+import type {Ora} from 'ora';
 
 import {
   getFileModificationDateSync,
@@ -28,6 +30,9 @@ import {
   saveValidationResults,
   showProjectInExplorer,
 } from './project-file-api';
+
+// ESM alternative to __dirname
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let win: BrowserWindow;
 const CONFIG_FILE = 'config.json';
@@ -154,6 +159,48 @@ const mruStore = new Store<StoreSchema>({
 
 const appUrl = 'http://localhost:5173';
 
+async function waitForDevServer(spinner: Ora): Promise<boolean> {
+  let attempt = 0;
+  // default behavior = check for 60 seconds.
+  while (attempt < 120) {
+    attempt += 1;
+    spinner.text = `Checking for app ready state, attempt ${attempt}`;
+    const checkIfReady = await setTimeout(500, async () =>
+      fetch(appUrl)
+        .then((res) => res.status === 200)
+        .catch(() => false),
+    );
+    if (await checkIfReady()) {
+      spinner.succeed(`App detected in local dev mode at ${appUrl}`);
+      return true;
+    }
+  }
+  return false;
+}
+
+async function loadDevMode(spinner: Ora): Promise<void> {
+  const appReady = await waitForDevServer(spinner);
+
+  if (appReady) {
+    try {
+      await win.loadURL(appUrl);
+      win.webContents.openDevTools();
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.debug(`Error starting application - ${errorMessage}`);
+      console.debug('Critical application error, exiting', error);
+      win.close();
+      process.exit(0);
+    }
+  } else {
+    spinner.fail(
+      `Failed to start application. Please ensure that the React application is running at ${appUrl}`,
+    );
+    process.exit(0);
+  }
+}
+
 const createWindow = async () => {
   const isDev = process.env.DEV;
 
@@ -161,75 +208,26 @@ const createWindow = async () => {
     height: 800,
     title: 'AudioReach™ Creator',
     webPreferences: {
-      preload: resolve(__dirname, './preload.cjs'),
+      preload: path.resolve(__dirname, './preload.cjs'),
     },
     width: isDev ? 1550 : 1200,
   });
 
   if (isDev) {
-    /**
-     * The electron process starts in local dev mode at the same time as the Angular
-     * application.  The electron process generally starts quicker, so the Angular
-     * app doesn't have enough time to load before the electron process tries to
-     * access it. This function checks if the app is available.
-     */
     const ora = await import('ora').then((pkg) => pkg.default);
     const spinner = ora('Checking for app ready state').start();
-
-    let attempt = 0;
-    let appReady = false;
-    // default behavior = check for 60 seconds.
-    while (attempt < 120 && !appReady) {
-      attempt += 1;
-      spinner.text = `Checking for app ready state, attempt ${attempt}`;
-      const checkIfReady = await setTimeout(500, async () =>
-        fetch(appUrl)
-          .then((res) => {
-            return res.status === 200;
-          })
-          .catch(() => false),
-      );
-      if (await checkIfReady()) {
-        appReady = true;
-        spinner.succeed(`App detected in local dev mode at ${appUrl}`);
-      }
-    }
-
-    if (appReady) {
-      win
-        .loadURL(appUrl)
-        .then(() => {
-          win.webContents.openDevTools();
-        })
-        .catch((error: unknown) => {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
-          console.debug(`Error starting application - ${errorMessage}`);
-        })
-        .catch((error) => {
-          console.debug('Critical application error, exiting', error);
-          win.close();
-          process.exit(0);
-        });
-    } else {
-      spinner.fail(
-        `Failed to start application. Please ensure that the React application is running at ${appUrl}`,
-      );
-      process.exit(0);
-    }
+    await loadDevMode(spinner);
   } else {
-    await win.loadFile(`${__dirname}/index.html`).catch((error) => {
+    await win.loadFile(path.join(__dirname, 'index.html')).catch((error) => {
       console.log('Error starting application', error);
     });
   }
 };
 
-void app.whenReady().then(() => {
-  void createWindow().then(() => {
-    // Create application menu after window is ready
-    createApplicationMenu();
-  });
-});
+await app.whenReady();
+await createWindow();
+// Create application menu after window is ready
+createApplicationMenu();
 
 app.on('activate', () => {
   // On OS X it's common to re-create a window in the app when the
@@ -244,7 +242,7 @@ app.on('activate', () => {
 /** Get project file modification date */
 ipcMain.handle(
   'project-file:get-modification-date',
-  async (_, filepath: string): Promise<Date | undefined> => {
+  (_event, filepath: string): Date | undefined => {
     return getFileModificationDateSync(filepath);
   },
 );
@@ -261,7 +259,7 @@ ipcMain.handle(
 /** Show project file in system explorer */
 ipcMain.handle(
   'project-file:show-in-explorer',
-  async (_, filepath: string): Promise<void> => {
+  (_event, filepath: string): void => {
     console.debug(`Showing project file in explorer: ${filepath}`);
     showProjectInExplorer(filepath);
   },
@@ -271,7 +269,7 @@ ipcMain.handle(
 ipcMain.handle(
   'project-file:save-validation-results',
   async (
-    _,
+    _event,
     content: string,
     defaultFilename?: string,
   ): Promise<SaveValidationResultsResponseData> => {
@@ -315,7 +313,7 @@ function getConfigFilePath(): string {
       return ''; // Return empty string instead of throwing
     }
 
-    const configPath = join(userDataPath, CONFIG_FILE);
+    const configPath = path.join(userDataPath, CONFIG_FILE);
     console.log(`Using config file path: ${configPath}`);
     return configPath;
   } catch (error) {
@@ -363,7 +361,7 @@ ipcMain.handle('load-config-data', (): ConfigResult => {
         status: false,
       };
     }
-    const configData = readFileSync(filePath, 'utf-8');
+    const configData = readFileSync(filePath, 'utf8');
     return {
       data: configData,
       message: 'success',
@@ -388,7 +386,7 @@ ipcMain.handle(
           status: false,
         };
       }
-      writeFileSync(filePath, newConfigData, 'utf-8');
+      writeFileSync(filePath, newConfigData, 'utf8');
       return {
         message: `Successfully saved the configuration file to the path: ${filePath}`,
         status: true,

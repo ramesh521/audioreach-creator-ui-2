@@ -5,7 +5,7 @@
 
 import {type ElectronApplication, expect, test} from '@playwright/test';
 
-import {getTestApp} from '~utils';
+import {getTestApp} from '../utils';
 
 let electronApp: ElectronApplication | null;
 

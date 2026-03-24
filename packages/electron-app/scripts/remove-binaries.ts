@@ -14,6 +14,43 @@ const FFMPEG_PATTERNS = [
   '**/ffmpeg.dll',
 ];
 
+async function removeFile(file: string): Promise<void> {
+  try {
+    await access(file);
+    await unlink(file);
+    console.log(`✅ Removed: ${file}`);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage !== 'ENOENT') {
+      console.warn(`⚠️  Could not remove ${file}: ${errorMessage}`);
+    }
+  }
+}
+
+async function removeFilesInDirectory(
+  matchDir: string,
+  pattern: string,
+): Promise<void> {
+  const ffmpegFiles = await glob(path.join(matchDir, pattern));
+  await Promise.all(ffmpegFiles.map((file) => removeFile(file)));
+}
+
+async function processDirectory(dir: string): Promise<void> {
+  try {
+    const matches = await glob(dir, {ignore: ['node_modules/**']});
+
+    for (const matchDir of matches) {
+      await Promise.all(
+        FFMPEG_PATTERNS.map((pattern) =>
+          removeFilesInDirectory(matchDir, pattern),
+        ),
+      );
+    }
+  } catch {
+    // Directory doesn't exist, skip
+  }
+}
+
 export async function removeBinaries() {
   console.log('🔍 Scanning for FFmpeg libraries to remove...');
 
@@ -24,33 +61,7 @@ export async function removeBinaries() {
     'dist',
   ];
 
-  for (const dir of directories) {
-    try {
-      const matches = await glob(dir, {ignore: ['node_modules/**']});
-
-      for (const matchDir of matches) {
-        for (const pattern of FFMPEG_PATTERNS) {
-          const ffmpegFiles = await glob(path.join(matchDir, pattern));
-
-          for (const file of ffmpegFiles) {
-            try {
-              await access(file);
-              await unlink(file);
-              console.log(`✅ Removed: ${file}`);
-            } catch (error: unknown) {
-              const errorMessage =
-                error instanceof Error ? error.message : String(error);
-              if (errorMessage !== 'ENOENT') {
-                console.warn(`⚠️  Could not remove ${file}: ${errorMessage}`);
-              }
-            }
-          }
-        }
-      }
-    } catch {
-      // Directory doesn't exist, skip
-    }
-  }
+  await Promise.all(directories.map((dir) => processDirectory(dir)));
 
   console.log('✅ FFmpeg library removal completed');
 }
