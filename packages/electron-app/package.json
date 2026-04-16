@@ -4,15 +4,15 @@
   "description": "AudioReach Creator to create/edit/view audio/voice use case graphs and adjust calibration data of modules",
   "private": true,
   "type": "module",
-  "main": "dist/main.cjs",
+  "main": "dist/main.mjs",
   "types": "dist/index.d.ts",
   "author": "AudioReach Contributors",
   "homepage": "",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.3.0"
   },
   "scripts": {
-    "clean": "shx rm -rf dist out",
+    "clean": "shx rm -rf dist out || exit 0",
     "compile": "tsx scripts/build.ts --mode production",
     "compile:types": "tsc -b tsconfig.lib.json --force",
     "build": "pnpm clean && run-p compile compile:types",

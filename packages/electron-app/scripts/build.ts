@@ -91,12 +91,12 @@ async function main(argv: string[]) {
     },
     entryPoints: ['./src/main.ts'],
     external: ['electron'],
-    format: 'cjs',
+    format: 'esm',
     loader: {
       '.node': 'copy',
     },
     metafile: true,
-    outfile: './dist/main.cjs',
+    outfile: './dist/main.mjs',
     platform: 'node',
     plugins: [
       createLogPlugin('main'),
@@ -124,7 +124,7 @@ async function main(argv: string[]) {
       },
     ],
     sourcemap: true,
-    target: 'es2020',
+    target: 'es2022',
   };
 
   // Configuration for preload script
@@ -135,12 +135,12 @@ async function main(argv: string[]) {
     },
     entryPoints: ['./src/preload.ts'],
     external: ['electron'],
-    format: 'iife',
+    format: 'cjs',
     outfile: './dist/preload.cjs',
-    platform: 'browser',
+    platform: 'node',
     plugins: [createLogPlugin('preload')],
     sourcemap: true,
-    target: 'es2017',
+    target: 'es2020',
   };
 
   if (IS_WATCH) {

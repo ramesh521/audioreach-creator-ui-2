@@ -6,7 +6,7 @@
   "types": "dist/index.d.ts",
   "type": "module",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.3.0"
   },
   "scripts": {
     "build": "run-s clean compile",

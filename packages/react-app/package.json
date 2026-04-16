@@ -5,7 +5,7 @@
   "type": "module",
   "description": "React FrontEnd for AudioReach Creator",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.3.0"
   },
   "scripts": {
     "dev:site": "vite -c vite.config.ts --host --clearScreen=false",
