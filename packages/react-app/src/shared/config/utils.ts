@@ -17,6 +17,22 @@ export type JSONDataMap = {
 
 export const GRAPH_DESIGNER_COMPONENT_NAME = 'usecase';
 
+/**
+ * Constant representing an invalid/undefined project ID
+ */
+export const INVALID_PROJECT_ID = 'project_undefined';
+
+/**
+ * Check if a project ID is valid
+ * @param projectId - The project ID to validate
+ * @returns true if the project ID is valid, false otherwise
+ */
+export function isValidProjectId(
+  projectId: string | undefined,
+): projectId is string {
+  return !!projectId && projectId !== INVALID_PROJECT_ID;
+}
+
 export const graphDesignerLayout = {
   component: GRAPH_DESIGNER_COMPONENT_NAME,
   position: {

@@ -19,18 +19,24 @@ export interface ModuleListStore {
   // Stores the module definitions from backend
   moduleList: SpfModuleDefinitionResponseDto[];
 
+  // Per-project filter storage
+  projectFilters: Map<
+    string,
+    {dspFilter: string[]; moduleTypeFilter: string[]}
+  >;
   // Stores the current search text
   query: string;
+
   // Dynamic filter state - stores selected DSP and Module types
   selectedDspTypes: string[];
 
   selectedModuleTypes: string[];
 
-  setDragEnabled: (enabled: boolean) => boolean;
-  setModuleList: (moduleList: SpfModuleDefinitionResponseDto[]) => boolean;
+  setDragEnabled: (enabled: boolean) => void;
+  setModuleList: (moduleList: SpfModuleDefinitionResponseDto[]) => void;
 
-  setSearchString: (query: string) => boolean;
+  setSearchString: (query: string) => void;
 
-  setSelectedDspTypes: (types: string[]) => boolean;
-  setSelectedModuleTypes: (types: string[]) => boolean;
+  setSelectedDspTypes: (types: string[]) => void;
+  setSelectedModuleTypes: (types: string[]) => void;
 }

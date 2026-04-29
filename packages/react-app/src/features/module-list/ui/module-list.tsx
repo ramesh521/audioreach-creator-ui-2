@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-import {type ReactElement, useEffect, useMemo} from 'react';
+import {type ReactElement, useEffect, useMemo, useState} from 'react';
 
 import {Box, Boxes, Check, ListFilter, Search} from 'lucide-react';
 
@@ -16,9 +16,10 @@ import {Tooltip} from '@qualcomm-ui/react/tooltip';
 import {getAllSpfModuleDefinitions} from '~entities/module-definitions/api/module-definition-api';
 import type {SpfModuleDefinitionResponseDto} from '~entities/module-definitions/model/module-definition.dto';
 import {useModuleListStore} from '~features/module-list/model/module-list-store';
+import {isValidProjectId} from '~shared/config/utils';
 import {logger} from '~shared/lib/logger';
 import {useProjectLayoutStore} from '~shared/store';
-import {searchByNameAndId} from '~shared/utils/search-utils';
+import {searchItems} from '~shared/utils/search-utils';
 
 /**
  * Handle drag start event for modules
@@ -40,24 +41,9 @@ function handleDragStart(
   logger.info('Module drag started');
 }
 
-/**
- * Get DSP type from module (e.g., ADSP, MDSP, CDSP)
- */
-function getDspType(module: SpfModuleDefinitionResponseDto): string {
-  return module.processorInfo.name;
-}
-
-/**
- * Get module type from module (e.g., Decoder, Encoder, Sink)
- */
-function getModuleType(module: SpfModuleDefinitionResponseDto): string {
-  return module.moduleInfo.moduleTypeInfo.majorModuleType || 'Unknown';
-}
-
-// Module-level variable to track initialization (persists across component remounts)
-let didInitialize = false;
-
 export function ModuleList(): ReactElement {
+  const [isLoading, setIsLoading] = useState(false);
+
   // Get the active project ID from the project layout store
   const activeProjectGroup = useProjectLayoutStore((state) =>
     state.getActiveProjectGroup(),
@@ -69,12 +55,14 @@ export function ModuleList(): ReactElement {
   // Load module list data from API
   useEffect(() => {
     // Only fetch if we have a valid project ID
-    if (!projectId || projectId === 'project_undefined') {
+    if (!isValidProjectId(projectId)) {
       logger.info('[ModuleList] No valid project ID, skipping fetch');
+      setIsLoading(false);
       return;
     }
 
     const loadModuleList = async () => {
+      setIsLoading(true);
       logger.info(
         `[ModuleList] Fetching module list for project: ${projectId}`,
       );
@@ -97,6 +85,8 @@ export function ModuleList(): ReactElement {
           `[ModuleList] ${result.message || 'Failed to load module list'}`,
         );
       }
+
+      setIsLoading(false);
     };
 
     void loadModuleList();
@@ -165,7 +155,7 @@ export function ModuleList(): ReactElement {
 
     // Apply search filter
     if (query) {
-      result = searchByNameAndId(result, query, 'moduleId');
+      result = searchItems(result, query);
     }
 
     return result;
@@ -191,8 +181,8 @@ export function ModuleList(): ReactElement {
     }
   };
 
-  // Clear All - Select all checkboxes (clears filters, shows all)
-  const handleClearAll = () => {
+  // Clear Filters - Select all checkboxes (clears filters, shows all)
+  const handleClearFilters = () => {
     setSelectedDspTypes(uniqueDspTypes);
     setSelectedModuleTypes(uniqueModuleTypes);
   };
@@ -203,20 +193,44 @@ export function ModuleList(): ReactElement {
     setSelectedModuleTypes([]);
   };
 
-  // Initialize all types as selected only on first load (when moduleList changes from empty to populated)
+  // Restore or initialize filters when project/data changes
   useEffect(() => {
-    if (didInitialize) {
-      return;
-    }
-    if (moduleList.length === 0) {
+    if (!projectId || moduleList.length === 0) {
       return;
     }
 
-    didInitialize = true;
+    const store = useModuleListStore.getState();
+    const savedProjectFilters = store.projectFilters.get(projectId);
 
-    setSelectedDspTypes(uniqueDspTypes);
-    setSelectedModuleTypes(uniqueModuleTypes);
-  });
+    if (savedProjectFilters) {
+      setSelectedDspTypes(savedProjectFilters.dspFilter);
+      setSelectedModuleTypes(savedProjectFilters.moduleTypeFilter);
+    } else {
+      // No saved filters - select all (default state)
+      setSelectedDspTypes(uniqueDspTypes);
+      setSelectedModuleTypes(uniqueModuleTypes);
+    }
+  }, [
+    projectId,
+    moduleList.length,
+    uniqueDspTypes,
+    uniqueModuleTypes,
+    setSelectedDspTypes,
+    setSelectedModuleTypes,
+  ]);
+
+  // Auto-save filters when they change
+  useEffect(() => {
+    if (!projectId) {
+      return;
+    }
+
+    const store = useModuleListStore.getState();
+    store.projectFilters.set(projectId, {
+      dspFilter: selectedDspTypes,
+      moduleTypeFilter: selectedModuleTypes,
+    });
+  }, [projectId, selectedDspTypes, selectedModuleTypes]);
 
   // Show filter only if there are meaningful choices to make
   // Hide when there's only 1 DSP type AND 1 Module type (nothing to filter)
@@ -235,10 +249,10 @@ export function ModuleList(): ReactElement {
           value={query}
         />
         {showFilterIcon && (
-          <Tooltip
+          <Popover
             trigger={
               <span>
-                <Popover
+                <Tooltip
                   trigger={
                     <InlineIconButton
                       aria-label="Filter options"
@@ -247,132 +261,168 @@ export function ModuleList(): ReactElement {
                     />
                   }
                 >
-                  <div className="-m-2 flex w-40 flex-col">
-                    {/* DSP Type Section */}
-                    <div className="px-1.5 pb-1">
-                      <h3 className="text-[11px] font-semibold">DSP Type</h3>
-                      <div className="flex flex-col">
-                        {uniqueDspTypes.map((dspType) => (
-                          <button
-                            key={dspType}
-                            className="hover:bg-neutral-hover flex w-full items-center gap-1 rounded px-0.5 py-0.5 text-left text-[10px]"
-                            onClick={() =>
-                              handleDspTypeToggle(
-                                dspType,
-                                !selectedDspTypes.includes(dspType),
-                              )
-                            }
-                          >
-                            <Check
-                              className={`h-3 w-3 shrink-0 ${
-                                selectedDspTypes.includes(dspType)
-                                  ? 'opacity-100'
-                                  : 'opacity-0'
-                              }`}
-                            />
-                            {dspType}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Divider */}
-                    <div className="border-neutral-border my-0.5 border-t" />
-
-                    {/* Module Type Section */}
-                    <div className="px-1.5 pb-1">
-                      <h3 className="mb-0.5 text-[11px] font-semibold">
-                        Module Type
-                      </h3>
-                      <div className="flex flex-col">
-                        {uniqueModuleTypes.map((moduleType) => (
-                          <button
-                            key={moduleType}
-                            className="hover:bg-neutral-hover flex w-full items-center gap-1 rounded px-0.5 py-0.5 text-left text-[10px]"
-                            onClick={() =>
-                              handleModuleTypeToggle(
-                                moduleType,
-                                !selectedModuleTypes.includes(moduleType),
-                              )
-                            }
-                          >
-                            <Check
-                              className={`h-3 w-3 shrink-0 ${
-                                selectedModuleTypes.includes(moduleType)
-                                  ? 'opacity-100'
-                                  : 'opacity-0'
-                              }`}
-                            />
-                            {moduleType}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Divider */}
-                    <div className="border-neutral-border my-0.5 border-t" />
-
-                    {/* Action Buttons */}
-                    <div className="grid grid-cols-2 gap-0.5 px-0.5">
-                      <Button
-                        className="whitespace-nowrap text-[10px]"
-                        emphasis="neutral"
-                        onClick={handleClearAll}
-                        size="sm"
-                        variant="ghost"
-                      >
-                        Clear All
-                      </Button>
-                      <Button
-                        className="whitespace-nowrap text-[10px]"
-                        emphasis="neutral"
-                        onClick={handleUnselectAll}
-                        size="sm"
-                        variant="ghost"
-                      >
-                        Unselect All
-                      </Button>
-                    </div>
-                  </div>
-                </Popover>
+                  Filter Options
+                </Tooltip>
               </span>
             }
           >
-            Filter Options
-          </Tooltip>
+            <div className="-m-2 flex w-40 flex-col">
+              {/* DSP Type Section */}
+              <div className="px-1.5 pb-1">
+                <h3 className="text-[11px] font-semibold">DSP Type</h3>
+                <div className="flex flex-col">
+                  {uniqueDspTypes.map((dspType) => (
+                    <div
+                      key={dspType}
+                      aria-checked={selectedDspTypes.includes(dspType)}
+                      className="flex w-full items-center gap-1 px-1 py-0.5"
+                      onClick={() =>
+                        handleDspTypeToggle(
+                          dspType,
+                          !selectedDspTypes.includes(dspType),
+                        )
+                      }
+                      role="checkbox"
+                    >
+                      <InlineIconButton
+                        aria-label={`Toggle ${dspType}`}
+                        className={
+                          selectedDspTypes.includes(dspType)
+                            ? 'opacity-100'
+                            : 'opacity-0'
+                        }
+                        icon={Check}
+                        size="sm"
+                      />
+                      <span className="text-[10px]">
+                        {dspType.toLowerCase()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="border-neutral-border my-0.5 border-t" />
+
+              {/* Module Type Section */}
+              <div className="px-1.5 pb-1">
+                <h3 className="mb-0.5 text-[11px] font-semibold">
+                  Module Type
+                </h3>
+                <div className="flex flex-col">
+                  {uniqueModuleTypes.map((moduleType) => (
+                    <div
+                      key={moduleType}
+                      aria-checked={selectedModuleTypes.includes(moduleType)}
+                      className="flex w-full items-center gap-1 px-1 py-0.5"
+                      onClick={() =>
+                        handleModuleTypeToggle(
+                          moduleType,
+                          !selectedModuleTypes.includes(moduleType),
+                        )
+                      }
+                      role="checkbox"
+                    >
+                      <InlineIconButton
+                        aria-label={`Toggle ${moduleType}`}
+                        className={
+                          selectedModuleTypes.includes(moduleType)
+                            ? 'opacity-100'
+                            : 'opacity-0'
+                        }
+                        icon={Check}
+                        size="sm"
+                      />
+                      <span className="text-[10px]">
+                        {moduleType.toLowerCase()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="border-neutral-border my-0.5 border-t" />
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-2 gap-0.5 px-0.5">
+                <Button
+                  className="whitespace-nowrap text-[10px]"
+                  emphasis="neutral"
+                  onClick={handleClearFilters}
+                  size="sm"
+                  variant="ghost"
+                >
+                  Clear Filters
+                </Button>
+                <Button
+                  className="whitespace-nowrap text-[10px]"
+                  emphasis="neutral"
+                  onClick={handleUnselectAll}
+                  size="sm"
+                  variant="ghost"
+                >
+                  Unselect All
+                </Button>
+              </div>
+            </div>
+          </Popover>
         )}
       </div>
 
-      <ul className="flex flex-col gap-1">
-        {filteredModules.map((module) => (
-          <Tooltip
-            key={module.systemId}
-            trigger={
-              <li
-                className={`flex items-center gap-3 ${isDragEnabled ? 'cursor-grab' : 'cursor-default'}`}
-                draggable={isDragEnabled}
-                onDragStart={(e) => handleDragStart(module, e)}
+      {isLoading ? (
+        <div className="text-neutral-secondary flex items-center justify-center py-8 text-[11px]">
+          Loading modules...
+        </div>
+      ) : (
+        <>
+          <ul className="flex flex-col gap-1">
+            {filteredModules.map((module) => (
+              <Tooltip
+                key={module.systemId}
+                trigger={
+                  <li
+                    className={`flex items-center gap-3 ${isDragEnabled ? 'cursor-grab' : 'cursor-default'}`}
+                    draggable={isDragEnabled}
+                    onDragStart={(e) => handleDragStart(module, e)}
+                  >
+                    {module.builtIn ? (
+                      <Box className="h-4 w-4 shrink-0" />
+                    ) : (
+                      <Boxes className="h-4 w-4 shrink-0" />
+                    )}
+                    <div className="flex flex-col gap-0">
+                      <span className="text-[11px] font-semibold">
+                        {module.displayName || module.name}
+                      </span>
+                      <span className="text-neutral-secondary text-[10px]">
+                        {module.processorInfo?.name || 'Unknown'} •{' '}
+                        {module.moduleInfo?.moduleTypeInfo?.majorModuleType ||
+                          'Unknown'}
+                      </span>
+                    </div>
+                  </li>
+                }
               >
-                {module.builtIn ? (
-                  <Box className="h-4 w-4 shrink-0" />
-                ) : (
-                  <Boxes className="h-4 w-4 shrink-0" />
-                )}
-                <div className="flex flex-col gap-0">
-                  <span className="text-[11px] font-semibold">
-                    {module.displayName || module.name}
-                  </span>
-                  <span className="text-neutral-secondary text-[10px]">
-                    {getDspType(module)} • {getModuleType(module)}
-                  </span>
-                </div>
-              </li>
-            }
-          >
-            {module.description || 'Unknown'}
-          </Tooltip>
-        ))}
-      </ul>
+                {module.description || 'Unknown'}
+              </Tooltip>
+            ))}
+          </ul>
+
+          {filteredModules.length === 0 && (
+            <div className="text-neutral-secondary flex items-center justify-center py-8 text-center text-[11px]">
+              {!isValidProjectId(projectId)
+                ? 'Please open a valid project'
+                : moduleList.length === 0
+                  ? 'No modules available'
+                  : query
+                    ? `No modules found matching "${query}"`
+                    : 'No modules match the selected filters'}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

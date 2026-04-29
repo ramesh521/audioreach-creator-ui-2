@@ -632,8 +632,7 @@ class ProjectLayoutManager extends Component<
    */
   onModelChange = (newModel: Model): void => {
     // Prevent group label selection
-    const fixedModel = this.preventGroupLabelSelection(newModel);
-    this.setState({model: fixedModel});
+    this.preventGroupLabelSelection(newModel);
   };
 
   /**
