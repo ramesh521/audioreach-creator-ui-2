@@ -68,6 +68,12 @@ export function GetFlexLayoutConfig(): IJsonModel {
         name: 'Module List',
         type: 'tab',
       } as IJsonTabNode,
+      {
+        component: 'subgraph-list',
+        id: 'subgraph-list-panel',
+        name: 'Subgraph List',
+        type: 'tab',
+      } as IJsonTabNode,
     ],
     location: 'left' as IBorderLocation,
     type: 'border',

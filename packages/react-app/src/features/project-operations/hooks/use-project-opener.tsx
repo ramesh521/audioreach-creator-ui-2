@@ -8,6 +8,7 @@ import {useState} from 'react';
 import {ProjectService} from '~entities/project/services/project-service';
 import {ModuleList} from '~features/module-list/ui/module-list';
 import useArcRecentProjects from '~features/recent-projects/hooks/use-recent-projects';
+import {SubgraphList} from '~features/subgraph-list/ui/subgraph-list';
 import {
   GetFlexLayoutConfig,
   GRAPH_DESIGNER_COMPONENT_NAME,
@@ -95,6 +96,9 @@ export function useProjectOpener({
         }
         if (component === 'module-list' || name === 'Module List') {
           return <ModuleList />;
+        }
+        if (component === 'subgraph-list' || name === 'Subgraph List') {
+          return <SubgraphList />;
         }
         return null;
       },
