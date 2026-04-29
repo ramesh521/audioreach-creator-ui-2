@@ -82,12 +82,6 @@ export interface LogViewApi {
   updateLogViewState: (isOpen: boolean) => Promise<void>;
 }
 
-/** Module List API exposed to renderer process */
-export interface ModuleListApi {
-  onToggleModuleList: (callback: () => void) => () => void;
-  updateModuleListState: (isOpen: boolean) => Promise<void>;
-}
-
 /** Project Context API exposed to renderer process */
 export interface ProjectContextApi {
   setProjectContext: (isActive: boolean) => Promise<void>;

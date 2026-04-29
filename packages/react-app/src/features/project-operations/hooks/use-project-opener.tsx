@@ -6,6 +6,7 @@
 import {useState} from 'react';
 
 import {ProjectService} from '~entities/project/services/project-service';
+import {ModuleList} from '~features/module-list/ui/module-list';
 import useArcRecentProjects from '~features/recent-projects/hooks/use-recent-projects';
 import {
   GetFlexLayoutConfig,
@@ -91,6 +92,9 @@ export function useProjectOpener({
               usecaseData={usecaseData}
             />
           );
+        }
+        if (component === 'module-list' || name === 'Module List') {
+          return <ModuleList />;
         }
         return null;
       },

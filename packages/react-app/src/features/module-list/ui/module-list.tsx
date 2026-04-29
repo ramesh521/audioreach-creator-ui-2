@@ -18,20 +18,7 @@ import type {SpfModuleDefinitionResponseDto} from '~entities/module-definitions/
 import {useModuleListStore} from '~features/module-list/model/module-list-store';
 import {logger} from '~shared/lib/logger';
 import {useProjectLayoutStore} from '~shared/store';
-
-/**
- * Dispatch a custom event safely
- */
-function dispatchCustomEvent(eventName: string, detail?: unknown): void {
-  if ('window' in globalThis && globalThis.dispatchEvent) {
-    const event = new Event(eventName);
-    Object.defineProperty(event, 'detail', {
-      value: detail,
-      writable: false,
-    });
-    globalThis.dispatchEvent(event);
-  }
-}
+import {searchByNameAndId} from '~shared/utils/search-utils';
 
 /**
  * Handle drag start event for modules
@@ -50,7 +37,6 @@ function handleDragStart(
     JSON.stringify(draggedModuleInfo),
   );
   event.dataTransfer.effectAllowed = 'copy';
-  dispatchCustomEvent('module-drag-start', draggedModuleInfo);
   logger.info('Module drag started');
 }
 
@@ -66,39 +52,6 @@ function getDspType(module: SpfModuleDefinitionResponseDto): string {
  */
 function getModuleType(module: SpfModuleDefinitionResponseDto): string {
   return module.moduleInfo.moduleTypeInfo.majorModuleType || 'Unknown';
-}
-
-/**
- * Convert module ID to all searchable formats (decimal, hex, 0x-prefixed hex)
- * This allows users to search by module ID in any format
- * @param id - The module ID (can be string or number)
- * @returns Space-separated string of all ID representations for searching
- */
-function convertModuleIdToSearchableFormats(
-  id: string | number | undefined,
-): string {
-  if (id == null) {
-    return '';
-  }
-
-  const str = String(id).trim();
-  const formats = new Set<string>();
-
-  // Always add the original string representation
-  formats.add(str.toLowerCase());
-
-  // If it's a pure decimal number, add hex representations
-  if (/^\d+$/.test(str)) {
-    const decimal = parseInt(str, 10);
-    if (!isNaN(decimal)) {
-      const hex = decimal.toString(16);
-      formats.add(decimal.toString(10));
-      formats.add(hex.toLowerCase());
-      formats.add(`0x${hex.toLowerCase()}`);
-    }
-  }
-
-  return Array.from(formats).join(' ');
 }
 
 // Module-level variable to track initialization (persists across component remounts)
@@ -210,22 +163,9 @@ export function ModuleList(): ReactElement {
       ),
     );
 
-    // Apply search filter(filters the module list based on what the user types in the search box)
+    // Apply search filter
     if (query) {
-      const searchLower = query.toLowerCase();
-      result = result.filter((module) => {
-        const name = (module.name || '').toLowerCase();
-        const displayName = (module.displayName || '').toLowerCase();
-        const moduleId = convertModuleIdToSearchableFormats(
-          module.moduleId,
-        ).toLowerCase();
-
-        return (
-          name.includes(searchLower) ||
-          displayName.includes(searchLower) ||
-          moduleId.includes(searchLower)
-        );
-      });
+      result = searchByNameAndId(result, query, 'moduleId');
     }
 
     return result;

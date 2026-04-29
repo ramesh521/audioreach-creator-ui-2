@@ -38,7 +38,6 @@ const MAX_RECENT_PROJECTS = 20;
 let isLogViewOpen = false;
 let hasActiveProject = false;
 let isKeyConfiguratorViewOpen = false;
-let isModuleListOpen = false;
 
 /**
  * Create and set the application menu
@@ -59,14 +58,6 @@ function createApplicationMenu(): void {
 
   // Only show log view menu item when a project is active
   if (hasActiveProject) {
-    viewSubmenu.push({
-      click: () => {
-        win.webContents.send('menu:toggle-module-list');
-      },
-      label: isModuleListOpen ? 'Hide Module List' : 'Show Module List',
-    });
-    viewSubmenu.push({type: 'separator'});
-
     viewSubmenu.push({
       click: () => {
         win.webContents.send('menu:toggle-log-view');
@@ -114,14 +105,6 @@ function updateMenuLogViewState(isOpen: boolean): void {
  */
 function updateMenuKeyConfiguratorState(isOpen: boolean): void {
   isKeyConfiguratorViewOpen = isOpen;
-  createApplicationMenu();
-}
-
-/**
- * Update menu to reflect current module list state
- */
-function updateMenuModuleListState(isOpen: boolean): void {
-  isModuleListOpen = isOpen;
   createApplicationMenu();
 }
 
@@ -564,15 +547,6 @@ ipcMain.handle(
 
 //  #endregion Key Configurator View IPC Handlers
 
-//  #region Module List IPC Handlers
-
-/** Update module list state from renderer */
-ipcMain.handle('module-list:update-state', (_event, isOpen: boolean): void => {
-  updateMenuModuleListState(isOpen);
-});
-
-//  #endregion Module List IPC Handlers
-
 //  #region Project Context IPC Handlers
 
 /** Update project context state */
@@ -581,7 +555,6 @@ ipcMain.handle('project-context:set', (_event, isActive: boolean): void => {
   // Reset log view state when switching to app context
   if (!isActive) {
     isLogViewOpen = false;
-    isModuleListOpen = false;
   }
 });
 

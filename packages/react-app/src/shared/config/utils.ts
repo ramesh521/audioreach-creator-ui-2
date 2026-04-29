@@ -44,6 +44,19 @@ export function GetFlexLayoutConfig(): IJsonModel {
     type: 'tabset',
   };
 
+  const borderLeft: IJsonBorderNode = {
+    children: [
+      {
+        component: 'module-list',
+        id: 'module-list-panel',
+        name: 'Module List',
+        type: 'tab',
+      } as IJsonTabNode,
+    ],
+    location: 'left' as IBorderLocation,
+    type: 'border',
+  };
+
   const borderBottom: IJsonBorderNode = {
     children: [] as IJsonTabNode[],
     location: 'bottom' as IBorderLocation,
@@ -57,7 +70,7 @@ export function GetFlexLayoutConfig(): IJsonModel {
   };
 
   const flexLayoutConfig: IJsonModel = {
-    borders: [borderBottom, borderRight],
+    borders: [borderLeft, borderBottom, borderRight],
     global: {},
     layout: {
       children: [tabSet],
@@ -92,7 +105,7 @@ export function getConfigData(
 This function will overwrite primitives.
 Example:
 const jsonData = { arcconfig: { project1: 'data' } };
-setConfigData(jsonData, 'project1.modified', true); 
+setConfigData(jsonData, 'project1.modified', true);
 Output:{ arcconfig: { project1: { modified: true } } };
 */
 export function setConfigData(
