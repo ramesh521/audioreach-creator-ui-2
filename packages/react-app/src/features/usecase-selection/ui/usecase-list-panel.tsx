@@ -14,6 +14,7 @@ import {
 
 import {Button, IconButton} from '@qualcomm-ui/react/button';
 import {Checkbox} from '@qualcomm-ui/react/checkbox';
+import {Dialog} from '@qualcomm-ui/react/dialog';
 
 import type {KeyValue, Usecase, UsecaseCategory} from '../model/types';
 
@@ -24,6 +25,7 @@ interface UsecaseListPanelProps {
   handleSelectUsecase: (formattedUsecase: string, isSelected: boolean) => void;
   isUsecaseChecked: (usecase: Usecase) => boolean;
   onClose: () => void;
+  onDeleteSelected: () => void;
   selectedUsecases: string[];
   toggleCategoryExpansion: (categoryName: string) => void;
   usecaseData: UsecaseCategory[];
@@ -36,6 +38,7 @@ const UsecaseListPanel: React.FC<UsecaseListPanelProps> = ({
   handleSelectUsecase,
   isUsecaseChecked,
   onClose,
+  onDeleteSelected,
   selectedUsecases,
   toggleCategoryExpansion,
   usecaseData,
@@ -81,14 +84,47 @@ const UsecaseListPanel: React.FC<UsecaseListPanelProps> = ({
               title="Collapse All"
               variant="ghost"
             />
-            <IconButton
-              aria-label="Delete"
-              emphasis="danger"
-              icon={Trash2}
-              size="md"
-              title="Delete"
-              variant="ghost"
-            />
+            {selectedUsecases.length > 0 && (
+              <Dialog.Root emphasis="danger" preventScroll={false}>
+                <Dialog.Trigger>
+                  <IconButton
+                    aria-label="Delete"
+                    emphasis="danger"
+                    icon={Trash2}
+                    size="md"
+                    title="Delete"
+                    variant="ghost"
+                  />
+                </Dialog.Trigger>
+                <Dialog.FloatingPortal>
+                  <Dialog.Body>
+                    <Dialog.IndicatorIcon />
+                    <Dialog.Heading>Delete Usecases</Dialog.Heading>
+                    <Dialog.CloseButton />
+                    <Dialog.Description>
+                      {`Are you sure you want to delete ${selectedUsecases.length} selected usecase${selectedUsecases.length > 1 ? 's' : ''}? This action cannot be undone.`}
+                    </Dialog.Description>
+                  </Dialog.Body>
+                  <Dialog.Footer>
+                    <Dialog.CloseTrigger>
+                      <Button emphasis="neutral" size="sm" variant="outline">
+                        Cancel
+                      </Button>
+                    </Dialog.CloseTrigger>
+                    <Dialog.CloseTrigger>
+                      <Button
+                        emphasis="danger"
+                        onClick={onDeleteSelected}
+                        size="sm"
+                        variant="fill"
+                      >
+                        Delete
+                      </Button>
+                    </Dialog.CloseTrigger>
+                  </Dialog.Footer>
+                </Dialog.FloatingPortal>
+              </Dialog.Root>
+            )}
             <IconButton
               aria-label="Settings"
               emphasis="neutral"

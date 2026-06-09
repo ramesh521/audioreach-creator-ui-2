@@ -6,10 +6,14 @@
 import {useEffect, useRef, useState} from 'react';
 
 import {Search} from 'lucide-react';
+import {createPortal} from 'react-dom';
 
+import {ProgressRing} from '@qualcomm-ui/react/progress-ring';
 import {TextInput} from '@qualcomm-ui/react/text-input';
 
+import {deleteUsecases} from '~entities/usecases/api/usecases-api';
 import type {KeyValueInfo} from '~entities/usecases/model/usecase.dto';
+import {showToast} from '~shared/controls/global-toaster';
 import {useUsecaseStore} from '~shared/store/use-usecase-store';
 
 const EMPTY_SELECTED_USECASES: string[] = [];
@@ -35,10 +39,13 @@ const UsecaseSelectionControl: React.FC<UsecaseSelectionControlProps> = ({
   usecaseData,
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<string[]>(
     usecaseData.filter((cat) => cat.expanded).map((cat) => cat.name),
   );
+  const [localUsecaseData, setLocalUsecaseData] =
+    useState<UsecaseCategory[]>(usecaseData);
 
   // Get selected usecases from store - ensure stable reference when empty
   const selectedUsecases = useUsecaseStore(
@@ -63,9 +70,17 @@ const UsecaseSelectionControl: React.FC<UsecaseSelectionControlProps> = ({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      if (isDeleting) {
+        return;
+      }
+      const target = event.target as Element;
+      // Ignore dialog portal clicks — prevents dropdown from closing before delete runs
+      if (target.closest('[data-scope="dialog"]')) {
+        return;
+      }
       if (
         containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
+        !containerRef.current.contains(target as Node)
       ) {
         setIsDropdownOpen(false);
       }
@@ -90,7 +105,7 @@ const UsecaseSelectionControl: React.FC<UsecaseSelectionControlProps> = ({
       document.removeEventListener('mousedown', handleClickOutside, true);
       document.removeEventListener('keydown', handleEscapeKey);
     };
-  }, [isDropdownOpen]);
+  }, [isDropdownOpen, isDeleting]);
 
   const handleSelectUsecase = (
     formattedUsecase: string,
@@ -111,13 +126,43 @@ const UsecaseSelectionControl: React.FC<UsecaseSelectionControlProps> = ({
 
   const handleSelectAll = (isSelected: boolean) => {
     if (isSelected) {
-      const allUsecaseStrings = usecaseData.flatMap((category) =>
+      const allUsecaseStrings = localUsecaseData.flatMap((category) =>
         category.usecases.map((uc: Usecase) => formatUsecaseDisplay(uc)),
       );
       setSelectedUsecases(projectGroupId, allUsecaseStrings);
     } else {
       setSelectedUsecases(projectGroupId, []);
     }
+  };
+
+  const handleDeleteSelected = async () => {
+    setIsDeleting(true);
+    const selectedSet = new Set(selectedUsecases);
+
+    const systemIds = localUsecaseData
+      .flatMap((category) => category.usecases)
+      .filter((usecase) => selectedSet.has(formatUsecaseDisplay(usecase)))
+      .map((usecase) => usecase.systemId);
+
+    const nextData = localUsecaseData
+      .map((category) => ({
+        ...category,
+        usecases: category.usecases.filter(
+          (usecase) => !selectedSet.has(formatUsecaseDisplay(usecase)),
+        ),
+      }))
+      .filter((category) => category.usecases.length > 0);
+    if ((await deleteUsecases(projectGroupId, systemIds)).success) {
+      setLocalUsecaseData(nextData);
+      setSelectedUsecases(projectGroupId, []);
+      setIsDropdownOpen(false);
+    } else {
+      showToast(
+        `Failed to delete usecase${systemIds.length > 1 ? 's' : ''}.`,
+        'danger',
+      );
+    }
+    setIsDeleting(false);
   };
 
   // Utility to determine if a usecase is checked based on its current display
@@ -127,7 +172,7 @@ const UsecaseSelectionControl: React.FC<UsecaseSelectionControlProps> = ({
   };
 
   // Filter usecases based on search term
-  const filteredUsecaseData = usecaseData
+  const filteredUsecaseData = localUsecaseData
     .map((category) => ({
       ...category,
       usecases: category.usecases.filter((usecase: Usecase) => {
@@ -150,6 +195,40 @@ const UsecaseSelectionControl: React.FC<UsecaseSelectionControlProps> = ({
 
   return (
     <div ref={containerRef} className="relative">
+      {isDeleting &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center"
+            style={{
+              backdropFilter: 'blur(2px)',
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            }}
+          >
+            <div
+              className="rounded-lg p-8 shadow-xl"
+              style={{backgroundColor: 'var(--color-surface-raised)'}}
+            >
+              <div className="text-center">
+                <div className="mb-4 flex justify-center">
+                  <ProgressRing />
+                </div>
+                <div
+                  className="mb-2 text-lg font-semibold"
+                  style={{color: 'var(--color-text-neutral-primary)'}}
+                >
+                  {`Deleting Usecase${selectedUsecases.length > 1 ? 's' : ''}...`}
+                </div>
+                <div
+                  className="text-sm"
+                  style={{color: 'var(--color-text-neutral-secondary)'}}
+                >
+                  Please wait...
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
       {/* Search Bar */}
       <div className="relative">
         <TextInput
@@ -182,6 +261,7 @@ const UsecaseSelectionControl: React.FC<UsecaseSelectionControlProps> = ({
             handleSelectUsecase={handleSelectUsecase}
             isUsecaseChecked={isUsecaseChecked}
             onClose={() => setIsDropdownOpen(false)}
+            onDeleteSelected={handleDeleteSelected}
             selectedUsecases={selectedUsecases}
             toggleCategoryExpansion={toggleCategoryExpansion}
             usecaseData={filteredUsecaseData}

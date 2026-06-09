@@ -21,6 +21,20 @@ export async function getAllUsecases(
 }
 
 /**
+ * Delete usecases for the provided system IDs.
+ * @param projectId - The unique identifier of the project
+ * @param systemIds - Array of usecase system identifiers to delete
+ */
+export async function deleteUsecases(
+  projectId: string,
+  systemIds: string[],
+): Promise<ApiResult<void>> {
+  return httpClient.post<void>(`/projects/${projectId}/usecases/delete`, {
+    systemIds,
+  });
+}
+
+/**
  * Query usecase components for specified system IDs.
  * Returns flat component collection without subsystem hierarchy.
  * @param projectId - The unique identifier of the project
