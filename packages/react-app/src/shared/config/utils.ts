@@ -15,6 +15,7 @@ export type JSONDataMap = {
 };
 
 export const GRAPH_DESIGNER_COMPONENT_NAME = 'usecase';
+export const MAIN_TAB_TITLE = 'Graph Designer';
 /**
  * Constant representing an invalid/undefined project ID
  */

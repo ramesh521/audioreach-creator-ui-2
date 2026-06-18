@@ -1480,6 +1480,11 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
     set((state) => ({
       activeTab: actualTab || targetProjectGroup.mainTab,
       activeTabGroup: targetProjectGroup,
+      // Collapse all app groups when switching to a project group
+      appGroups: state.appGroups.map((appGroup) => ({
+        ...appGroup,
+        isCollapsed: true,
+      })),
       projectGroups: state.projectGroups.map((projectGroup) => ({
         ...projectGroup,
         isCollapsed: projectGroup.id !== projectGroupId,

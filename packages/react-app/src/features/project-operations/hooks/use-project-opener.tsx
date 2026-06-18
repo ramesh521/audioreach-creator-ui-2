@@ -21,6 +21,7 @@ import {ConfigFileManager} from '~shared/config/config-manager';
 import {
   GetFlexLayoutConfig,
   GRAPH_DESIGNER_COMPONENT_NAME,
+  MAIN_TAB_TITLE,
 } from '~shared/config/utils';
 import {showToast} from '~shared/controls/global-toaster';
 import {PanelIntegration} from '~shared/layout/project-layout-manager';
@@ -29,13 +30,15 @@ import {
   createProjectStore,
   ProjectStoreContext,
   projectStoreRegistry,
-  useProjectLayoutStore,
 } from '~shared/store';
 import {useGlobalStore} from '~shared/store/global-store';
 import {tabStoreRegistry} from '~shared/store/tab-store-registry';
+import {useProjectLayoutStore} from '~shared/store/use-project-layout-store';
 import {KeyConfiguratorPanel} from '~widgets/key-configurator-panel';
 
 import type {ProjectLoadingState, ProjectOpenerHook} from '../model/types';
+
+const panelIntegration = new PanelIntegration();
 
 interface UseProjectOpenerOptions {
   /** Callback for handling project close */
@@ -75,7 +78,17 @@ export function useProjectOpener({
       .getState()
       .openProjects.find((pg) => pg.filePath === project.filepath);
     if (existingProject) {
+      // Switch layout store to highlight the existing tab in the sidebar
+      const existingLayoutGroup = useProjectLayoutStore
+        .getState()
+        .isProjectGroupAlreadyOpen(project.filepath);
+      if (existingLayoutGroup) {
+        useProjectLayoutStore
+          .getState()
+          .switchToProjectGroup(existingLayoutGroup.id);
+      }
       useGlobalStore.getState().setActiveProject(existingProject.projectId);
+      onProjectOpened?.(project);
       return;
     }
 
@@ -88,11 +101,7 @@ export function useProjectOpener({
       projectId: project.id,
     });
 
-    // Create project group in the ProjectLayoutStore
-    const layoutStore = useProjectLayoutStore.getState();
-
-    // Use saved layout if available (restores user's panel positions), otherwise
-    // use default
+    // Use saved layout if available (restores user's panel positions), otherwise use default
     const savedLayout = ConfigFileManager.instance.getProjectConfigData(
       project.filepath,
       'layout.flexLayout',
@@ -121,9 +130,12 @@ export function useProjectOpener({
     // Unsubscribe function for log event listener — called on project close
     let unsubscribeLogEvents: (() => void) | null = null;
 
-    const mainTab = PanelIntegration.createProjectMainTab(
+    const mainTab = panelIntegration.createTab(
+      project.id,
       project.filepath,
-      mainTabId,
+      MAIN_TAB_TITLE,
+      project.name,
+      flexLayoutConfig,
       () => {
         unsubscribeLogEvents?.();
         tabStoreRegistry.destroyTabStore(mainTabId);
@@ -179,7 +191,8 @@ export function useProjectOpener({
         }
         return null;
       },
-      flexLayoutConfig,
+      project.description,
+      onProjectClose,
     );
 
     // Route logger events into the project store so the log view panel
@@ -211,16 +224,6 @@ export function useProjectOpener({
       .getState()
       .registerProjectGroup(project.id, project.filepath);
     useGlobalStore.getState().setActiveProject(project.id);
-
-    // Create the project group in layout store with screenshot callback
-    layoutStore.createProjectGroup(
-      project.id,
-      project.filepath,
-      project.name,
-      mainTab,
-      project.description,
-      onProjectClose, // onClose callback - captures screenshot before unmount
-    );
 
     // Notify parent component
     onProjectOpened?.(project);

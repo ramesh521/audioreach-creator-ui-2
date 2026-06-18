@@ -33,11 +33,16 @@ import {ConfigFileManager} from '~shared/config/config-manager';
 import {logger} from '~shared/lib/logger';
 
 import type {
+  LayoutManager,
+  OnGroupClose,
   OnProjectClose,
   OnTabClose,
+  PanelId,
   ProjectLayoutStore,
+  ProjectMainTab,
 } from '../store/project-layout.types';
 import {
+  PanelTabEntity,
   ProjectMainTabEntity,
   ProjectTabEntity,
   useProjectLayoutStore,
@@ -862,9 +867,82 @@ class ProjectLayoutManager extends Component<
 /**
  * Panel Integration
  */
-export class PanelIntegration {
+export class PanelIntegration implements LayoutManager {
   // Global manager storage
   private static globalManager: ProjectLayoutManager | null = null;
+
+  /**
+   * Create a project main tab and register it in the store as a new project group.
+   */
+  createTab(
+    projectId: string,
+    projectFilePath: string,
+    tabTitle: string,
+    groupTitle: string,
+    layout: IJsonModel,
+    onTabClose: OnTabClose,
+    factory: (node: TabNode) => ReactNode,
+    description?: string,
+    onGroupClose?: OnGroupClose,
+  ): ProjectMainTab {
+    const store = useProjectLayoutStore.getState();
+
+    // Guard 1: project already open — return existing main tab, no new state created
+    const existingGroup = store.isProjectGroupAlreadyOpen(projectFilePath);
+    if (existingGroup) {
+      store.switchToProjectGroup(existingGroup.id);
+      return existingGroup.mainTab;
+    }
+
+    const mainTab = PanelIntegration.createProjectMainTab(
+      projectFilePath,
+      tabTitle,
+      onTabClose,
+      factory,
+      layout,
+    );
+
+    const created = store.createProjectGroup(
+      projectId,
+      projectFilePath,
+      groupTitle,
+      mainTab,
+      description,
+      onGroupClose,
+    );
+
+    // Guard 2: group creation failed — rollback layout write and throw
+    if (!created) {
+      // saveLayoutConfig with empty string clears the orphaned layout entry
+      store.saveLayoutConfig(mainTab.id, '');
+      logger.error('createTab: failed to create project group', {
+        action: 'create_tab',
+        component: 'PanelIntegration',
+      });
+      throw new Error(`Failed to create project group for: ${groupTitle}`);
+    }
+
+    return mainTab;
+  }
+
+  /**
+   * Add a panel tab to a specific position in the project layout.
+   */
+  addPanel(
+    tabId: string,
+    panelId: PanelId,
+    title: string,
+    component: ReactNode,
+    onTabClose?: OnTabClose,
+  ): boolean {
+    return useProjectLayoutStore
+      .getState()
+      .addPanelTab(
+        tabId,
+        panelId,
+        new PanelTabEntity(title, component, onTabClose),
+      );
+  }
 
   /**
    * Cleanup method to prevent memory leaks when projects are closed
@@ -887,7 +965,7 @@ export class PanelIntegration {
    * @param flexLayoutConfig layout config in JSON format
    * @param onPanelTabClose Optional callback for config panel tabs
    */
-  static createProjectMainTab(
+  private static createProjectMainTab(
     projectFilePath: string,
     tabTitle: string,
     onMainTabClose: OnTabClose,

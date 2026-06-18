@@ -5,7 +5,7 @@
 
 import type {ReactNode} from 'react';
 
-import type {IJsonModel} from 'flexlayout-react';
+import type {IJsonModel, TabNode} from 'flexlayout-react';
 
 // ProjectLayout Manager types and interfaces
 
@@ -223,6 +223,28 @@ export interface ProjectLayoutStore {
   tabGroups: Record<string, TabGroup>;
   // Panel tab component management
   updatePanelTabComponent: (tabId: string, newComponent: ReactNode) => boolean;
+}
+
+export interface LayoutManager {
+  addPanel(
+    tabId: string,
+    panelId: PanelId,
+    title: string,
+    component: ReactNode,
+    onTabClose?: OnTabClose,
+  ): boolean;
+
+  createTab(
+    projectId: string,
+    projectFilePath: string,
+    tabTitle: string,
+    groupTitle: string,
+    layout: IJsonModel,
+    onTabClose: OnTabClose,
+    factory: (node: TabNode) => ReactNode,
+    description?: string,
+    onGroupClose?: OnGroupClose,
+  ): ProjectMainTab;
 }
 
 // Internal configuration interface

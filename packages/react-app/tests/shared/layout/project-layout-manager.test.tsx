@@ -32,8 +32,14 @@ jest.mock('flexlayout-react', () => ({
 }));
 
 const mockSaveLayoutConfig = jest.fn();
+const mockCreateProjectGroup = jest.fn(() => true);
+const mockAddPanelTab = jest.fn(() => true);
 
 jest.mock('~shared/store/use-project-layout-store', () => ({
+  PanelTabEntity: jest.fn().mockImplementation((title: string) => ({
+    id: `panel-tab-${title}`,
+    title,
+  })),
   ProjectMainTabEntity: jest.fn().mockImplementation((title: string) => ({
     id: `main-tab-${title}`,
     title,
@@ -48,11 +54,15 @@ jest.mock('~shared/store/use-project-layout-store', () => ({
     ),
     {
       getState: jest.fn(() => ({
+        addPanelTab: mockAddPanelTab,
         componentRegistry: {},
+        createProjectGroup: mockCreateProjectGroup,
         getActiveProjectGroup: jest.fn(() => null),
         getLayoutConfig: jest.fn(() => null),
+        isProjectGroupAlreadyOpen: jest.fn(() => null),
         panelTabRegistry: {},
         saveLayoutConfig: mockSaveLayoutConfig,
+        switchToProjectGroup: jest.fn(),
       })),
       subscribe: jest.fn(() => jest.fn()),
     },
@@ -76,6 +86,272 @@ jest.mock('~shared/config/config-manager', () => ({
 }));
 
 import {PanelIntegration} from '~shared/layout/project-layout-manager';
+import {PanelId} from '~shared/store/project-layout.types';
+import {
+  PanelTabEntity,
+  useProjectLayoutStore,
+} from '~shared/store/use-project-layout-store';
+
+const mockManager = {
+  createFlexLayoutModel: jest.fn(() => ({
+    doAction: jest.fn(),
+    getNodeById: jest.fn(() => null),
+    getRoot: jest.fn(),
+    setOnAllowDrop: jest.fn(),
+    toJson: jest.fn(() => ({layout: {children: [], type: 'row'}})),
+  })),
+  factory: jest.fn(() => null),
+} as any;
+
+// ── PanelIntegration.createTab ────────────────────────────────────────────────
+
+describe('PanelIntegration — createTab', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    PanelIntegration.setManager(mockManager);
+  });
+
+  // createTab must register the project group in the store with the correct args
+  it('calls createProjectGroup with correct projectId, filePath, groupTitle and description', () => {
+    const manager = new PanelIntegration();
+    const onTabClose = jest.fn(() => true);
+    const factory = jest.fn(() => null);
+    const layout = {layout: {children: [], type: 'row'}};
+
+    manager.createTab(
+      'project-1',
+      '/path/to/project.json',
+      'project_1',
+      'My Project',
+      layout,
+      onTabClose,
+      factory,
+      'A test project',
+      undefined,
+    );
+
+    expect(mockCreateProjectGroup).toHaveBeenCalledWith(
+      'project-1',
+      '/path/to/project.json',
+      'My Project',
+      expect.objectContaining({title: 'project_1'}),
+      'A test project',
+      undefined,
+    );
+  });
+
+  // createTab must return the ProjectMainTab created for the project
+  it('returns a ProjectMainTab with the correct title', () => {
+    const manager = new PanelIntegration();
+    const layout = {layout: {children: [], type: 'row'}};
+
+    const mainTab = manager.createTab(
+      'project-2',
+      '/path/to/project2.json',
+      'project_2',
+      'Project Two',
+      layout,
+      jest.fn(() => true),
+      jest.fn(() => null),
+    );
+
+    expect(mainTab).toMatchObject({title: 'project_2'});
+  });
+
+  // switchToProjectGroup collapses all app groups when switching to a project group
+  it('collapses all app groups when switching to an existing project group', () => {
+    const existingMainTab = {id: 'main-tab-existing', title: 'Existing Tab'};
+    const existingGroup = {id: 'group-existing', mainTab: existingMainTab};
+    const mockSwitch = jest.fn();
+
+    (useProjectLayoutStore.getState as jest.Mock).mockReturnValueOnce({
+      addPanelTab: mockAddPanelTab,
+      componentRegistry: {},
+      createProjectGroup: mockCreateProjectGroup,
+      getActiveProjectGroup: jest.fn(() => null),
+      getLayoutConfig: jest.fn(() => null),
+      isProjectGroupAlreadyOpen: jest.fn(() => existingGroup),
+      panelTabRegistry: {},
+      saveLayoutConfig: mockSaveLayoutConfig,
+      switchToProjectGroup: mockSwitch,
+    });
+
+    const manager = new PanelIntegration();
+    manager.createTab(
+      'project-dup',
+      '/existing.json',
+      'tab-title',
+      'Group Title',
+      {layout: {children: [], type: 'row'}},
+      jest.fn(() => true),
+      jest.fn(() => null),
+    );
+
+    // switchToProjectGroup must be called — it handles app group collapsing internally
+    expect(mockSwitch).toHaveBeenCalledWith('group-existing');
+  });
+
+  // duplicate project open — returns existing mainTab, skips group creation
+  it('returns existing mainTab and switches to group when project is already open', () => {
+    const existingMainTab = {id: 'main-tab-existing', title: 'Existing Tab'};
+    const existingGroup = {id: 'group-existing', mainTab: existingMainTab};
+    const mockSwitch = jest.fn();
+
+    (useProjectLayoutStore.getState as jest.Mock).mockReturnValueOnce({
+      addPanelTab: mockAddPanelTab,
+      componentRegistry: {},
+      createProjectGroup: mockCreateProjectGroup,
+      getActiveProjectGroup: jest.fn(() => null),
+      getLayoutConfig: jest.fn(() => null),
+      isProjectGroupAlreadyOpen: jest.fn(() => existingGroup),
+      panelTabRegistry: {},
+      saveLayoutConfig: mockSaveLayoutConfig,
+      switchToProjectGroup: mockSwitch,
+    });
+
+    const manager = new PanelIntegration();
+    const result = manager.createTab(
+      'project-dup',
+      '/existing.json',
+      'tab-title',
+      'Group Title',
+      {layout: {children: [], type: 'row'}},
+      jest.fn(() => true),
+      jest.fn(() => null),
+    );
+
+    expect(mockSwitch).toHaveBeenCalledWith('group-existing');
+    expect(mockCreateProjectGroup).not.toHaveBeenCalled();
+    expect(result).toBe(existingMainTab);
+  });
+
+  // failed group creation — throws and rolls back the orphaned layout write
+  it('throws and rolls back layout write when createProjectGroup returns false', () => {
+    mockCreateProjectGroup.mockReturnValueOnce(false);
+
+    const manager = new PanelIntegration();
+
+    expect(() =>
+      manager.createTab(
+        'project-fail',
+        '/fail.json',
+        'fail-tab',
+        'Fail Group',
+        {layout: {children: [], type: 'row'}},
+        jest.fn(() => true),
+        jest.fn(() => null),
+      ),
+    ).toThrow('Failed to create project group for: Fail Group');
+
+    // Last saveLayoutConfig call must be the rollback (empty string)
+    expect(mockSaveLayoutConfig).toHaveBeenLastCalledWith(
+      'main-tab-fail-tab',
+      '',
+    );
+  });
+
+  // undefined description must be passed through as-is (null → undefined conversion happens in caller)
+  it('passes undefined description when not provided', () => {
+    const manager = new PanelIntegration();
+    const layout = {layout: {children: [], type: 'row'}};
+
+    manager.createTab(
+      'project-3',
+      '/path/to/project3.json',
+      'project_3',
+      'Project Three',
+      layout,
+      jest.fn(() => true),
+      jest.fn(() => null),
+    );
+
+    expect(mockCreateProjectGroup).toHaveBeenCalledWith(
+      'project-3',
+      '/path/to/project3.json',
+      'Project Three',
+      expect.anything(),
+      undefined,
+      undefined,
+    );
+  });
+});
+
+// ── PanelIntegration.addPanel ─────────────────────────────────────────────────
+
+describe('PanelIntegration — addPanel', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    PanelIntegration.setManager(mockManager);
+  });
+
+  // addPanel must construct PanelTabEntity with all three args: title, component, onTabClose
+  it('constructs PanelTabEntity with title, component, and onTabClose', () => {
+    const manager = new PanelIntegration();
+    const component = <div />;
+    const onTabClose = jest.fn(() => true);
+
+    manager.addPanel(
+      'tab-1',
+      PanelId.LeftPanel,
+      'Module List',
+      component,
+      onTabClose,
+    );
+
+    expect(PanelTabEntity).toHaveBeenCalledWith(
+      'Module List',
+      component,
+      onTabClose,
+    );
+  });
+
+  // addPanel must forward tabId, panelId and a PanelTabEntity to the store
+  it('calls addPanelTab with correct tabId, panelId and panel entity', () => {
+    mockAddPanelTab.mockReturnValue(true);
+    const manager = new PanelIntegration();
+    const component = <div />;
+
+    manager.addPanel('tab-1', PanelId.LeftPanel, 'Module List', component);
+
+    expect(mockAddPanelTab).toHaveBeenCalledWith(
+      'tab-1',
+      PanelId.LeftPanel,
+      expect.objectContaining({title: 'Module List'}),
+    );
+  });
+
+  // addPanel must return true when the store reports success
+  it('returns true when addPanelTab succeeds', () => {
+    mockAddPanelTab.mockReturnValue(true);
+    const manager = new PanelIntegration();
+
+    const result = manager.addPanel(
+      'tab-1',
+      PanelId.BottomPanel,
+      'Log View',
+      <div />,
+    );
+
+    expect(result).toBe(true);
+  });
+
+  // addPanel must return false when the store reports failure
+  it('returns false when addPanelTab fails', () => {
+    mockAddPanelTab.mockReturnValue(false);
+    const manager = new PanelIntegration();
+
+    const result = manager.addPanel(
+      'tab-1',
+      PanelId.RightPanel,
+      'Subgraph List',
+      <div />,
+    );
+
+    expect(result).toBe(false);
+  });
+});
+
+// ── save debounce ─────────────────────────────────────────────────────────────
 
 describe('project-layout-manager — save debounce', () => {
   beforeEach(() => {
@@ -103,12 +379,15 @@ describe('project-layout-manager — save debounce', () => {
 
   // Rapid onModelChange calls during a splitter drag should coalesce into one save
   it('calls saveLayoutConfig only once when onModelChange fires rapidly', () => {
-    const mainTab = PanelIntegration.createProjectMainTab(
+    const manager = new PanelIntegration();
+    const mainTab = manager.createTab(
+      'project-debounce',
       'project.json',
       'Test Project',
-      jest.fn(),
-      jest.fn(() => null),
+      'Test Group',
       {layout: {children: [], type: 'row'}},
+      jest.fn(() => true),
+      jest.fn(() => null),
     );
 
     render((mainTab as any).reactiveComponent);
