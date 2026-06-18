@@ -1598,3 +1598,5 @@ export class PanelIntegration implements LayoutManager {
 }
 
 export default ProjectLayoutManager;
+
+export const panelIntegration = new PanelIntegration();

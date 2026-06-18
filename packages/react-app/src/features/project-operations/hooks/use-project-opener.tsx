@@ -24,21 +24,19 @@ import {
   MAIN_TAB_TITLE,
 } from '~shared/config/utils';
 import {showToast} from '~shared/controls/global-toaster';
-import {PanelIntegration} from '~shared/layout/project-layout-manager';
+import {panelIntegration} from '~shared/layout/project-layout-manager';
 import {logEventEmitter, logger, LogLevel} from '~shared/lib/logger';
 import {
   createProjectStore,
   ProjectStoreContext,
   projectStoreRegistry,
+  useProjectLayoutStore,
 } from '~shared/store';
 import {useGlobalStore} from '~shared/store/global-store';
 import {tabStoreRegistry} from '~shared/store/tab-store-registry';
-import {useProjectLayoutStore} from '~shared/store/use-project-layout-store';
 import {KeyConfiguratorPanel} from '~widgets/key-configurator-panel';
 
 import type {ProjectLoadingState, ProjectOpenerHook} from '../model/types';
-
-const panelIntegration = new PanelIntegration();
 
 interface UseProjectOpenerOptions {
   /** Callback for handling project close */
