@@ -33,13 +33,13 @@ import {ConfigFileManager} from '~shared/config/config-manager';
 import {logger} from '~shared/lib/logger';
 
 import type {
-  LayoutManager,
   OnGroupClose,
   OnProjectClose,
   OnTabClose,
   PanelId,
   ProjectLayoutStore,
   ProjectMainTab,
+  ProjectTab,
 } from '../store/project-layout.types';
 import {
   PanelTabEntity,
@@ -95,8 +95,8 @@ class ProjectLayoutManager extends Component<
   constructor(props: ProjectLayoutManagerProps) {
     super(props);
 
-    // Set this manager as the global manager for PanelIntegration
-    PanelIntegration.setManager(this);
+    // Set this manager as the global manager for TabLayoutService
+    tabLayoutService.setManager(this);
 
     this.state = {
       initialized: false, // Track if we've built initial model
@@ -402,7 +402,7 @@ class ProjectLayoutManager extends Component<
       }
 
       // external factory handle config panels
-      return null; // This allows the external factory in PanelIntegration to handle it
+      return null; // This allows the external factory in TabLayoutService to handle it
     }
 
     // Check if this is an app tab - search through app groups
@@ -590,7 +590,7 @@ class ProjectLayoutManager extends Component<
               shouldClose
                 .then((confirmed) => {
                   if (confirmed) {
-                    PanelIntegration.cleanupProjectPanels(project.id);
+                    tabLayoutService.cleanupProjectPanels(project.id);
                     this.store.removeProjectGroup(project.id);
                     // Store subscription will automatically trigger rebuild
                   }
@@ -618,7 +618,7 @@ class ProjectLayoutManager extends Component<
           });
 
           // Proceed with group destruction
-          PanelIntegration.cleanupProjectPanels(project.id);
+          tabLayoutService.cleanupProjectPanels(project.id);
           this.store.removeProjectGroup(project.id);
           // Store subscription will automatically trigger rebuild
           return;
@@ -865,65 +865,11 @@ class ProjectLayoutManager extends Component<
 }
 
 /**
- * Panel Integration
+ * Tab Layout Service
  */
-export class PanelIntegration implements LayoutManager {
+export class TabLayoutService {
   // Global manager storage
-  private static globalManager: ProjectLayoutManager | null = null;
-
-  /**
-   * Create a project main tab and register it in the store as a new project group.
-   */
-  createTab(
-    projectId: string,
-    projectFilePath: string,
-    tabTitle: string,
-    groupTitle: string,
-    layout: IJsonModel,
-    onTabClose: OnTabClose,
-    factory: (node: TabNode) => ReactNode,
-    description?: string,
-    onGroupClose?: OnGroupClose,
-  ): ProjectMainTab {
-    const store = useProjectLayoutStore.getState();
-
-    // Guard 1: project already open — return existing main tab, no new state created
-    const existingGroup = store.isProjectGroupAlreadyOpen(projectFilePath);
-    if (existingGroup) {
-      store.switchToProjectGroup(existingGroup.id);
-      return existingGroup.mainTab;
-    }
-
-    const mainTab = PanelIntegration.createProjectMainTab(
-      projectFilePath,
-      tabTitle,
-      onTabClose,
-      factory,
-      layout,
-    );
-
-    const created = store.createProjectGroup(
-      projectId,
-      projectFilePath,
-      groupTitle,
-      mainTab,
-      description,
-      onGroupClose,
-    );
-
-    // Guard 2: group creation failed — rollback layout write and throw
-    if (!created) {
-      // saveLayoutConfig with empty string clears the orphaned layout entry
-      store.saveLayoutConfig(mainTab.id, '');
-      logger.error('createTab: failed to create project group', {
-        action: 'create_tab',
-        component: 'PanelIntegration',
-      });
-      throw new Error(`Failed to create project group for: ${groupTitle}`);
-    }
-
-    return mainTab;
-  }
+  private globalManager: ProjectLayoutManager | null = null;
 
   /**
    * Add a panel tab to a specific position in the project layout.
@@ -947,7 +893,7 @@ export class PanelIntegration implements LayoutManager {
   /**
    * Cleanup method to prevent memory leaks when projects are closed
    */
-  static cleanupProjectPanels(projectGroupId: string): void {
+  cleanupProjectPanels(projectGroupId: string): void {
     if (!this.globalManager) {
       return;
     }
@@ -958,25 +904,42 @@ export class PanelIntegration implements LayoutManager {
   /**
    * Create project Maintab from JSON config file.
    * Project Maintab may have a list of PanelTabs
+   * @param projectId project ID used to register the project group
    * @param projectFilePath project.filepath — used as the key for ConfigFileManager disk persistence only.
    * @param tabTitle Main tab title
+   * @param groupTitle Project group display title
+   * @param flexLayoutConfig layout config in JSON format
    * @param onMainTabClose Callback when this tab is closed
    * @param factory callback to create panels
-   * @param flexLayoutConfig layout config in JSON format
+   * @param description Optional project description
+   * @param onGroupClose Optional callback for group closing confirmation
    * @param onPanelTabClose Optional callback for config panel tabs
    */
-  private static createProjectMainTab(
+  createProjectMainTab(
+    projectId: string,
     projectFilePath: string,
     tabTitle: string,
+    groupTitle: string,
+    flexLayoutConfig: IJsonModel,
     onMainTabClose: OnTabClose,
     factory: (node: TabNode) => ReactNode,
-    flexLayoutConfig: IJsonModel,
+    description?: string,
+    onGroupClose?: OnGroupClose,
     onPanelTabClose?: OnTabClose,
-  ): ProjectMainTabEntity {
+  ): ProjectMainTab {
     if (!this.globalManager) {
       throw new Error(
-        'Manager not initialized. Call PanelIntegration.setManager() first.',
+        'Manager not initialized. Call tabLayoutService.setManager() first.',
       );
+    }
+
+    const store = useProjectLayoutStore.getState();
+
+    // Guard 1: project already open — return existing main tab, no new state created
+    const existingGroup = store.isProjectGroupAlreadyOpen(projectFilePath);
+    if (existingGroup) {
+      store.switchToProjectGroup(existingGroup.id);
+      return existingGroup.mainTab;
     }
 
     // Create ProjectMainTab instance with FlexLayout data
@@ -986,10 +949,6 @@ export class PanelIntegration implements LayoutManager {
       panelLayout,
       onMainTabClose,
     );
-
-    // Store FlexLayout JSON directly
-    const store = useProjectLayoutStore.getState();
-    store.saveLayoutConfig(mainTab.id, JSON.stringify(flexLayoutConfig));
 
     // Create reactive panel component
     const ReactivePanelComponent = createElement(() => {
@@ -1313,20 +1272,42 @@ export class PanelIntegration implements LayoutManager {
     // Store the component directly in the main tab
     (mainTab as any).reactiveComponent = ReactivePanelComponent;
 
+    // Create project group
+    const created = store.createProjectGroup(
+      projectId,
+      projectFilePath,
+      groupTitle,
+      mainTab,
+      description,
+      onGroupClose,
+    );
+
+    // Guard 2: group creation failed
+    if (!created) {
+      logger.error('createProjectMainTab: failed to create project group', {
+        action: 'create_project_main_tab',
+        component: 'TabLayoutService',
+      });
+      throw new Error(`Failed to create project group for: ${groupTitle}`);
+    }
+
+    // Save layout config only after group is successfully created
+    store.saveLayoutConfig(mainTab.id, JSON.stringify(flexLayoutConfig));
+
     return mainTab;
   }
 
-  static createProjectTab(
+  createProjectTab(
     tabTitle: string,
     factory: ((node: TabNode) => ReactNode) | ReactNode,
     onProjectTabClose: OnTabClose,
     onProjectTabCleanup: OnProjectClose,
     flexLayoutConfig?: IJsonModel,
     onPanelTabClose?: OnTabClose,
-  ): ProjectTabEntity {
+  ): ProjectTab {
     if (!this.globalManager) {
       throw new Error(
-        'Manager not initialized. Call PanelIntegration.setManager() first.',
+        'Manager not initialized. Call tabLayoutService.setManager() first.',
       );
     }
 
@@ -1592,11 +1573,11 @@ export class PanelIntegration implements LayoutManager {
   /**
    * Method to set the global manager (call once from main app)
    */
-  static setManager(manager: ProjectLayoutManager): void {
+  setManager(manager: ProjectLayoutManager): void {
     this.globalManager = manager;
   }
 }
 
 export default ProjectLayoutManager;
 
-export const panelIntegration = new PanelIntegration();
+export const tabLayoutService = new TabLayoutService();

@@ -1,4 +1,4 @@
 export {
   default as ProjectLayoutManager,
-  PanelIntegration,
+  tabLayoutService,
 } from './project-layout-manager';

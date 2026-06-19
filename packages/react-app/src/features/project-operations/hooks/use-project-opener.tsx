@@ -24,7 +24,7 @@ import {
   MAIN_TAB_TITLE,
 } from '~shared/config/utils';
 import {showToast} from '~shared/controls/global-toaster';
-import {panelIntegration} from '~shared/layout/project-layout-manager';
+import {tabLayoutService} from '~shared/layout/project-layout-manager';
 import {logEventEmitter, logger, LogLevel} from '~shared/lib/logger';
 import {
   createProjectStore,
@@ -71,22 +71,12 @@ export function useProjectOpener({
     project: ProjectInfo,
     usecaseData: any[],
   ) => {
-    // If the project file is already open, just activate its tab.
-    const existingProject = useGlobalStore
-      .getState()
-      .openProjects.find((pg) => pg.filePath === project.filepath);
-    if (existingProject) {
-      // Switch layout store to highlight the existing tab in the sidebar
-      const existingLayoutGroup = useProjectLayoutStore
-        .getState()
-        .isProjectGroupAlreadyOpen(project.filepath);
-      if (existingLayoutGroup) {
-        useProjectLayoutStore
-          .getState()
-          .switchToProjectGroup(existingLayoutGroup.id);
-      }
-      useGlobalStore.getState().setActiveProject(existingProject.projectId);
-      onProjectOpened?.(project);
+    const layoutStore = useProjectLayoutStore.getState();
+    const existingGroup = layoutStore.isProjectGroupAlreadyOpen(
+      project.filepath,
+    );
+    if (existingGroup) {
+      layoutStore.switchToProjectGroup(existingGroup.id);
       return;
     }
 
@@ -128,7 +118,7 @@ export function useProjectOpener({
     // Unsubscribe function for log event listener — called on project close
     let unsubscribeLogEvents: (() => void) | null = null;
 
-    const mainTab = panelIntegration.createTab(
+    const mainTab = tabLayoutService.createProjectMainTab(
       project.id,
       project.filepath,
       MAIN_TAB_TITLE,

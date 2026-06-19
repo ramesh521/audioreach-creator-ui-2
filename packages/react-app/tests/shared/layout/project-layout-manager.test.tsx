@@ -85,7 +85,10 @@ jest.mock('~shared/config/config-manager', () => ({
   },
 }));
 
-import {PanelIntegration} from '~shared/layout/project-layout-manager';
+import {
+  tabLayoutService,
+  TabLayoutService,
+} from '~shared/layout/project-layout-manager';
 import {PanelId} from '~shared/store/project-layout.types';
 import {
   PanelTabEntity,
@@ -103,22 +106,21 @@ const mockManager = {
   factory: jest.fn(() => null),
 } as any;
 
-// ── PanelIntegration.createTab ────────────────────────────────────────────────
+// ── PanelIntegration.createProjectMainTab ────────────────────────────────────
 
-describe('PanelIntegration — createTab', () => {
+describe('TabLayoutService — createProjectMainTab', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    PanelIntegration.setManager(mockManager);
+    tabLayoutService.setManager(mockManager);
   });
 
-  // createTab must register the project group in the store with the correct args
+  // createProjectMainTab must register the project group in the store with the correct args
   it('calls createProjectGroup with correct projectId, filePath, groupTitle and description', () => {
-    const manager = new PanelIntegration();
     const onTabClose = jest.fn(() => true);
     const factory = jest.fn(() => null);
     const layout = {layout: {children: [], type: 'row'}};
 
-    manager.createTab(
+    tabLayoutService.createProjectMainTab(
       'project-1',
       '/path/to/project.json',
       'project_1',
@@ -140,12 +142,11 @@ describe('PanelIntegration — createTab', () => {
     );
   });
 
-  // createTab must return the ProjectMainTab created for the project
+  // createProjectMainTab must return the ProjectMainTab created for the project
   it('returns a ProjectMainTab with the correct title', () => {
-    const manager = new PanelIntegration();
     const layout = {layout: {children: [], type: 'row'}};
 
-    const mainTab = manager.createTab(
+    const mainTab = tabLayoutService.createProjectMainTab(
       'project-2',
       '/path/to/project2.json',
       'project_2',
@@ -176,8 +177,7 @@ describe('PanelIntegration — createTab', () => {
       switchToProjectGroup: mockSwitch,
     });
 
-    const manager = new PanelIntegration();
-    manager.createTab(
+    tabLayoutService.createProjectMainTab(
       'project-dup',
       '/existing.json',
       'tab-title',
@@ -209,8 +209,7 @@ describe('PanelIntegration — createTab', () => {
       switchToProjectGroup: mockSwitch,
     });
 
-    const manager = new PanelIntegration();
-    const result = manager.createTab(
+    const result = tabLayoutService.createProjectMainTab(
       'project-dup',
       '/existing.json',
       'tab-title',
@@ -225,14 +224,12 @@ describe('PanelIntegration — createTab', () => {
     expect(result).toBe(existingMainTab);
   });
 
-  // failed group creation — throws and rolls back the orphaned layout write
-  it('throws and rolls back layout write when createProjectGroup returns false', () => {
+  // failed group creation — throws without writing layout (saveLayoutConfig only called on success)
+  it('throws when createProjectGroup returns false without writing layout', () => {
     mockCreateProjectGroup.mockReturnValueOnce(false);
 
-    const manager = new PanelIntegration();
-
     expect(() =>
-      manager.createTab(
+      tabLayoutService.createProjectMainTab(
         'project-fail',
         '/fail.json',
         'fail-tab',
@@ -243,19 +240,15 @@ describe('PanelIntegration — createTab', () => {
       ),
     ).toThrow('Failed to create project group for: Fail Group');
 
-    // Last saveLayoutConfig call must be the rollback (empty string)
-    expect(mockSaveLayoutConfig).toHaveBeenLastCalledWith(
-      'main-tab-fail-tab',
-      '',
-    );
+    // saveLayoutConfig must NOT have been called — nothing written before failure
+    expect(mockSaveLayoutConfig).not.toHaveBeenCalled();
   });
 
   // undefined description must be passed through as-is (null → undefined conversion happens in caller)
   it('passes undefined description when not provided', () => {
-    const manager = new PanelIntegration();
     const layout = {layout: {children: [], type: 'row'}};
 
-    manager.createTab(
+    tabLayoutService.createProjectMainTab(
       'project-3',
       '/path/to/project3.json',
       'project_3',
@@ -278,15 +271,15 @@ describe('PanelIntegration — createTab', () => {
 
 // ── PanelIntegration.addPanel ─────────────────────────────────────────────────
 
-describe('PanelIntegration — addPanel', () => {
+describe('TabLayoutService — addPanel', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    PanelIntegration.setManager(mockManager);
+    tabLayoutService.setManager(mockManager);
   });
 
   // addPanel must construct PanelTabEntity with all three args: title, component, onTabClose
   it('constructs PanelTabEntity with title, component, and onTabClose', () => {
-    const manager = new PanelIntegration();
+    const manager = new TabLayoutService();
     const component = <div />;
     const onTabClose = jest.fn(() => true);
 
@@ -308,7 +301,7 @@ describe('PanelIntegration — addPanel', () => {
   // addPanel must forward tabId, panelId and a PanelTabEntity to the store
   it('calls addPanelTab with correct tabId, panelId and panel entity', () => {
     mockAddPanelTab.mockReturnValue(true);
-    const manager = new PanelIntegration();
+    const manager = new TabLayoutService();
     const component = <div />;
 
     manager.addPanel('tab-1', PanelId.LeftPanel, 'Module List', component);
@@ -323,7 +316,7 @@ describe('PanelIntegration — addPanel', () => {
   // addPanel must return true when the store reports success
   it('returns true when addPanelTab succeeds', () => {
     mockAddPanelTab.mockReturnValue(true);
-    const manager = new PanelIntegration();
+    const manager = new TabLayoutService();
 
     const result = manager.addPanel(
       'tab-1',
@@ -338,7 +331,7 @@ describe('PanelIntegration — addPanel', () => {
   // addPanel must return false when the store reports failure
   it('returns false when addPanelTab fails', () => {
     mockAddPanelTab.mockReturnValue(false);
-    const manager = new PanelIntegration();
+    const manager = new TabLayoutService();
 
     const result = manager.addPanel(
       'tab-1',
@@ -359,7 +352,7 @@ describe('project-layout-manager — save debounce', () => {
     jest.useFakeTimers();
     jest.clearAllMocks();
 
-    PanelIntegration.setManager({
+    tabLayoutService.setManager({
       createFlexLayoutModel: jest.fn(() => ({
         doAction: jest.fn(),
         getNodeById: jest.fn(() => null),
@@ -379,8 +372,7 @@ describe('project-layout-manager — save debounce', () => {
 
   // Rapid onModelChange calls during a splitter drag should coalesce into one save
   it('calls saveLayoutConfig only once when onModelChange fires rapidly', () => {
-    const manager = new PanelIntegration();
-    const mainTab = manager.createTab(
+    const mainTab = tabLayoutService.createProjectMainTab(
       'project-debounce',
       'project.json',
       'Test Project',
