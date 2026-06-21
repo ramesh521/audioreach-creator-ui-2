@@ -71,7 +71,10 @@ export function toReactFlowNodes(graph: LevelView): Node[] {
     out.push(toNode(n, 'subgraph-proxy'));
   });
   graph.containers?.forEach((n: ContainerNode) => {
-    out.push(toNode(n, 'container'));
+    // Split container parts carry a logicalContainerId that is the unique
+    // ReactFlow node ID for that part. Non-split containers use id directly.
+    const node = n.logicalContainerId ? {...n, id: n.logicalContainerId} : n;
+    out.push(toNode(node, 'container'));
   });
   graph.modules?.forEach((n: ModuleNode) => {
     out.push(toNode(n, 'module'));
