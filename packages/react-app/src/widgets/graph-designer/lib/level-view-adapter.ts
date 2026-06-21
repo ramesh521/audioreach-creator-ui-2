@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -19,6 +19,7 @@ import {
   type SubgraphNode,
   type SubsystemNode,
 } from '~features/usecase-visualizer';
+import {logger} from '~shared/lib/logger';
 
 import {containerNodeId, subgraphNodeId} from './node-id';
 
@@ -91,21 +92,42 @@ export function buildLevelViewFromGraphData(
     };
   });
 
-  const containers: ContainerNode[] = Object.values(data.containers).map(
-    (c) => ({
-      containerId: Number(c.containerId),
+  // Derive containers from the unique (containerId, subgraphId) pairs present
+  // in moduleInstances. data.containers provides metadata (label) keyed by
+  // containerId, but it has one entry per container entity â€” not one per
+  // subgraph context. A container that spans multiple subgraphs needs a
+  // separate ContainerNode per subgraph so every module has a valid parent.
+  const containerMeta = new Map(
+    Object.values(data.containers).map((c) => [c.containerId, c]),
+  );
+  const containersByKey = new Map<string, ContainerNode>();
+  for (const m of Object.values(data.moduleInstances)) {
+    const key = containerNodeId(m.containerId, m.subgraphId);
+    if (containersByKey.has(key)) {
+      continue;
+    }
+    if (!containerMeta.has(m.containerId)) {
+      logger.warn(
+        'buildLevelViewFromGraphData: no container metadata for containerId',
+        {
+          action: 'build_level_view',
+          component: 'levelViewAdapter',
+        },
+      );
+    }
+    containersByKey.set(key, {
+      containerId: Number(m.containerId),
       height: 0,
-      id: containerNodeId(c.containerId, c.subgraphId),
-      label: `Container ${c.containerId}`,
+      id: key,
+      label: `Container ${m.containerId}`,
       nodeKind: NODE_KIND.CONTAINER,
-      parentId: subgraphNodeId(c.subgraphId),
+      parentId: subgraphNodeId(m.subgraphId),
       width: 0,
       x: 0,
       y: 0,
-    }),
-  );
-
-  // Build reverse index: subgraphId → subsystem systemId.
+    });
+  }
+  // Build reverse index: subgraphId â†’ subsystem systemId.
   const subgraphToSubsystemId = new Map<string, string>();
   for (const ss of Object.values(data.subsystems)) {
     for (const sgId of ss.subgraphs) {
@@ -157,7 +179,7 @@ export function buildLevelViewFromGraphData(
 
       return {
         height: 0,
-        // Subsystem systemIds are globally unique — no prefix needed unlike
+        // Subsystem systemIds are globally unique â€” no prefix needed unlike
         // container or subgraph ids which share a numeric namespace.
         id: ss.subsystemId,
         label: ss.subsystemName,
@@ -197,7 +219,7 @@ export function buildLevelViewFromGraphData(
   }
 
   return {
-    containers,
+    containers: [...containersByKey.values()],
     controlLinks,
     dataLinks,
     levelId,
