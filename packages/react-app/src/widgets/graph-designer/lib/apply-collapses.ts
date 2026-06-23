@@ -164,8 +164,10 @@ export function applyCollapses(
     proxyDataLinks.push({
       edgeKind: 'proxy-data',
       id: `proxy-${e.id}`,
+      kind: 'standard' as const,
       label: e.label,
       locked: true,
+      realConnectionIds: [e.id],
       sourceNodeId,
       sourcePortId,
       targetNodeId,
@@ -210,8 +212,10 @@ export function applyCollapses(
     proxyControlLinks.push({
       edgeKind: 'proxy-control',
       id: `proxy-${e.id}`,
+      kind: 'standard' as const,
       label: e.label,
       locked: true,
+      realConnectionIds: [e.id],
       sourceNodeId,
       sourcePortId,
       targetNodeId,

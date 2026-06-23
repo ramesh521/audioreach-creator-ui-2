@@ -280,7 +280,8 @@ describe('ModuleTagKeysConfigPanel', () => {
     expect(
       screen.getByPlaceholderText('Search module tag keys or values...'),
     ).toBeInTheDocument();
-    // Check that tag groups appear in the list (there will be multiple "Tag 1" and "Tag 2" - one in summary, one in list)
+    // Check that tag groups appear in the list (there will be multiple "Tag 1" and
+    // "Tag 2" - one in summary, one in list)
     const tag1Elements = screen.getAllByText('Tag 1');
     const tag2Elements = screen.getAllByText('Tag 2');
     expect(tag1Elements.length).toBeGreaterThan(0);
@@ -324,7 +325,8 @@ describe('ModuleTagKeysConfigPanel', () => {
 
     fireEvent.click(screen.getByText('Add'));
 
-    // Get all elements with text 'Tag 1' and click the one in the list (not in the summary)
+    // Get all elements with text 'Tag 1' and click the one in the list (not in the
+    // summary)
     const tagElements = screen.getAllByText('Tag 1');
     const tagInList = tagElements.find((el) =>
       el.closest('[class*="cursor-pointer"]'),
@@ -498,8 +500,8 @@ describe('ModuleTagKeysConfigPanel', () => {
       'Parameter PARAM_ID_MODULE_TAG_1',
     );
 
-    // The TKVParametersSection mock calls onParametersChange, not updateParameter directly
-    // This test verifies the checkbox exists and can be toggled
+    // The TKVParametersSection mock calls onParametersChange, not updateParameter
+    // directly This test verifies the checkbox exists and can be toggled
     expect(paramCheckbox).not.toBeChecked();
     fireEvent.click(paramCheckbox);
     expect(paramCheckbox).toBeChecked();

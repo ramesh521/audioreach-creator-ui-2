@@ -421,26 +421,15 @@ for any IDs no longer present in the selection arrays.
 ## 8. Data-driven schema rendering
 
 `SchemaPropertyRenderer` renders a `PropertyDto[]` list returned by the
-properties endpoint. It maps each entry using its embedded schema
-(field name, display type, editable flag) plus current values.
+properties endpoint. The element tree — which may contain
+`ConfigElementDto`, `ElementTemplateArrayDto`, and `StructDto` nodes at
+arbitrary depth — is rendered as a single generic **tree view** component.
 
-`PropertyField` maps `displayType` to a QUI control:
+The tree view implementation is a dedicated future task. Until it is
+built, `SchemaPropertyRenderer` renders a placeholder in its place.
 
-| displayType | QUI control |
-|---|---|
-| TextBox | `Input` |
-| DropDown | `Select` |
-| CheckBox | `Checkbox` |
-| Slider | `Slider` |
-| DbTextBox | `Input` (dB unit suffix) |
-| QFormattedValue | `Input` (Q-format display) |
-| StringField | `Input` |
-| BitField | `Input` (hex display) |
-| Formula | Read-only computed display |
-| Dump / File | Read-only display |
-
-Elements with `policy: Hidden` are never rendered. Elements where
-`isReadOnly: true` on the property definition are never interactive.
+There is no per-`displayType` field mapping at this layer. The tree view
+component owns all rendering decisions for individual element types.
 
 ---
 

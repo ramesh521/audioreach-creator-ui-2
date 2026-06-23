@@ -12,7 +12,8 @@ import {httpClient} from '~shared/api/http-client';
 
 /**
  * Fetch all projects.
- * Returns ApiResult<Project[]> and does not throw; callers should inspect result.success.
+ * Returns ApiResult<Project[]> and does not throw; callers should inspect
+ * result.success.
  */
 export async function getProjects(): Promise<
   ApiResult<ProjectInfoResponseDto[]>
@@ -22,7 +23,8 @@ export async function getProjects(): Promise<
 
 /**
  * Fetch a specific project by ID.
- * Returns ApiResult<Project> and does not throw; callers should inspect result.success.
+ * Returns ApiResult<Project> and does not throw; callers should inspect
+ * result.success.
  */
 export async function getProjectById(
   projectId: string,
@@ -138,5 +140,8 @@ export async function openWorkspaceProject(
   return httpClient.post<ProjectInfoResponseDto>(
     'projects/offline/upload-files',
     formData,
+    {
+      timeoutMs: 90000,
+    },
   );
 }

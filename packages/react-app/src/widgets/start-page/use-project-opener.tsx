@@ -43,6 +43,7 @@ import {
 } from '~shared/store';
 import {useGlobalStore} from '~shared/store/global-store';
 import {tabStoreRegistry} from '~shared/store/tab-store-registry';
+import {GraphDesignerPropertiesPanel} from '~widgets/graph-designer/ui/graph-designer-properties-panel';
 import {KeyConfiguratorPanel} from '~widgets/key-configurator-panel';
 import {tabLayoutService} from '~widgets/project-layout/project-layout-manager';
 
@@ -88,7 +89,6 @@ export function useProjectOpener({
       return;
     }
 
-    // Add to recent projects
     addToRecent(project);
 
     logger.info('Project opened successfully', {
@@ -186,6 +186,13 @@ export function useProjectOpener({
             </ProjectStoreContext.Provider>
           );
         }
+        if (component === 'properties-panel') {
+          return (
+            <GraphDesignerStoreContext.Provider value={tabStore}>
+              <GraphDesignerPropertiesPanel projectId={project.id} />
+            </GraphDesignerStoreContext.Provider>
+          );
+        }
         if (component === KEY_CONFIGURATOR_COMPONENT_NAME) {
           return (
             <GraphDesignerStoreContext.Provider value={tabStore}>
@@ -236,7 +243,6 @@ export function useProjectOpener({
       .registerProjectGroup(project.id, project.filepath);
     useGlobalStore.getState().setActiveProject(project.id);
 
-    // Notify parent component
     onProjectOpened?.(project);
 
     showToast('Project opened successfully', 'success');

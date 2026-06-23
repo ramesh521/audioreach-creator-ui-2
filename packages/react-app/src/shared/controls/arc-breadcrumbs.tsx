@@ -162,7 +162,8 @@ export const ArcBreadcrumbs = forwardRef<HTMLElement, ArcBreadcrumbsProps>(
               return (
                 <Breadcrumbs.Item key={index}>
                   {hasDropdown ? (
-                    // For items with dropdown, use Popover outside of Breadcrumbs structure
+                    // For items with dropdown, use Popover outside of Breadcrumbs
+                    // structure
                     <Popover.Root
                       onOpenChange={(open: boolean) => {
                         if (!open) {

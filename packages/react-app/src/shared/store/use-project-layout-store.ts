@@ -385,7 +385,8 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
             let newActiveTabId = appGroup.activeTabId;
 
             if (appGroup.activeTabId === appTabId) {
-              // We're closing the active tab, set new active tab to first remaining tab
+              // We're closing the active tab, set new active tab to first remaining
+              // tab
               newActiveTabId =
                 updatedTabs.length > 0 ? updatedTabs[0].id : null;
             }
@@ -550,7 +551,8 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
       };
       set((state) => {
         let updatedProjectGroups = [...state.projectGroups, newProjectGroup];
-        // If this is the second project group and auto-collapse is enabled, collapse the first one
+        // If this is the second project group and auto-collapse is enabled,
+        // collapse the first one
         if (
           updatedProjectGroups.length > 1 &&
           APP_CONFIG.AUTO_COLLAPSE_ON_NEW_PROJECT
@@ -605,7 +607,8 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
       return false;
     }
   },
-  // Accordion behavior - expand one group and collapse all others (Fixed based on working reference)
+  // Accordion behavior - expand one group and collapse all others (Fixed based on
+  // working reference)
   expandTabGroup: (groupId: string): void => {
     set((state) => {
       const clickedGroup = state.tabGroups[groupId];
@@ -657,7 +660,8 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
       } else if (clickedGroup.groupType === TabGroupType.ProjectGroup) {
         const projGroup = clickedGroup as ProjectGroup;
 
-        // Always set active tab when switching to this group (whether collapsed or not)
+        // Always set active tab when switching to this group (whether collapsed or
+        // not)
         if (projGroup.activeTabId) {
           // Check if stored activeTabId is the main tab
           if (projGroup.activeTabId === projGroup.mainTab.id) {
@@ -1252,7 +1256,8 @@ export const useProjectLayoutStore = create<ProjectLayoutStore>((set, get) => ({
           // This is a dynamic panel with registered callback
           panelTab.onProjectClose(panelTabId, panelTab.title);
         } else {
-          // This is a config panel - find its name and call the project tab's onProjectClose callback
+          // This is a config panel - find its name and call the project tab's
+          // onProjectClose callback
           const projectTab = state.projectGroups
             .find((pg) => pg.id === projectGroupId)
             ?.projectTabs.find((pt) => pt.id === tabId) as ProjectTab;

@@ -126,7 +126,8 @@ jest.mock('@qualcomm-ui/react/checkbox', () => ({
   ),
 }));
 
-// Stateful Dialog mock — Trigger opens it; CloseTrigger closes it
+// Stateful Dialog mock — dialog starts closed; Trigger opens it; CloseTrigger
+// closes it
 jest.mock('@qualcomm-ui/react/dialog', () => {
   const React = jest.requireActual('react');
   const DialogContext = React.createContext({

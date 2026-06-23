@@ -90,7 +90,8 @@ export const useSubsystemConfigStore = create<SubsystemConfigStore>(
         (c) => c.subsystemId === subsystemId,
       );
 
-      // If both available keys and this subsystem's config are cached, no need to fetch
+      // If both available keys and this subsystem's config are cached, no need to
+      // fetch
       if (state.availableKeys && cachedSubsystem) {
         logger.info('Subsystem configuration loaded from cache', {
           action: 'fetch_subsystem_config',
@@ -103,26 +104,22 @@ export const useSubsystemConfigStore = create<SubsystemConfigStore>(
       // Fetch from backend
 
       // TODO: Implement backend API call and data transformation
-      // 1. Call backend API: GET /projects/{projectId}/subsystems/{subsystemId}/config
-      // 2. Transform backend response to UI format (SubsystemConfigResponse)
-      // 3. Update availableKeys if not already loaded
-      // 4. Add/update this subsystem's entry in configuredKeys array
+      // 1. Call backend API: GET
+      // /projects/{projectId}/subsystems/{subsystemId}/config 2. Transform backend
+      // response to UI format (SubsystemConfigResponse) 3. Update availableKeys if
+      // not already loaded 4. Add/update this subsystem's entry in configuredKeys
+      // array
       //
       // Example structure:
       // const result = await httpClient.get<BackendSubsystemConfigResponse>(...)
       // const transformedData = transformBackendToUIFormat(result.data)
       //
       // const newConfiguredKeys = [...state.configuredKeys]
-      // const existingIndex = newConfiguredKeys.findIndex(c => c.subsystemId === subsystemId)
-      // const newEntry = {
-      //   subsystemId,
-      //   configuredKeys: transformedData.configuredKeys,
-      // }
-      // if (existingIndex >= 0) {
-      //   newConfiguredKeys[existingIndex] = newEntry
-      // } else {
-      //   newConfiguredKeys.push(newEntry)
-      // }
+      // const existingIndex = newConfiguredKeys.findIndex(c => c.subsystemId ===
+      // subsystemId) const newEntry = { subsystemId, configuredKeys:
+      // transformedData.configuredKeys, } if (existingIndex >= 0) {
+      // newConfiguredKeys[existingIndex] = newEntry } else {
+      // newConfiguredKeys.push(newEntry) }
       //
       // set({
       //   availableKeys: state.availableKeys || transformedData.availableKeys,

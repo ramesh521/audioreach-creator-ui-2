@@ -41,6 +41,14 @@ export const BOTTOM_ROW_ID = 'bottom-row';
  */
 export const INVALID_PROJECT_ID = 'project_undefined';
 
+export const PROPERTIES_PANEL_TAB: IJsonTabNode = {
+  component: 'properties-panel',
+  enableClose: false,
+  id: 'properties-panel',
+  name: 'Properties',
+  type: 'tab',
+};
+
 /**
  * Check if a project ID is valid
  * @param projectId - The project ID to validate
@@ -153,7 +161,7 @@ export function GetFlexLayoutConfig(): IJsonModel {
   };
 
   const rightTabset: IJsonTabSetNode = {
-    children: [keyConfiguratorTab],
+    children: [PROPERTIES_PANEL_TAB, keyConfiguratorTab],
     id: RIGHT_TABSET_ID,
     type: 'tabset',
     weight: 20,

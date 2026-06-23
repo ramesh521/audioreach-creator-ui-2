@@ -151,7 +151,8 @@ export function SubgraphKeyVectorConfigPanel({
     return filtered;
   }, [searchTerm, allKeyNames, expandedKeys, availableGraphKeys]);
 
-  // Sort keys and move configured keys to top when editing (based on initial selections)
+  // Sort keys and move configured keys to top when editing (based on initial
+  // selections)
   const sortedKeyNames = useMemo(() => {
     let sorted = [...filteredKeyNames];
 

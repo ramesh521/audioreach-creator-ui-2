@@ -123,8 +123,8 @@ function transformKeyDefinitionToCalibrationKey(
 }
 
 /**
- * Transforms an array of KeyDefinitionResponseDto to Record<string, CalibrationKey> format
- * Filters only calibration keys (where isCalibrationKey is true)
+ * Transforms an array of KeyDefinitionResponseDto to Record<string, CalibrationKey>
+ * format Filters only calibration keys (where isCalibrationKey is true)
  * @param keyDefinitions - Array of key definitions from backend
  * @returns Record with key name as key and CalibrationKey as value
  */

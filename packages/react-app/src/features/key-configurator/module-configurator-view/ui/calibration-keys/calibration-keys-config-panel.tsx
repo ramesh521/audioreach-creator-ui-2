@@ -46,10 +46,12 @@ interface CalibrationKeysConfigPanelProps {
 // Helper functions
 
 /**
- * Determines whether a calibration key or any of its values match the given search term.
+ * Determines whether a calibration key or any of its values match the given search
+ * term.
  *
- * A match occurs when the key name or key ID matches the search term, or when any of the
- * key's values match by name or ID. Numeric search terms are compared against IDs directly.
+ * A match occurs when the key name or key ID matches the search term, or when any
+ * of the key's values match by name or ID. Numeric search terms are compared
+ * against IDs directly.
  *
  * @param keyName - The display name of the calibration key.
  * @param key - The calibration key object containing its ID and associated values.
@@ -75,11 +77,12 @@ const matchesSearchTerm = (
 };
 
 /**
- * Returns a sorted copy of the provided key-name array based on the active sort column and order.
+ * Returns a sorted copy of the provided key-name array based on the active sort
+ * column and order.
  *
- * When `sortColumn` is `null` the original order is preserved. Sorting by `'id'` compares
- * numeric key IDs, while sorting by `'name'` performs a locale-aware, case-insensitive
- * string comparison.
+ * When `sortColumn` is `null` the original order is preserved. Sorting by `'id'`
+ * compares numeric key IDs, while sorting by `'name'` performs a locale-aware,
+ * case-insensitive string comparison.
  *
  * @param keys - Array of calibration key names to sort.
  * @param calibrationKeyData - Map from key name to its {@link CalibrationKey} data.
@@ -109,11 +112,13 @@ const sortKeys = (
 };
 
 /**
- * Reorders the key-name array so that keys with at least one selected value appear first.
+ * Reorders the key-name array so that keys with at least one selected value appear
+ * first.
  *
- * Keys that have one or more values currently selected are moved to the front of the list,
- * while keys with no selected values follow. The relative order within each group is
- * preserved. This is used when entering edit mode to surface the relevant keys immediately.
+ * Keys that have one or more values currently selected are moved to the front of
+ * the list, while keys with no selected values follow. The relative order within
+ * each group is preserved. This is used when entering edit mode to surface the
+ * relevant keys immediately.
  *
  * @param keys - Array of calibration key names to partition.
  * @param calibrationKeyData - Map from key name to its {@link CalibrationKey} data.
@@ -139,12 +144,13 @@ const partitionKeysBySelection = (
 };
 
 /**
- * Computes the Cartesian product of the selected values across all calibration keys.
+ * Computes the Cartesian product of the selected values across all calibration
+ * keys.
  *
- * Each element of the returned array is one unique combination of key-value pairs — one
- * pair per calibration key — covering every possible permutation of the selected values.
- * For example, given Key A with values [A1, A2] and Key B with values [B1], the result
- * will be [[{A, A1}, {B, B1}], [{A, A2}, {B, B1}]].
+ * Each element of the returned array is one unique combination of key-value pairs —
+ * one pair per calibration key — covering every possible permutation of the
+ * selected values. For example, given Key A with values [A1, A2] and Key B with
+ * values [B1], the result will be [[{A, A1}, {B, B1}], [{A, A2}, {B, B1}]].
  *
  * @param selectedPerKey - Array where each entry contains a calibration key and the list
  *   of values selected for that key.
@@ -194,13 +200,14 @@ const generateCartesianProduct = (
 };
 
 /**
- * Transforms the flat selection state map into a structured list grouped by calibration key.
+ * Transforms the flat selection state map into a structured list grouped by
+ * calibration key.
  *
- * Iterates over every key ID present in `selectedKeyValues`, resolves the corresponding
- * key name from `calibrationKeyData`, and collects only the values whose selection flag is
- * `true`. Keys that cannot be resolved or that have no selected values are omitted from the
- * result. The output is consumed by {@link generateCartesianProduct} to produce the final
- * set of CKV combinations.
+ * Iterates over every key ID present in `selectedKeyValues`, resolves the
+ * corresponding key name from `calibrationKeyData`, and collects only the values
+ * whose selection flag is `true`. Keys that cannot be resolved or that have no
+ * selected values are omitted from the result. The output is consumed by {@link
+ * generateCartesianProduct} to produce the final set of CKV combinations.
  *
  * @param selectedKeyValues - Nested map of `keyId → valueId → isSelected` representing the current selection state.
  * @param calibrationKeyData - Map from key name to its {@link CalibrationKey} data, used to resolve key and value metadata.

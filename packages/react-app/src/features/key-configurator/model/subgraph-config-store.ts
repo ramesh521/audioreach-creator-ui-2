@@ -14,7 +14,8 @@ import {
   transformKeyDefinitionsToGraphKeys,
 } from '../subgraph-configurator-view';
 
-// Cache entry for configured key values (per subgraph) - also serves as working state
+// Cache entry for configured key values (per subgraph) - also serves as working
+// state
 interface ConfiguredKeyValues {
   keyValueList: ConfiguredSubgraphKeyValue[];
   subgraphId: number;

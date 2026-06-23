@@ -149,10 +149,16 @@ export interface ControlLink extends EdgeBase {
 
 export interface ProxyDataLink extends EdgeBase {
   edgeKind: 'proxy-data';
+   kind: 'mdf' | 'standard' | 'subsystem';
+  /** IDs of intermediate modules hidden by the MDF virtual connection. */
+  mdfModuleIds?: string[];
+  realConnectionIds: string[];
 }
 
 export interface ProxyControlLink extends EdgeBase {
   edgeKind: 'proxy-control';
+    kind: 'standard' | 'subsystem';
+  realConnectionIds: string[];
 }
 
 export interface LevelView {

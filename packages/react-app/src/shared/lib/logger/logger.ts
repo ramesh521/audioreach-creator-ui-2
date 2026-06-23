@@ -13,7 +13,8 @@ import {logEventEmitter} from './logger-events';
  * Main logger class providing convenient logging methods
  * Two-phase initialization:
  * - Phase 1: Console-only logging (before client registration)
- * - Phase 2: Full backend logging (after client registration with backend client ID)
+ * - Phase 2: Full backend logging (after client registration with backend client
+ * ID)
  */
 export class Logger {
   private static instance: Logger;

@@ -43,7 +43,8 @@ export function useKeyboardShortcuts(
 
       // Build the key combination string
       // Normalize single letter keys to lowercase ONLY if Shift is not pressed
-      // This handles Caps Lock while preserving intentional Shift+Letter combinations
+      // This handles Caps Lock while preserving intentional Shift+Letter
+      // combinations
       const normalizedKey =
         event.key.length === 1 && !event.shiftKey
           ? event.key.toLowerCase()

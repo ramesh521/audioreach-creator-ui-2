@@ -4,6 +4,7 @@
  */
 
 // Mock flexlayout-react — only the Actions and DockLocation used by
+//
 // panel-collapse-manager
 jest.mock('flexlayout-react', () => ({
   Actions: {
@@ -162,6 +163,7 @@ describe('panel-collapse-manager', () => {
   // ── 1. Collapse → expand round-trip preserves saved weights ────────────────
 
   // Collapsing saves the original weight; expanding should restore it, not use the
+  //
   // default
   it('saves original weight on collapse and restores it on expand', () => {
     const model = createMockModel(makeLayout({leftWeight: 30}));
@@ -188,6 +190,7 @@ describe('panel-collapse-manager', () => {
   // ── 2. Deleted tabset → expand inserts a placeholder ──────────────────────
 
   // When the tabset is gone, expanding should insert a drop-target placeholder
+  //
   // instead
   it('inserts a placeholder when the left tabset has been deleted and panel is expanded', () => {
     // Layout with no left tabset (user deleted it)
@@ -248,6 +251,7 @@ describe('panel-collapse-manager', () => {
   });
 
   // If the model shows a panel as collapsed (weight 0) but the store says visible,
+  //
   // sync the store
   it('toggles store to collapsed when model shows panel at weight 0 but store says visible', () => {
     // Store says left is visible
@@ -269,6 +273,7 @@ describe('panel-collapse-manager', () => {
   // ── 4. Stale/missing layout → syncPanelStateFromModel handles deleted tabsets ─
 
   // A layout with no side tabsets should not crash and should mark those panels as
+  //
   // collapsed
   it('does not crash when layout has no side panel nodes and marks them as collapsed', () => {
     usePanelCollapseStore.setState({
@@ -277,8 +282,8 @@ describe('panel-collapse-manager', () => {
     });
 
     // Layout with no left or right tabsets (stale/minimal schema — tabsets were
-    // deleted). With both siblings gone, FlexLayout hoists center-tabset to be
-    // a direct child of root, alongside bottom-ts.
+    //
+    // deleted). With both siblings gone, FlexLayout hoists center-tabset to be a direct child of root, alongside bottom-ts.
     const model = {
       toJson: () => ({
         layout: {
@@ -311,6 +316,7 @@ describe('panel-collapse-manager', () => {
   // ── 5. removeSidePlaceholdersIfNeeded removes placeholder when real tab added ─
 
   // Once a real tab is dropped in, the placeholder should be removed and splitting
+  //
   // re-enabled
   it('removes placeholder tab when a real tab is dropped into the tabset', () => {
     const PLACEHOLDER_ID = 'left-placeholder-tab';

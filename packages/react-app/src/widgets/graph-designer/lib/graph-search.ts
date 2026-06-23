@@ -31,7 +31,9 @@ const KNOWN_PREFIXES = ['cnt', 'mod', 'sg', 'ss'] as const;
 export type SearchPrefix = (typeof KNOWN_PREFIXES)[number];
 
 export interface ParsedSearchTerm {
-  /** null = all-nodes search; 'invalid' = unrecognised prefix (return no results). */
+  /**
+   * null = all-nodes search; 'invalid' = unrecognised prefix (return no results).
+   */
   prefix: SearchPrefix | 'invalid' | null;
   /** The actual value to search for (after stripping the prefix) */
   value: string;

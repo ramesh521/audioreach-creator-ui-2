@@ -12,7 +12,9 @@ import type {SliceStatus} from '../global-store.types';
 export type LogType = 'info' | 'warn' | 'error' | 'debug';
 
 export interface LogEntry {
-  /** Additional detail shown in the expansion panel (e.g. error stack or context). */
+  /**
+   * Additional detail shown in the expansion panel (e.g. error stack or context).
+   */
   detail?: string;
   id: string;
   isExpanded?: boolean;

@@ -171,7 +171,8 @@ describe('PanelIconBar', () => {
 
   // ── 5. Calls togglePanel when button is clicked ───────────────────────────
 
-  // Clicking a button should call togglePanel with the right panel name and project ID
+  // Clicking a button should call togglePanel with the right panel name and project
+  // ID
   it('calls togglePanel with correct panel and project ID when left button is clicked', async () => {
     const user = userEvent.setup();
     const togglePanel = jest.fn();

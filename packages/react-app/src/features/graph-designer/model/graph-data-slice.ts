@@ -33,12 +33,16 @@ export interface Port {
 }
 
 export interface ModuleInstance {
+  alias?: string;
   ckvs?: CkvDto[];
   containerId: string;
   diffChangedFields?: string[];
   diffState?: DiffState;
   displayName: string;
   inputPorts: Port[];
+  maxControlPorts?: number;
+  maxInputPorts?: number;
+  maxOutputPorts?: number;
   moduleId: string;
   moduleInstanceId: string;
   moduleName: string;
@@ -52,11 +56,11 @@ export interface ModuleInstance {
 export interface Connection {
   connectionId: string;
   connectionType: 'control' | 'data';
+  destinationId: string;
+  destinationPortId: string;
   diffState?: DiffState;
-  fromModuleId: string;
-  fromPortId: string;
-  toModuleId: string;
-  toPortId: string;
+  sourceId: string;
+  sourcePortId: string;
 }
 
 export interface Subgraph {
@@ -329,10 +333,10 @@ function upsertLink(
   const conn: Connection = {
     connectionId: link.systemId,
     connectionType,
-    fromModuleId: link.sourceId,
-    fromPortId: link.sourcePortId,
-    toModuleId: link.destinationId,
-    toPortId: link.destinationPortId,
+    destinationId: link.destinationId,
+    destinationPortId: link.destinationPortId,
+    sourceId: link.sourceId,
+    sourcePortId: link.sourcePortId,
   };
   return [
     ...connections.filter((c) => c.connectionId !== conn.connectionId),
@@ -740,10 +744,10 @@ export function createGraphDataSlice<
           const conn: Connection = {
             connectionId: link.systemId,
             connectionType: 'data',
-            fromModuleId: link.sourceId,
-            fromPortId: link.sourcePortId,
-            toModuleId: link.destinationId,
-            toPortId: link.destinationPortId,
+            destinationId: link.destinationId,
+            destinationPortId: link.destinationPortId,
+            sourceId: link.sourceId,
+            sourcePortId: link.sourcePortId,
           };
           const diffState = toDiffState(link.changeInfo?.changeType);
           if (diffState) {
@@ -755,10 +759,10 @@ export function createGraphDataSlice<
           const conn: Connection = {
             connectionId: link.systemId,
             connectionType: 'control',
-            fromModuleId: link.sourceId,
-            fromPortId: link.sourcePortId,
-            toModuleId: link.destinationId,
-            toPortId: link.destinationPortId,
+            destinationId: link.destinationId,
+            destinationPortId: link.destinationPortId,
+            sourceId: link.sourceId,
+            sourcePortId: link.sourcePortId,
           };
           const diffState = toDiffState(link.changeInfo?.changeType);
           if (diffState) {

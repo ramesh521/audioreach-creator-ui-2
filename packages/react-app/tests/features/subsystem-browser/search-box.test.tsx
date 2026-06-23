@@ -43,7 +43,8 @@ describe('SearchTextBox', () => {
     const clearButton = screen.getByLabelText('clear');
     fireEvent.click(clearButton);
 
-    // The SearchBox calls onValueChange with empty string, which triggers both onChange and onClear
+    // The SearchBox calls onValueChange with empty string, which triggers both
+    // onChange and onClear
     expect(handleChange).toHaveBeenCalledWith('');
     expect(handleClear).toHaveBeenCalled();
   });

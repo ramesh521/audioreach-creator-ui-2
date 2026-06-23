@@ -76,7 +76,8 @@ export function SubsystemConfigPanel({
     fetchSubsystemConfig(subsystemId);
 
     // TODO: Remove the below code after fecthing the data from the store.
-    // If store doesn't have data for this subsystem after fetch attempt, initialize with sample data
+    // If store doesn't have data for this subsystem after fetch attempt, initialize
+    // with sample data
     const subsystem = configuredKeysArray.find(
       (c) => c.subsystemId === subsystemId,
     );

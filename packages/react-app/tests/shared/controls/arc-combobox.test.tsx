@@ -148,7 +148,8 @@ describe('ArcCombobox - Generic Controls API (ArcSearchBox)', () => {
       expect(screen.queryByTestId('option-Option 3')).not.toBeInTheDocument();
     });
 
-    // Note: ArcCombobox doesn't have onInputChange prop - filtering is handled internally
+    // Note: ArcCombobox doesn't have onInputChange prop - filtering is handled
+    // internally
 
     it('should not filter when filterable is false', async () => {
       const user = userEvent.setup();
@@ -181,7 +182,8 @@ describe('ArcCombobox - Generic Controls API (ArcSearchBox)', () => {
       expect(onChange).toHaveBeenCalledWith('Option 1');
     });
 
-    // Note: ArcCombobox doesn't expose onBlur/onFocus props - these are handled internally
+    // Note: ArcCombobox doesn't expose onBlur/onFocus props - these are handled
+    // internally
   });
 
   describe('Usage Examples from Documentation', () => {

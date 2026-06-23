@@ -591,7 +591,8 @@ export function ModuleTagKeysConfigPanel({
     setExpandedModKeys({});
     setSearchTerm('');
 
-    // Reset parameters to unchecked state (don't use storeParameters as it may have stale data)
+    // Reset parameters to unchecked state (don't use storeParameters as it may have
+    // stale data)
     setParameters((prev) => prev.map((p) => ({...p, checked: false})));
 
     // Scroll to configuration section

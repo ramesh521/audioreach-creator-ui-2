@@ -207,7 +207,8 @@ describe('ArcChannelConfigDialog', () => {
         // Check that comboboxes are rendered (options are inside select elements)
         const comboboxes = screen.getAllByTestId('arc-combobox');
         expect(comboboxes).toHaveLength(2);
-        // Verify labels exist (using getAllByText since text appears in both label and option)
+        // Verify labels exist (using getAllByText since text appears in both label
+        // and option)
         expect(screen.getAllByText('Channel 0').length).toBeGreaterThan(0);
         expect(screen.getAllByText('Channel 1').length).toBeGreaterThan(0);
       });
@@ -222,7 +223,8 @@ describe('ArcChannelConfigDialog', () => {
         />,
       );
 
-      // Should render based on the highest key in selectedChannelValues (Math.max of keys = 1)
+      // Should render based on the highest key in selectedChannelValues (Math.max
+      // of keys = 1)
       const channelCountInput = screen.getByTestId('arc-text-input');
       expect(channelCountInput).toHaveValue(1);
     });
@@ -243,7 +245,8 @@ describe('ArcChannelConfigDialog', () => {
         fireEvent.change(comboboxSelects[1], {target: {value: 'duplicate'}});
       });
 
-      // The validation message might not appear in the mock, so just check that no error is thrown
+      // The validation message might not appear in the mock, so just check that no
+      // error is thrown
       expect(screen.getAllByTestId('arc-combobox')).toHaveLength(2);
     });
 
@@ -303,7 +306,8 @@ describe('ArcChannelConfigDialog', () => {
         fireEvent.change(comboboxSelects[1], {target: {value: 'duplicate'}});
       });
 
-      // The mock doesn't implement the actual error logic, so just verify the comboboxes exist
+      // The mock doesn't implement the actual error logic, so just verify the
+      // comboboxes exist
       expect(screen.getAllByTestId('arc-combobox')).toHaveLength(2);
     });
   });
@@ -336,7 +340,8 @@ describe('ArcChannelConfigDialog', () => {
         />,
       );
 
-      // Should render the channel count input and show channel count based on max key (Math.max of keys = 0)
+      // Should render the channel count input and show channel count based on max
+      // key (Math.max of keys = 0)
       const channelCountInput = screen.getByTestId('arc-text-input');
       expect(channelCountInput).toHaveValue(0);
     });
@@ -602,7 +607,8 @@ describe('ArcChannelConfigDialog', () => {
       const saveButton = screen.getByText('Save');
       await user.click(saveButton);
 
-      // Should still call onSave even with validation errors (validation is informational)
+      // Should still call onSave even with validation errors (validation is
+      // informational)
       expect(onSave).toHaveBeenCalled();
     });
   });

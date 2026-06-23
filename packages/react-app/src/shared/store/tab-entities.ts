@@ -70,7 +70,10 @@ export class ProjectTabEntity {
   }
 }
 
-/** Individual panel tab (e.g. Log View, Key Configurator) inside a project tab's FlexLayout. */
+/**
+ * Individual panel tab (e.g. Log View, Key Configurator) inside a project tab's
+ * FlexLayout.
+ */
 export class PanelTabEntity implements PanelTab {
   component: ReactNode;
   id: string;

@@ -13,8 +13,10 @@ import {logger} from '~shared/lib/logger';
 
 export interface PropertiesViewSlice {
   closePropertiesPanel: () => void;
+  isEditing: boolean;
   isPropertiesPanelOpen: boolean;
   openPropertiesPanel: () => void;
+  setIsEditing: (value: boolean) => void;
 }
 
 type SetState<T> = StoreApi<T>['setState'];
@@ -38,6 +40,8 @@ export function createPropertiesViewSlice<S extends PropertiesViewSlice>(
       setSlice({isPropertiesPanelOpen: false});
     },
 
+    isEditing: false,
+
     isPropertiesPanelOpen: false,
 
     openPropertiesPanel: () => {
@@ -46,6 +50,14 @@ export function createPropertiesViewSlice<S extends PropertiesViewSlice>(
         component: 'propertiesViewSlice',
       });
       setSlice({isPropertiesPanelOpen: true});
+    },
+
+    setIsEditing: (value) => {
+      logger.debug('propertiesViewSlice: setIsEditing', {
+        action: 'set_is_editing',
+        component: 'propertiesViewSlice',
+      });
+      setSlice({isEditing: value});
     },
   };
 }

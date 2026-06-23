@@ -9,8 +9,8 @@ import type {GraphKey} from '~shared/types/key-configurator-config.types';
 import {transformValueDefinition} from '../../module-configurator-view/ui/calibration-keys/ckv.mapper';
 
 /**
- * Transforms an array of KeyDefinitionResponseDto to Record<string, GraphKey> format
- * Filters only graph keys (where isGraphKey is true)
+ * Transforms an array of KeyDefinitionResponseDto to Record<string, GraphKey>
+ * format Filters only graph keys (where isGraphKey is true)
  * @param keyDefinitions - Array of key definitions from backend
  * @returns Record with key name as key and GraphKey as value
  */

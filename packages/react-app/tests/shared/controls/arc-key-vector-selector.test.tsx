@@ -624,7 +624,8 @@ describe('ArcKeyVectorSelector', () => {
       );
 
       const input = screen.getByTestId('combobox-input');
-      // The component auto-selects the first value when selectedValue is null/undefined
+      // The component auto-selects the first value when selectedValue is
+      // null/undefined
       expect(input).toHaveValue('testKey : value1');
     });
 

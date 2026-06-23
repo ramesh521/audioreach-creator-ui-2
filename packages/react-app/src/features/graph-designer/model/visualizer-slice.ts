@@ -27,6 +27,7 @@ export interface VisualizerSlice {
   clearLevelView: () => void;
   clearSearchHighlight: () => void;
   clearSelection: () => void;
+  effectiveLevelView: LevelView | null;
   error: string | null;
   graphView: GraphView | null;
   isLoading: boolean;
@@ -34,6 +35,7 @@ export interface VisualizerSlice {
   searchHighlight: SearchHighlight | null;
   selectedEdgeIds: string[];
   selectedNodeIds: string[];
+  setEffectiveLevelView: (lv: LevelView) => void;
   setGraphView: (graphView: GraphView | null) => void;
   setLevelView: (lv: LevelView) => void;
   setSearchHighlight: (
@@ -67,7 +69,7 @@ export function createVisualizerSlice<S extends VisualizerSlice>(
   return {
     clearLevelView: () => {
       logger.debug('visualizerSlice: clearLevelView');
-      set({levelView: null} as Partial<S>);
+      set({effectiveLevelView: null, levelView: null} as Partial<S>);
     },
 
     clearSearchHighlight: () => {
@@ -83,6 +85,8 @@ export function createVisualizerSlice<S extends VisualizerSlice>(
       } as Partial<S>);
     },
 
+    effectiveLevelView: null,
+
     error: null,
 
     graphView: null,
@@ -96,6 +100,14 @@ export function createVisualizerSlice<S extends VisualizerSlice>(
     selectedEdgeIds: [],
 
     selectedNodeIds: [],
+
+    setEffectiveLevelView: (lv: LevelView) => {
+      logger.debug('visualizerSlice: setEffectiveLevelView', {
+        action: 'setEffectiveLevelView',
+        component: 'visualizerSlice',
+      });
+      set({effectiveLevelView: lv} as Partial<S>);
+    },
 
     setGraphView: (graphView: GraphView | null) => {
       logger.debug('visualizerSlice: setGraphView', {

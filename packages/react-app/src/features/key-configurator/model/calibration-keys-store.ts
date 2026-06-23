@@ -15,7 +15,8 @@ import {
   transformKeyDefinitionsToCalibrationKeys,
 } from '../module-configurator-view/ui/calibration-keys';
 
-// Cache entry for configured key values (per module instance) - also serves as working state
+// Cache entry for configured key values (per module instance) - also serves as
+// working state
 interface ConfiguredKeyValues {
   instanceId: number;
   keyValueList: ConfiguredCkv[];
@@ -237,7 +238,8 @@ export const useCalibrationKeysStore = create<CalibrationKeysStore>(
       ckvParameters: CkvParameter[],
     ) => {
       // This method is called by the module instance coordinator to set data
-      // It's similar to updateConfiguredKeyValues but specifically for coordinator use
+      // It's similar to updateConfiguredKeyValues but specifically for coordinator
+      // use
       const state = get();
       const newConfiguredKeyValuesMap = {...state.configuredKeyValuesMap};
       const moduleInstances = newConfiguredKeyValuesMap[moduleId] || [];

@@ -133,6 +133,9 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
   const levelView = useGraphDesignerStoreShallow((s) => s.levelView);
   const setLevelView = useGraphDesignerStoreShallow((s) => s.setLevelView);
   const clearLevelView = useGraphDesignerStoreShallow((s) => s.clearLevelView);
+  const setEffectiveLevelView = useGraphDesignerStoreShallow(
+    (s) => s.setEffectiveLevelView,
+  );
   const moduleListStatus = useGraphDesignerStoreShallow(
     (s) => s.moduleListStatus,
   );
@@ -170,8 +173,7 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
   >({});
 
   const levelId = levelView?.levelId ?? '';
-  const collapsedSubgraphs = (collapseByLevel[levelId] ??
-    EMPTY_SET) as Set<number>;
+  const collapsedSubgraphs = collapseByLevel[levelId] ?? EMPTY_SET;
 
   // Shows a blur overlay while a large graph recompute is in progress, so
   // the screen doesn't look frozen.
@@ -222,6 +224,12 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
     return applyPositionOverrides(collapsed, positionOverrides, parentSizes);
   }, [levelView, collapsedSubgraphs, positionOverrides, parentSizes]);
 
+  // Keep effectiveLevelView in the store in sync so GraphDesignerPropertiesPanel
+  // (rendered in a sibling panel) has reactive access to virtual links.
+  useEffect(() => {
+    setEffectiveLevelView(graph);
+  }, [graph, setEffectiveLevelView]);
+
   // Guards against stale layout results when selectedUsecases changes rapidly.
   const layoutGenerationRef = useRef(0);
 
@@ -236,6 +244,7 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
   const matchCount = matchingNodes.length;
 
   const clearSelection = useGraphDesignerStoreShallow((s) => s.clearSelection);
+  const setSelection = useGraphDesignerStoreShallow((s) => s.setSelection);
   const setSearchHighlight = useGraphDesignerStoreShallow(
     (s) => s.setSearchHighlight,
   );
@@ -531,6 +540,15 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
           setParentSizes((p) => ({...p, ...resizedParents}));
         }
       },
+      onSelectionChange: ({
+        selectedEdgeIds,
+        selectedNodeIds,
+      }: {
+        selectedEdgeIds: string[];
+        selectedNodeIds: string[];
+      }) => {
+        setSelection(selectedNodeIds, selectedEdgeIds);
+      },
       onSubgraphCollapse: (subgraphId: number) => {
         setCollapseByLevel((prev) => ({
           ...prev,
@@ -551,7 +569,7 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
         setViewportByLevel((p) => ({...p, [levelId]: viewport}));
       },
     }),
-    [handleModuleDoubleClick, levelId],
+    [handleModuleDoubleClick, levelId, setSelection],
   );
 
   const displayOptionsContent = useMemo(

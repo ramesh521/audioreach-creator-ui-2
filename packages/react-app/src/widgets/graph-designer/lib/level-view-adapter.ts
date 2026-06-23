@@ -14,6 +14,8 @@ import {
   NODE_KIND,
   type Port,
   PORT_IO_TYPE,
+  type ProxyControlLink,
+  type ProxyDataLink,
   type SubgraphNode,
   type SubsystemNode,
 } from '~entities/graph';
@@ -195,25 +197,59 @@ export function buildLevelViewFromGraphData(
 
   const dataLinks: DataLink[] = [];
   const controlLinks: ControlLink[] = [];
+  const proxyDataLinks: ProxyDataLink[] = [];
+  const proxyControlLinks: ProxyControlLink[] = [];
 
   for (const c of data.connections) {
-    if (c.connectionType === 'data') {
-      dataLinks.push({
-        edgeKind: EDGE_KIND.DATA,
+    const isModuleToModule =
+      c.sourceId in data.moduleInstances &&
+      c.destinationId in data.moduleInstances;
+
+    if (isModuleToModule) {
+      if (c.connectionType === 'data') {
+        dataLinks.push({
+          edgeKind: EDGE_KIND.DATA,
+          id: c.connectionId,
+          sourceNodeId: c.sourceId,
+          sourcePortId: c.sourcePortId,
+          targetNodeId: c.destinationId,
+          targetPortId: c.destinationPortId,
+        });
+      } else {
+        controlLinks.push({
+          edgeKind: EDGE_KIND.CONTROL,
+          id: c.connectionId,
+          sourceNodeId: c.sourceId,
+          sourcePortId: c.sourcePortId,
+          targetNodeId: c.destinationId,
+          targetPortId: c.destinationPortId,
+        });
+      }
+    } else if (c.connectionType === 'data') {
+      // TODO: populate realConnectionIds once the backend exposes the
+      // underlying real connection ID in the subsystem connection DTO.
+      proxyDataLinks.push({
+        edgeKind: EDGE_KIND.PROXY_DATA,
         id: c.connectionId,
-        sourceNodeId: c.fromModuleId,
-        sourcePortId: c.fromPortId,
-        targetNodeId: c.toModuleId,
-        targetPortId: c.toPortId,
+        kind: 'subsystem',
+        realConnectionIds: [],
+        sourceNodeId: c.sourceId,
+        sourcePortId: c.sourcePortId,
+        targetNodeId: c.destinationId,
+        targetPortId: c.destinationPortId,
       });
     } else {
-      controlLinks.push({
-        edgeKind: EDGE_KIND.CONTROL,
+      // TODO: populate realConnectionIds once the backend exposes the
+      // underlying real connection ID in the subsystem connection DTO.
+      proxyControlLinks.push({
+        edgeKind: EDGE_KIND.PROXY_CONTROL,
         id: c.connectionId,
-        sourceNodeId: c.fromModuleId,
-        sourcePortId: c.fromPortId,
-        targetNodeId: c.toModuleId,
-        targetPortId: c.toPortId,
+        kind: 'subsystem',
+        realConnectionIds: [],
+        sourceNodeId: c.sourceId,
+        sourcePortId: c.sourcePortId,
+        targetNodeId: c.destinationId,
+        targetPortId: c.destinationPortId,
       });
     }
   }
@@ -224,6 +260,8 @@ export function buildLevelViewFromGraphData(
     dataLinks,
     levelId,
     modules,
+    proxyControlLinks,
+    proxyDataLinks,
     subgraphs,
     subsystems,
   };

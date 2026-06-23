@@ -15,7 +15,8 @@ import {
   transformTagDefinitionsToTagGroups,
 } from '../module-configurator-view/ui/module-tag-keys';
 
-// Cache entry for configured tag key values (per module instance) - also serves as working state
+// Cache entry for configured tag key values (per module instance) - also serves as
+// working state
 interface ConfiguredTagKeyValues {
   instanceId: number;
   tagKeyValueList: ConfiguredTkv[];
@@ -212,18 +213,11 @@ export const useModuleTagKeysStore = create<ModuleTagKeysStore>((set, get) => ({
       //
       // Example structure:
       // const promises: Promise<ApiResult<void>>[] = []
-      // Object.entries(state.configuredModuleTags).forEach(([moduleId, instances]) => {
-      //   instances.forEach(instance => {
-      //     promises.push(
-      //       httpClient.post(
-      //         `/projects/${state.projectId}/modules/${moduleId}/instances/${instance.instanceId}/tag-keys`,
-      //         { configuredKeys: instance.tagKeyValueList }
-      //       )
-      //     )
-      //   })
-      // })
-      // const results = await Promise.all(promises)
-      // const allSuccessful = results.every(r => r.success)
+      // Object.entries(state.configuredModuleTags).forEach(([moduleId, instances])
+      // => { instances.forEach(instance => { promises.push( httpClient.post(
+      // `/projects/${state.projectId}/modules/${moduleId}/instances/${instance.instanceId}/tag-keys`,
+      // { configuredKeys: instance.tagKeyValueList } ) ) }) }) const results = await
+      // Promise.all(promises) const allSuccessful = results.every(r => r.success)
 
       logger.warn('Backend save not yet implemented', {
         action: 'save_to_backend',

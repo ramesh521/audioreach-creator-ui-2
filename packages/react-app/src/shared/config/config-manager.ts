@@ -132,7 +132,8 @@ export class ConfigFileManager {
   getProjectConfigData(projectId: string, path: string): any {
     let projectConfig = this.projectConfigMap.get(projectId);
     if (projectConfig === undefined) {
-      // Deep copy to avoid mutation, changes to below obj doesn't affect the original data
+      // Deep copy to avoid mutation, changes to below obj doesn't affect the
+      // original data
       projectConfig = JSON.parse(
         JSON.stringify(this.configDataMap),
       ) as JSONDataMap;
@@ -150,7 +151,8 @@ export class ConfigFileManager {
   /**
    * Retrieves user preferences for the specified project.
    * If preferences don't exist, returns default preferences.
-   * Uses memoization to return the same object reference when preferences haven't changed.
+   * Uses memoization to return the same object reference when preferences haven't
+   * changed.
    *
    * @param projectId - ID of the project to retrieve preferences for.
    * @returns The user preferences for the project.
@@ -213,8 +215,9 @@ export class ConfigFileManager {
   }
 
   /**
-   * Loads configuration data from the config file and parses it into JSONDataMap format.
-   * If parsing fails due to an error, default configuration data is initialized instead.
+   * Loads configuration data from the config file and parses it into JSONDataMap
+   * format. If parsing fails due to an error, default configuration data is
+   * initialized instead.
    */
   async initializeConfig(): Promise<void> {
     let isConfigSet = false;
@@ -261,9 +264,10 @@ export class ConfigFileManager {
 
   /**
    * Saves project configuration data to the config file.
-   * If a valid project ID is provided and found, the config data is replaced with the project's data and saved.
-   * If project ID is not provided, the last available project configuration is saved.
-   * If no valid project is found or no projects are available, the original config data is saved as fallback.
+   * If a valid project ID is provided and found, the config data is replaced with
+   * the project's data and saved. If project ID is not provided, the last available
+   * project configuration is saved. If no valid project is found or no projects are
+   * available, the original config data is saved as fallback.
    */
   async save(projectId?: string): Promise<boolean> {
     try {

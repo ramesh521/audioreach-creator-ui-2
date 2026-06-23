@@ -566,7 +566,8 @@ describe('SubgraphKeyVectorConfigPanel', () => {
     // Click Add to show keys list
     fireEvent.click(screen.getByText('Add'));
 
-    // Keys should be sorted by ID: StreamRX (0xA1000000), DeviceRX (0xA2000000), Instance (0xAB000000)
+    // Keys should be sorted by ID: StreamRX (0xA1000000), DeviceRX (0xA2000000),
+    // Instance (0xAB000000)
     const keyElements = screen.getAllByText(/^(Instance|DeviceRX|StreamRX)$/);
     const keyNames = keyElements.map((el) => el.textContent);
     const keysListNames = keyNames.slice(-3);
