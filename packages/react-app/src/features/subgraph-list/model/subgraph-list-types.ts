@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-import type {SubgraphDto} from '~entities/subgraph-definitions/model/subgraph-definition.dto';
+import type {SubgraphDto} from '~entities/subgraph-definitions';
 
 export interface DraggedSubgraphInfo {
   subgraphId: number;

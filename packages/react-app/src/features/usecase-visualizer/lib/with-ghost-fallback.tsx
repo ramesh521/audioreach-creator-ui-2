@@ -7,8 +7,9 @@ import type {ComponentType} from 'react';
 
 import type {Node, NodeProps} from '@xyflow/react';
 
+import type {AnyNode} from '~entities/graph';
+
 import {useVisualizerStore} from '../model/visualizer-store-context';
-import type {AnyNode} from '../model/visualizer.types';
 
 import {GhostNode} from './ghost-node';
 

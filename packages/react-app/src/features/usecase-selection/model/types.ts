@@ -5,21 +5,12 @@
 
 // Re-export DTO types for UI convenience
 export type {
-  UsecaseIdentifier as Usecase,
-  KeyValueInfo as KeyValue,
   FilteredKV,
+  KeyValueInfo as KeyValue,
   RelatedEndPointLink,
-} from '~entities/usecases/model/usecase.dto';
-
-// Import for internal use
-import type {UsecaseIdentifier} from '~entities/usecases/model/usecase.dto';
-
-// Pure UI types - not in DTO or store
-export interface UsecaseCategory {
-  expanded: boolean;
-  name: string;
-  usecases: UsecaseIdentifier[];
-}
+  UsecaseCategory,
+  UsecaseIdentifier as Usecase,
+} from '~entities/usecases';
 
 export type SearchSetting =
   | 'Default Search'

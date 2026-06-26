@@ -27,11 +27,6 @@ export interface ProjectOpenResponse {
  * Coordinates API calls, file operations, and project metadata
  */
 export class ProjectService {
-  /**
-   * Fetches usecase data for a project
-   * @param projectId - The project ID
-   * @returns Promise with usecase data array
-   */
   private static async fetchUsecaseData(projectId: string): Promise<any[]> {
     try {
       const result = await getAllUsecases(projectId);
@@ -75,7 +70,6 @@ export class ProjectService {
         component: 'ProjectService',
       });
 
-      // Call backend API to open/connect to the project
       const result = await openProject(project.id);
 
       if (!result.success) {
@@ -85,7 +79,6 @@ export class ProjectService {
         };
       }
 
-      // Fetch usecase data for the project
       const usecaseData = await this.fetchUsecaseData(project.id);
 
       return {
@@ -123,13 +116,11 @@ export class ProjectService {
     }
 
     try {
-      // Open a project file using Electron API
       const response = await electronApi.send({
         data: null,
         requestType: ApiRequest.OpenProjectFile,
       });
 
-      // Check if user cancelled the file selection
       if (response.data.cancelled || !response.data.project) {
         logger.verbose('File selection cancelled', {
           action: 'open_workspace_project',
@@ -145,7 +136,6 @@ export class ProjectService {
       const workspaceFileData = response.data.workspaceFileData;
       const acdbFileData = response.data.acdbFileData;
 
-      // Validate that we have the required binary data
       if (!workspaceFileData) {
         return {
           message: 'Failed to read workspace file data',
@@ -160,7 +150,6 @@ export class ProjectService {
         };
       }
 
-      // Convert Buffer data to File objects
       const workspaceFileName =
         projectInfo.filepath.split(/[\\/]/).pop() || 'workspace.awsp';
       const workspaceFile = new File(
@@ -175,7 +164,6 @@ export class ProjectService {
         {type: 'application/octet-stream'},
       );
 
-      // Call the backend API to upload and open the project
       const result = await openWorkspaceProject(
         acdbFile,
         workspaceFile,
@@ -196,7 +184,6 @@ export class ProjectService {
       const name =
         result.data.name !== undefined ? result.data.name : projectInfo.name;
 
-      // Create project info for recent projects list
       const project: ProjectInfo = {
         description: desc,
         filepath: projectInfo.filepath,
@@ -205,7 +192,6 @@ export class ProjectService {
         name,
       };
 
-      // Fetch usecase data for the project
       const usecaseData = await this.fetchUsecaseData(project.id);
 
       return {

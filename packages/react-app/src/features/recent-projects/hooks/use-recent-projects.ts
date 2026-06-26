@@ -8,8 +8,7 @@ import {useCallback, useEffect, useState} from 'react';
 import type {MruProjectInfo} from '@audioreach-creator-ui/api-utils';
 import {toPng} from 'html-to-image';
 
-import {getProjects} from '~entities/project/api/projects-api';
-import type ProjectInfo from '~entities/project/model/project-info.types';
+import {getProjects, type ProjectInfo} from '~entities/project';
 import {logger} from '~shared/lib/logger';
 
 interface ArcRecentProjectsApi {

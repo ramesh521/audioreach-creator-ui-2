@@ -8,7 +8,18 @@ jest.mock('~features/usecase-visualizer/ui/usecase-visualizer', () => ({
   UsecaseVisualizer: () => null,
 }));
 
+import * as graphEntityApi from '~entities/graph';
 import * as visualizerPublicApi from '~features/usecase-visualizer';
+
+describe('graph entity public API — canonical const objects', () => {
+  it('exports NODE_KIND, EDGE_KIND, PORT_IO_TYPE, PORT_STATUS, MODULE_SHAPE', () => {
+    expect(graphEntityApi.NODE_KIND).toBeDefined();
+    expect(graphEntityApi.EDGE_KIND).toBeDefined();
+    expect(graphEntityApi.PORT_IO_TYPE).toBeDefined();
+    expect(graphEntityApi.PORT_STATUS).toBeDefined();
+    expect(graphEntityApi.MODULE_SHAPE).toBeDefined();
+  });
+});
 
 describe('usecase-visualizer public API — core exports', () => {
   it('exports NODE_DIMENSIONS and calculateModuleHeight', () => {
@@ -16,12 +27,7 @@ describe('usecase-visualizer public API — core exports', () => {
     expect(typeof visualizerPublicApi.calculateModuleHeight).toBe('function');
   });
 
-  it('exports the canonical const objects', () => {
-    expect(visualizerPublicApi.NODE_KIND).toBeDefined();
-    expect(visualizerPublicApi.EDGE_KIND).toBeDefined();
-    expect(visualizerPublicApi.PORT_IO_TYPE).toBeDefined();
-    expect(visualizerPublicApi.PORT_STATUS).toBeDefined();
-    expect(visualizerPublicApi.MODULE_SHAPE).toBeDefined();
+  it('exports VISUALIZER_MODE', () => {
     expect(visualizerPublicApi.VISUALIZER_MODE).toBeDefined();
   });
 

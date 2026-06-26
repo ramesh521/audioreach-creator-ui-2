@@ -8,11 +8,11 @@ import {Minimize2} from 'lucide-react';
 
 import {InlineIconButton} from '@qualcomm-ui/react/inline-icon-button';
 
+import type {SubgraphNode as SubgraphNodeData} from '~entities/graph';
 import {ConvertNumberToHexString} from '~shared/utils/converter-utils';
 
 import {useNodeHighlight} from '../../model/use-node-highlight';
 import {useVisualizerStore} from '../../model/visualizer-store-context';
-import type {SubgraphNode as SubgraphNodeData} from '../../model/visualizer.types';
 
 type SubgraphNodeProps = NodeProps<
   Node<SubgraphNodeData & Record<string, unknown>>

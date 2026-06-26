@@ -5,8 +5,11 @@
 
 import type {StoreApi} from 'zustand';
 
-import {getAllSpfModuleDefinitions} from '~entities/module-definitions/api/module-definition-api';
-import type {SpfModuleDefinitionResponseDto} from '~entities/module-definitions/model/module-definition.dto';
+import {PORT_IO_TYPE, type PortIoType} from '~entities/graph';
+import {
+  getAllSpfModuleDefinitions,
+  type SpfModuleDefinitionResponseDto,
+} from '~entities/module-definitions';
 import {logger} from '~shared/lib/logger';
 import type {SliceStatus} from '~shared/store/global-store.types';
 
@@ -15,11 +18,10 @@ import type {SliceStatus} from '~shared/store/global-store.types';
 // ---------------------------------------------------------------------------
 
 export interface Port {
-  direction: 'input' | 'output';
   isStatic: boolean;
   portId: string;
+  portIoType: PortIoType;
   portName: string;
-  portType: 'audio' | 'control' | 'data';
 }
 
 export interface ModuleDefinition {
@@ -73,30 +75,27 @@ function toModuleDefinition(
   const info = dto.moduleInfo;
 
   const inputPorts: Port[] = (info.inputDataPortInfo?.ports ?? []).map((p) => ({
-    direction: 'input' as const,
     isStatic: true,
     portId: String(p.portId),
+    portIoType: PORT_IO_TYPE.INPUT,
     portName: p.portName,
-    portType: 'data' as const,
   }));
 
   const outputPorts: Port[] = (info.outputDataPortInfo?.ports ?? []).map(
     (p) => ({
-      direction: 'output' as const,
       isStatic: true,
       portId: String(p.portId),
+      portIoType: PORT_IO_TYPE.OUTPUT,
       portName: p.portName,
-      portType: 'data' as const,
     }),
   );
 
   if (info.staticCtrlPorts?.portId) {
     inputPorts.push({
-      direction: 'input',
       isStatic: true,
       portId: String(info.staticCtrlPorts.portId),
+      portIoType: PORT_IO_TYPE.CONTROL,
       portName: info.staticCtrlPorts.portName,
-      portType: 'control',
     });
   }
 

@@ -5,7 +5,7 @@
 
 import type {CSSProperties} from 'react';
 
-import type {Port} from '../model/visualizer.types';
+import type {Port} from '~entities/graph';
 
 export const PORT_PADDING = 12;
 

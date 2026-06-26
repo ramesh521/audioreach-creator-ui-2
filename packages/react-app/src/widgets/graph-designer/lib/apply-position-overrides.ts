@@ -11,7 +11,7 @@
  * positions on any subsequent graph update (collapse, search, etc.).
  */
 
-import type {AnyNode, LevelView} from '~features/usecase-visualizer';
+import type {AnyNode, LevelView} from '~entities/graph';
 
 interface XY {
   x: number;

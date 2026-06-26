@@ -5,8 +5,10 @@
 
 import type {StoreApi} from 'zustand';
 
-import {getAllSubgraphs} from '~entities/subgraph-definitions/api/subgraph-definition-api';
-import type {SubgraphDto} from '~entities/subgraph-definitions/model/subgraph-definition.dto';
+import {
+  getAllSubgraphs,
+  type SubgraphDto,
+} from '~entities/subgraph-definitions';
 import {logger} from '~shared/lib/logger';
 import type {SliceStatus} from '~shared/store/global-store.types';
 

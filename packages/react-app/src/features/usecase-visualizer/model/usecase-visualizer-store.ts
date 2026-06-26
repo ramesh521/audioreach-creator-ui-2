@@ -5,8 +5,9 @@
 
 import {create, type StoreApi, type UseBoundStore} from 'zustand';
 
+import type {AnyNode} from '~entities/graph';
+
 import {
-  type AnyNode,
   type NodeContentOverride,
   type NodeDisplayConfig,
   type SearchHighlights,

@@ -15,7 +15,6 @@ import {
   type ModuleNode,
   NODE_KIND,
   type NodeBase,
-  type NodeContentOverride,
   type Port,
   PORT_IO_TYPE,
   PORT_STATUS,
@@ -25,9 +24,12 @@ import {
   type SubgraphNode,
   type SubgraphProxyNode,
   type SubsystemNode,
+} from '~entities/graph';
+import {
+  type NodeContentOverride,
   VISUALIZER_MODE,
   type VisualizerRenderingConfig,
-} from '~features/usecase-visualizer/model/visualizer.types';
+} from '~features/usecase-visualizer';
 
 describe('visualizer.types — const objects', () => {
   it('NODE_KIND.MODULE === module', () => {

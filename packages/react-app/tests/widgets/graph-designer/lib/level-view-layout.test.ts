@@ -14,10 +14,10 @@ jest.mock('elkjs/lib/elk.bundled.js', () => ({
 import {
   EDGE_KIND,
   type LevelView,
-  NODE_DIMENSIONS,
   NODE_KIND,
   PORT_IO_TYPE,
-} from '~features/usecase-visualizer';
+} from '~entities/graph';
+import {NODE_DIMENSIONS} from '~features/usecase-visualizer';
 import {logger} from '~shared/lib/logger';
 import {layoutLevelView} from '~widgets/graph-designer/lib/level-view-layout';
 

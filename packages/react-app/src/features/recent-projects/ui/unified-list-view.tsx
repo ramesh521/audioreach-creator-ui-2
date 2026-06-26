@@ -9,7 +9,7 @@ import {Database, FolderOpen, Smartphone, Trash2} from 'lucide-react';
 
 import {IconButton} from '@qualcomm-ui/react/button';
 
-import type ProjectInfo from '~entities/project/model/project-info.types';
+import type {ProjectInfo} from '~entities/project';
 import type DeviceInfo from '~shared/types/device-info.types';
 
 type UnifiedItem =

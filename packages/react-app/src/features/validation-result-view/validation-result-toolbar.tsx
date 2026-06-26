@@ -24,7 +24,7 @@ import {TextInput} from '@qualcomm-ui/react/text-input';
 import {Tooltip} from '@qualcomm-ui/react/tooltip';
 import {Portal} from '@qualcomm-ui/react-core/portal';
 
-import {useValidationResults} from '~features/graph-designer/hooks/use-validation-results';
+import {useValidationResults} from '~features/graph-designer';
 import {logger} from '~shared/lib/logger';
 import type {
   SeverityType,

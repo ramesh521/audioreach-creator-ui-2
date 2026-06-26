@@ -7,14 +7,14 @@ import type {DragEvent as ReactDragEvent} from 'react';
 
 import {act, render} from '@testing-library/react';
 
-import {
-  type ContainerNode,
-  type LevelView,
-  type ModuleNode,
-  type Port,
-  type SubgraphNode,
-  VISUALIZER_MODE,
-} from '~features/usecase-visualizer/model/visualizer.types';
+import type {
+  ContainerNode,
+  LevelView,
+  ModuleNode,
+  Port,
+  SubgraphNode,
+} from '~entities/graph';
+import {VISUALIZER_MODE} from '~features/usecase-visualizer';
 import {UsecaseVisualizer} from '~features/usecase-visualizer/ui/usecase-visualizer';
 
 import {latestReactFlowProps} from '../test-utils/xyflow-mock-factory';

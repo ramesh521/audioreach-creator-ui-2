@@ -3,10 +3,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-/**
- * Utility functions for generating dynamic Tailwind color classes
- * for group styling
- */
+import {logger} from '~shared/lib/logger';
 
 const COLOR_ID_MAP: Record<number, string> = {
   1: 'blue',
@@ -31,16 +28,15 @@ const COLOR_ID_MAP: Record<number, string> = {
   20: 'zircon',
 };
 
-/**
- * Converts numeric color ID to semantic color name
- * @param colorId - Numeric color ID (1-20)
- * @returns Semantic color name (e.g., 'blue', 'purple')
- */
 export function getColorName(colorId: number): string {
   if (!COLOR_ID_MAP[colorId]) {
     const firstAvailableColor = Object.values(COLOR_ID_MAP)[0];
-    console.warn(
+    logger.warn(
       `Invalid color ID: ${colorId}. Falling back to '${firstAvailableColor}'.`,
+      {
+        action: 'getColorName',
+        component: 'color-utils',
+      },
     );
     return firstAvailableColor;
   }

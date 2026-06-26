@@ -27,7 +27,7 @@ import {IconButton} from '@qualcomm-ui/react/button';
 import {flexRender, Table, useReactTable} from '@qualcomm-ui/react/table';
 import {Tooltip} from '@qualcomm-ui/react/tooltip';
 
-import {useValidationResults} from '~features/graph-designer/hooks/use-validation-results';
+import {useValidationResults} from '~features/graph-designer';
 import type {ValidationResult} from '~shared/store/tab-store-slices/validation-result-slice';
 
 import {filterValidationResults} from './lib/filter-validation-results';

@@ -5,7 +5,7 @@
 
 jest.mock('~shared/lib/logger');
 
-import type {LevelView} from '~features/usecase-visualizer';
+import type {LevelView} from '~entities/graph';
 import {
   computeContainsMatchIds,
   parseSearchTerm,

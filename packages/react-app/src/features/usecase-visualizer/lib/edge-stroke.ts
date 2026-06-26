@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-import type {EdgeKind} from '../model/visualizer.types';
+import type {EdgeKind} from '~entities/graph';
 
 export const DATA_ARROW_MARKER_ID = 'visualizer-data-arrow';
 export const STROKE_DASHARRAY_DASHED = '5 5';

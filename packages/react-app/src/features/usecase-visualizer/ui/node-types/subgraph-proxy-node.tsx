@@ -8,9 +8,10 @@ import {Maximize2} from 'lucide-react';
 
 import {InlineIconButton} from '@qualcomm-ui/react/inline-icon-button';
 
+import type {SubgraphProxyNode as SubgraphProxyNodeData} from '~entities/graph';
+
 import {useNodeHighlight} from '../../model/use-node-highlight';
 import {useVisualizerStore} from '../../model/visualizer-store-context';
-import type {SubgraphProxyNode as SubgraphProxyNodeData} from '../../model/visualizer.types';
 
 import {PortHandles} from './port-handles';
 

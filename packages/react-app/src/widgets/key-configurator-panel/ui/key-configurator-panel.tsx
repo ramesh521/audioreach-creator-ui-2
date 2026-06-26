@@ -7,6 +7,8 @@ import {useEffect} from 'react';
 
 import {
   type ConfigurationContext,
+  type ConfigurationItem,
+  ConfigurationItemType,
   useKeyConfiguratorSelectionStore,
 } from '~features/key-configurator/model';
 import {ModuleConfigurationPanel} from '~features/key-configurator/module-configurator-view/ui';
@@ -14,8 +16,6 @@ import {SubgraphKeyVectorConfigPanel} from '~features/key-configurator/subgraph-
 import {SubsystemConfigPanel} from '~features/key-configurator/subsystem-configurator-view';
 import {logger} from '~shared/lib/logger';
 import {
-  type ConfigurationItem,
-  ConfigurationItemType,
   ConfiguratorPanel,
   ConfiguratorUtils,
 } from '~widgets/configurator-panel';

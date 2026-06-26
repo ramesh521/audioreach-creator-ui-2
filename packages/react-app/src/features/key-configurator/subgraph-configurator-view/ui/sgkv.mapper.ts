@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-import type {KeyDefinitionResponseDto} from '~entities/key-definitions/model/key-definition.dto';
+import type {KeyDefinitionResponseDto} from '~entities/key-definitions';
 import type {GraphKey} from '~shared/types/key-configurator-config.types';
 
 import {transformValueDefinition} from '../../module-configurator-view/ui/calibration-keys/ckv.mapper';

@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+import {ConfigurationItemType} from '~features/key-configurator/model';
 import {useCalibrationKeysStore} from '~features/key-configurator/model/calibration-keys-store';
 import {
   createKeyConfiguratorStore,
@@ -15,7 +16,6 @@ import {useModuleTagKeysStore} from '~features/key-configurator/model/module-tag
 import {useSubgraphConfigStore} from '~features/key-configurator/model/subgraph-config-store';
 import {useSubsystemConfigStore} from '~features/key-configurator/model/subsystem-config-store';
 import {logger} from '~shared/lib/logger';
-import {ConfigurationItemType} from '~widgets/configurator-panel';
 
 // Mock dependencies
 jest.mock('~shared/lib/logger', () => ({

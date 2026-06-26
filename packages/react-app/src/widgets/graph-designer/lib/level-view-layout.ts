@@ -7,15 +7,17 @@ import type {ElkNode} from 'elkjs';
 import ELK from 'elkjs/lib/elk.bundled.js';
 
 import {
-  calculateModuleHeight,
   type ContainerNode,
   type DataLink,
   type LevelView,
   type ModuleNode,
-  NODE_DIMENSIONS,
   PORT_IO_TYPE,
   type SubgraphNode,
   type SubsystemNode,
+} from '~entities/graph';
+import {
+  calculateModuleHeight,
+  NODE_DIMENSIONS,
 } from '~features/usecase-visualizer';
 import {logger} from '~shared/lib/logger';
 

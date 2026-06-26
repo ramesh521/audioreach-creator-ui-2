@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-import type {UsecaseGraphData} from '~features/graph-designer/model/graph-data-slice';
 import {
   type ContainerNode,
   type ControlLink,
@@ -12,13 +11,14 @@ import {
   type LevelView,
   type ModuleNode,
   type ModuleShape,
-  NODE_DIMENSIONS,
   NODE_KIND,
   type Port,
   PORT_IO_TYPE,
   type SubgraphNode,
   type SubsystemNode,
-} from '~features/usecase-visualizer';
+} from '~entities/graph';
+import type {UsecaseGraphData} from '~features/graph-designer/model/graph-data-slice';
+import {NODE_DIMENSIONS} from '~features/usecase-visualizer';
 import {logger} from '~shared/lib/logger';
 
 import {containerNodeId, subgraphNodeId} from './node-id';

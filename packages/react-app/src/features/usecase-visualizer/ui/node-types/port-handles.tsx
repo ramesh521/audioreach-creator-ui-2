@@ -5,9 +5,10 @@
 
 import {Handle} from '@xyflow/react';
 
+import type {ModuleShape, Port} from '~entities/graph';
+
 import {getPortAnchors} from '../../lib/port-anchors';
 import {anchorStyle, portStatusClass} from '../../lib/port-geometry';
-import type {ModuleShape, Port} from '../../model/visualizer.types';
 
 interface PortHandlesNode {
   height: number;

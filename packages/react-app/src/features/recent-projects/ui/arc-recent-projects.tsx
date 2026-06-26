@@ -3,8 +3,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-import type ProjectInfo from '~entities/project/model/project-info.types';
-import {SessionMode} from '~entities/project/model/project.dto';
+import {type ProjectInfo, SessionMode} from '~entities/project';
 import ArcProjectCard from '~shared/controls/arc-project-card';
 
 interface ArcProjectSectionProps {
