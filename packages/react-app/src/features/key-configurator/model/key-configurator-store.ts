@@ -7,12 +7,12 @@ import {create} from 'zustand';
 import {subscribeWithSelector} from 'zustand/middleware';
 
 import {logger} from '~shared/lib/logger';
+
+import {useCalibrationKeysStore} from './calibration-keys-store';
 import {
   type ConfigurationItem,
   ConfigurationItemType,
-} from '~widgets/configurator-panel';
-
-import {useCalibrationKeysStore} from './calibration-keys-store';
+} from './configurator-item.types';
 import {moduleInstanceCoordinator} from './module-instance-coordinator';
 import {useModuleTagKeysStore} from './module-tag-keys-store';
 import {useSubgraphConfigStore} from './subgraph-config-store';

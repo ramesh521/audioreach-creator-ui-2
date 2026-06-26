@@ -31,7 +31,6 @@ import {
 } from '~features/panel-collapse';
 import {ConfigFileManager} from '~shared/config/config-manager';
 import {logger} from '~shared/lib/logger';
-
 import type {
   OnGroupClose,
   OnProjectClose,
@@ -40,15 +39,15 @@ import type {
   ProjectLayoutStore,
   ProjectMainTab,
   ProjectTab,
-} from '../store/project-layout.types';
+} from '~shared/store/project-layout.types';
 import {
   PanelTabEntity,
   ProjectMainTabEntity,
   ProjectTabEntity,
   useProjectLayoutStore,
-} from '../store/use-project-layout-store';
-import {getColorName} from '../utils/color-utils';
-import {deepEqual} from '../utils/deep-equality';
+} from '~shared/store/use-project-layout-store';
+import {getColorName} from '~shared/utils/color-utils';
+import {deepEqual} from '~shared/utils/deep-equality';
 
 import 'flexlayout-react/style/combined.css';
 

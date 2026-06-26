@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-import type {SpfModuleDefinitionResponseDto} from '~entities/module-definitions/model/module-definition.dto';
+import type {SpfModuleDefinitionResponseDto} from '~entities/module-definitions';
 
 // Interface for dragged module information
 export interface DraggedModuleInfo {

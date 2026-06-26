@@ -7,16 +7,19 @@ import {useState} from 'react';
 
 import type {IJsonModel} from 'flexlayout-react';
 
-import type ProjectInfo from '~entities/project/model/project-info.types';
-import {ProjectService} from '~entities/project/services/project-service';
+import {type ProjectInfo, ProjectService} from '~entities/project';
 import {
   type GraphDesignerStore,
   GraphDesignerStoreContext,
 } from '~features/graph-designer';
 import {LogViewPanel} from '~features/log-view';
-import {ModuleList} from '~features/module-list/ui/module-list';
-import useArcRecentProjects from '~features/recent-projects/hooks/use-recent-projects';
-import {SubgraphList} from '~features/subgraph-list/ui/subgraph-list';
+import {ModuleList} from '~features/module-list';
+import type {
+  ProjectLoadingState,
+  ProjectOpenerHook,
+} from '~features/project-operations';
+import {useArcRecentProjects} from '~features/recent-projects';
+import {SubgraphList} from '~features/subgraph-list';
 import {ConfigFileManager} from '~shared/config/config-manager';
 import {
   GetFlexLayoutConfig,
@@ -24,7 +27,6 @@ import {
   MAIN_TAB_TITLE,
 } from '~shared/config/utils';
 import {showToast} from '~shared/controls/global-toaster';
-import {tabLayoutService} from '~shared/layout/project-layout-manager';
 import {logEventEmitter, logger, LogLevel} from '~shared/lib/logger';
 import {
   createProjectStore,
@@ -35,8 +37,7 @@ import {
 import {useGlobalStore} from '~shared/store/global-store';
 import {tabStoreRegistry} from '~shared/store/tab-store-registry';
 import {KeyConfiguratorPanel} from '~widgets/key-configurator-panel';
-
-import type {ProjectLoadingState, ProjectOpenerHook} from '../model/types';
+import {tabLayoutService} from '~widgets/project-layout/project-layout-manager';
 
 interface UseProjectOpenerOptions {
   /** Callback for handling project close */

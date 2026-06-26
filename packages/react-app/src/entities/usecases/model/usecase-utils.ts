@@ -3,9 +3,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-import type {UsecaseCategory} from '~features/usecase-selection';
-
 import type {UsecaseIdentifier} from './usecase.dto';
+import type {UsecaseCategory} from './usecase.types';
 
 /**
  * Formats a usecase identifier into a display string

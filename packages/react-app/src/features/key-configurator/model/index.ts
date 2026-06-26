@@ -1,3 +1,6 @@
+// Item types
+export * from './configurator-item.types';
+
 // Main store
 export {createKeyConfiguratorStore} from './key-configurator-store';
 export type {

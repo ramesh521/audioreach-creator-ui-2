@@ -3,10 +3,14 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-import {getModuleInstanceTuningConfig} from '~entities/key-configurator/api/module-instance-config-api';
-import type {ModuleInstanceTuningConfigDto} from '~entities/key-configurator/model/module-instance-config.dto';
-import {getSpfModuleDefinition} from '~entities/module-definitions/api/module-definition-api';
-import type {SpfModuleDefinitionResponseDto} from '~entities/module-definitions/model/module-definition.dto';
+import {
+  getModuleInstanceTuningConfig,
+  type ModuleInstanceTuningConfigDto,
+} from '~entities/key-configurator';
+import {
+  getSpfModuleDefinition,
+  type SpfModuleDefinitionResponseDto,
+} from '~entities/module-definitions';
 import {logger} from '~shared/lib/logger';
 
 import {
@@ -20,11 +24,12 @@ import {useCalibrationKeysStore} from './calibration-keys-store';
 import {useModuleTagKeysStore} from './module-tag-keys-store';
 
 /**
- * Coordinator for module instance data that fetches both CKV and TKV data in a single API call
- * and distributes the data to the respective stores.
+ * Coordinator for module instance data that fetches both CKV and TKV data in a
+ * single API call and distributes the data to the respective stores.
  *
- * Note: This coordinator does not maintain its own cache. The stores (CKV and TKV) are the
- * source of truth for data. The coordinator only fetches from backend when stores don't have data.
+ * Note: This coordinator does not maintain its own cache. The stores (CKV and TKV)
+ * are the source of truth for data. The coordinator only fetches from backend when
+ * stores don't have data.
  */
 class ModuleInstanceCoordinator {
   /**

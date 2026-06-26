@@ -5,7 +5,7 @@
 
 import type {StoreApi} from 'zustand';
 
-import {getUsecaseComponents} from '~entities/usecases/api/usecases-api';
+import {getUsecaseComponents} from '~entities/usecases';
 import {logger} from '~shared/lib/logger';
 import type {SliceStatus} from '~shared/store/global-store.types';
 

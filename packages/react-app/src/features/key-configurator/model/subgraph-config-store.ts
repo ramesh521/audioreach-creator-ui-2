@@ -5,7 +5,7 @@
 
 import {create} from 'zustand';
 
-import {getAllKeyDefinitions} from '~entities/key-definitions/api/key-definition-api';
+import {getAllKeyDefinitions} from '~entities/key-definitions';
 import {logger} from '~shared/lib/logger';
 import type {GraphKey} from '~shared/types/key-configurator-config.types';
 

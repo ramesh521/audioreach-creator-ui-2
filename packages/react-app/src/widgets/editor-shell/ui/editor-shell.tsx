@@ -5,7 +5,6 @@
 
 import {useEffect, useRef} from 'react';
 
-import {useKeyConfiguratorView} from '~features/key-configurator';
 import {useLogView} from '~features/log-view';
 import {PanelIconBar} from '~features/panel-collapse';
 import {ConfigFileManager} from '~shared/config/config-manager';
@@ -15,12 +14,13 @@ import {
   SideNavProvider,
   useSideNavContext,
 } from '~shared/controls/side-nav-provider';
-import ProjectLayoutManager from '~shared/layout/project-layout-manager';
 import {logger} from '~shared/lib/logger';
 import {useKeyboardShortcuts} from '~shared/lib/side-nav';
 import {Theme, useTheme} from '~shared/providers/theme-provider';
 import {AppTabEntity, useProjectLayoutStore} from '~shared/store';
 import {TabGroupType} from '~shared/store/project-layout.types';
+import {useKeyConfiguratorView} from '~widgets/key-configurator-panel';
+import ProjectLayoutManager from '~widgets/project-layout/project-layout-manager';
 import ArcStartPage from '~widgets/start-page/ui/arc-start-page';
 
 const EditorShellContent: React.FC = () => {

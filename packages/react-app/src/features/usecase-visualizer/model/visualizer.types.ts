@@ -13,47 +13,51 @@ import type {ReactNode} from 'react';
 
 import type {LucideIcon} from 'lucide-react';
 
-// ── Kind / shape constants ────────────────────────────────────────────────────
+import type {
+  AnyNode,
+  ContainerNode,
+  ControlLink,
+  DataLink,
+  EdgeKind,
+  LevelView,
+  ModuleNode,
+  Port,
+  ProxyControlLink,
+  ProxyDataLink,
+  SubgraphNode,
+  SubgraphProxyNode,
+  SubsystemNode,
+} from '~entities/graph';
 
-export const NODE_KIND = {
-  CONTAINER: 'container',
-  MODULE: 'module',
-  SUBGRAPH: 'subgraph',
-  SUBGRAPH_PROXY: 'subgraph-proxy',
-  SUBSYSTEM: 'subsystem',
-} as const;
-export type NodeKind = (typeof NODE_KIND)[keyof typeof NODE_KIND];
-
-export const EDGE_KIND = {
-  CONTROL: 'control',
-  DATA: 'data',
-  PROXY_CONTROL: 'proxy-control',
-  PROXY_DATA: 'proxy-data',
-} as const;
-export type EdgeKind = (typeof EDGE_KIND)[keyof typeof EDGE_KIND];
-
-export const PORT_IO_TYPE = {
-  CONTROL: 'control',
-  INPUT: 'input',
-  OUTPUT: 'output',
-} as const;
-export type PortIoType = (typeof PORT_IO_TYPE)[keyof typeof PORT_IO_TYPE];
-
-export const PORT_STATUS = {
-  PARTIAL: 'partial',
-  UNUSED: 'unused',
-  USED: 'used',
-} as const;
-export type PortStatus = (typeof PORT_STATUS)[keyof typeof PORT_STATUS];
-
-export const MODULE_SHAPE = {
-  CIRCLE: 'circle',
-  RECT: 'rect',
-  TRAPEZOID_SINK: 'trapezoid-sink',
-  TRAPEZOID_SOURCE: 'trapezoid-source',
-  TRIANGLE: 'triangle',
-} as const;
-export type ModuleShape = (typeof MODULE_SHAPE)[keyof typeof MODULE_SHAPE];
+export {
+  EDGE_KIND,
+  MODULE_SHAPE,
+  NODE_KIND,
+  PORT_IO_TYPE,
+  PORT_STATUS,
+} from '~entities/graph';
+export type {
+  AnyEdge,
+  AnyNode,
+  ContainerNode,
+  ControlLink,
+  DataLink,
+  EdgeBase,
+  EdgeKind,
+  LevelView,
+  ModuleNode,
+  ModuleShape,
+  NodeBase,
+  NodeKind,
+  Port,
+  PortIoType,
+  PortStatus,
+  ProxyControlLink,
+  ProxyDataLink,
+  SubgraphNode,
+  SubgraphProxyNode,
+  SubsystemNode,
+} from '~entities/graph';
 
 export const VISUALIZER_MODE = {
   EDIT: 'edit',
@@ -61,141 +65,6 @@ export const VISUALIZER_MODE = {
 } as const;
 export type VisualizerMode =
   (typeof VISUALIZER_MODE)[keyof typeof VISUALIZER_MODE];
-
-// ── Shared base ───────────────────────────────────────────────────────────────
-
-export interface NodeBase {
-  /**
-   * Consumer-declared via ELK. Visualizer manages both height and width
-   * dynamically during drag; final values reported in onNodeDragEnd.
-   */
-  height: number;
-  /**
-   * Consumer-generated ReactFlow handle. Format is adapter-specific.
-   * Passed back unchanged in all event callbacks. Domain IDs (moduleId,
-   * subgraphId, etc.) on child interfaces are used for default header/footer
-   * labels.
-   */
-  id: string;
-  label: string;
-  /** Excluded from Delete key and edit affordances. Still draggable. */
-  locked?: boolean;
-  meta?: Record<string, unknown>;
-  parentId?: string;
-  width: number;
-  x: number;
-  y: number;
-}
-
-// ── Node kinds ────────────────────────────────────────────────────────────────
-
-export interface SubsystemNode extends NodeBase {
-  nodeKind: 'subsystem';
-  ports: Port[];
-  subsystemId: string;
-}
-
-export interface SubgraphNode extends NodeBase {
-  nodeKind: 'subgraph';
-  subgraphId: number;
-}
-
-export interface ContainerNode extends NodeBase {
-  containerId: number;
-  logicalContainerId?: string;
-  nodeKind: 'container';
-}
-
-export interface ModuleNode extends NodeBase {
-  alias?: string;
-  icon?: string;
-  moduleId: number;
-  moduleType: string;
-  nodeKind: 'module';
-  ports: Port[];
-  shape?: ModuleShape;
-}
-
-// ── Port type ─────────────────────────────────────────────────────────────────
-
-/**
- * Unified port type for all node kinds. portIoType distinguishes direction:
- * 'input' / 'output' for data ports (placed left / right), 'control' for
- * control ports (placed top). Separate rendering arrays on each node interface
- * (ports) filter by portIoType for handle placement.
- */
-export interface Port {
-  id: string;
-  /** Prevents new connections and hides context menu for this port. */
-  locked?: boolean;
-  /** Max edges connectable to this port. Absent means unlimited. */
-  maxConnections?: number;
-  name?: string;
-  portIoType: PortIoType;
-  /** Consumer-settable. Absent means no status indicator is shown. */
-  portStatus?: PortStatus;
-}
-
-// ── Subgraph proxy (collapsed subgraph placeholder) ──────────────────────────
-
-export interface SubgraphProxyNode extends NodeBase {
-  nodeKind: 'subgraph-proxy';
-  ports: Port[];
-  subgraphId: number;
-}
-
-export type AnyNode =
-  | ContainerNode
-  | ModuleNode
-  | SubgraphNode
-  | SubgraphProxyNode
-  | SubsystemNode;
-
-export type AnyEdge = ControlLink | DataLink | ProxyControlLink | ProxyDataLink;
-
-// ── Edge types ────────────────────────────────────────────────────────────────
-
-export interface EdgeBase {
-  id: string;
-  label?: string;
-  /** Excluded from Delete key and context menu. */
-  locked?: boolean;
-  sourceNodeId: string;
-  sourcePortId: string;
-  targetNodeId: string;
-  targetPortId: string;
-}
-
-export interface DataLink extends EdgeBase {
-  edgeKind: 'data';
-}
-
-export interface ControlLink extends EdgeBase {
-  edgeKind: 'control';
-}
-
-export interface ProxyDataLink extends EdgeBase {
-  edgeKind: 'proxy-data';
-}
-
-export interface ProxyControlLink extends EdgeBase {
-  edgeKind: 'proxy-control';
-}
-
-// ── LevelView — canonical Visualizer input ────────────────────────────────────
-
-export interface LevelView {
-  containers?: ContainerNode[];
-  controlLinks?: ControlLink[];
-  dataLinks?: DataLink[];
-  levelId: string;
-  modules?: ModuleNode[];
-  proxyControlLinks?: ProxyControlLink[];
-  proxyDataLinks?: ProxyDataLink[];
-  subgraphProxies?: SubgraphProxyNode[];
-  subgraphs?: SubgraphNode[];
-  subsystems?: SubsystemNode[];
-}
 
 // ── Context menu ──────────────────────────────────────────────────────────────
 

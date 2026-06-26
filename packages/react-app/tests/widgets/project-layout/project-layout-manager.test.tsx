@@ -85,15 +85,15 @@ jest.mock('~shared/config/config-manager', () => ({
   },
 }));
 
-import {
-  tabLayoutService,
-  TabLayoutService,
-} from '~shared/layout/project-layout-manager';
 import {PanelId} from '~shared/store/project-layout.types';
 import {
   PanelTabEntity,
   useProjectLayoutStore,
 } from '~shared/store/use-project-layout-store';
+import {
+  tabLayoutService,
+  TabLayoutService,
+} from '~widgets/project-layout/project-layout-manager';
 
 const mockManager = {
   createFlexLayoutModel: jest.fn(() => ({

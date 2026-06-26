@@ -1,6 +1,3 @@
-// Hook for managing key configurator view
-export {useKeyConfiguratorView} from './use-key-configurator-view';
-
 // Model exports (stores, managers, coordinators)
 export * from './model';
 

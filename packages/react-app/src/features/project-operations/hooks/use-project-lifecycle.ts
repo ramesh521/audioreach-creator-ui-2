@@ -5,7 +5,7 @@
 
 import {useRef} from 'react';
 
-import {ProjectImageService} from '~entities/project/services/project-image-service';
+import {ProjectImageService} from '~entities/project';
 import {ConfigFileManager} from '~shared/config/config-manager';
 import {logger} from '~shared/lib/logger';
 

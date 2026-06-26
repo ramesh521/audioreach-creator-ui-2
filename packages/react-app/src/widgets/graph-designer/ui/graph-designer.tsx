@@ -22,7 +22,7 @@ import {
   Wand2,
 } from 'lucide-react';
 
-import {getSystemIdsFromFormattedUsecases} from '~entities/usecases/model/usecase-utils';
+import {getSystemIdsFromFormattedUsecases} from '~entities/usecases';
 import {useGraphDesignerStoreShallow} from '~features/graph-designer/model/graph-designer-store-context';
 import {SearchComponent} from '~features/search-component';
 import {

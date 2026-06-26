@@ -5,8 +5,10 @@
 
 import type {StoreApi} from 'zustand';
 
-import {getAllSpfModuleDefinitions} from '~entities/module-definitions/api/module-definition-api';
-import type {SpfModuleDefinitionResponseDto} from '~entities/module-definitions/model/module-definition.dto';
+import {
+  getAllSpfModuleDefinitions,
+  type SpfModuleDefinitionResponseDto,
+} from '~entities/module-definitions';
 import {logger} from '~shared/lib/logger';
 import type {SliceStatus} from '~shared/store/global-store.types';
 
