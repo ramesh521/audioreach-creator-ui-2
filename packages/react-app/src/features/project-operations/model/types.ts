@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-import type ProjectInfo from '~entities/project/model/project-info.types';
+import type {ProjectInfo} from '~entities/project';
 
 export interface ProjectOpenResult {
   error?: string;

@@ -5,9 +5,10 @@
 
 import type {Node, NodeProps} from '@xyflow/react';
 
+import type {ContainerNode as ContainerNodeData} from '~entities/graph';
+
 import {useNodeHighlight} from '../../model/use-node-highlight';
 import {useVisualizerStore} from '../../model/visualizer-store-context';
-import type {ContainerNode as ContainerNodeData} from '../../model/visualizer.types';
 
 type ContainerNodeProps = NodeProps<
   Node<ContainerNodeData & Record<string, unknown>>

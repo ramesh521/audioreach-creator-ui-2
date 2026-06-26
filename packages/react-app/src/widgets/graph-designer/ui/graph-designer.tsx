@@ -22,7 +22,8 @@ import {
   Wand2,
 } from 'lucide-react';
 
-import {getSystemIdsFromFormattedUsecases} from '~entities/usecases/model/usecase-utils';
+import type {LevelView} from '~entities/graph';
+import {getSystemIdsFromFormattedUsecases} from '~entities/usecases';
 import {useGraphDesignerStoreShallow} from '~features/graph-designer/model/graph-designer-store-context';
 import {SearchComponent} from '~features/search-component';
 import {
@@ -30,7 +31,6 @@ import {
   UsecaseSelectionControl,
 } from '~features/usecase-selection';
 import {
-  type LevelView,
   type SearchHighlights,
   UsecaseVisualizer,
   type ViewportState,

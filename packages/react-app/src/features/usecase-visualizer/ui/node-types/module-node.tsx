@@ -8,16 +8,13 @@ import type {ReactNode} from 'react';
 import type {Node, NodeProps} from '@xyflow/react';
 import {Box, LogIn, LogOut, type LucideIcon, ScrollText} from 'lucide-react';
 
+import type {ModuleNode as ModuleNodeData, ModuleShape} from '~entities/graph';
 import {ConvertNumberToHexString} from '~shared/utils/converter-utils';
 
 import {NODE_DIMENSIONS} from '../../lib/node-dimensions';
 import {useNodeHighlight} from '../../model/use-node-highlight';
 import {useVisualizerStore} from '../../model/visualizer-store-context';
-import type {
-  CoreOverride,
-  ModuleNode as ModuleNodeData,
-  ModuleShape,
-} from '../../model/visualizer.types';
+import type {CoreOverride} from '../../model/visualizer.types';
 
 import {PortHandles} from './port-handles';
 

@@ -6,7 +6,7 @@
 import type {Viewport} from '@xyflow/react';
 import type {StoreApi} from 'zustand';
 
-import type {LevelView} from '~features/usecase-visualizer';
+import type {LevelView} from '~entities/graph';
 import {logger} from '~shared/lib/logger';
 
 // ---------------------------------------------------------------------------
@@ -14,7 +14,7 @@ import {logger} from '~shared/lib/logger';
 // ---------------------------------------------------------------------------
 
 export interface GraphView {
-  expandedSubgraphIds: Set<string>;
+  expandedSubgraphIds: string[];
   subsystemNavigationStack: string[];
 }
 

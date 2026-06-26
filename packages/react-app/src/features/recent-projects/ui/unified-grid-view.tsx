@@ -7,8 +7,7 @@ import {useMemo} from 'react';
 
 import {Database} from 'lucide-react';
 
-import type ProjectInfo from '~entities/project/model/project-info.types';
-import {SessionMode} from '~entities/project/model/project.dto';
+import {type ProjectInfo, SessionMode} from '~entities/project';
 import ArcProjectCard from '~shared/controls/arc-project-card';
 import type DeviceInfo from '~shared/types/device-info.types';
 

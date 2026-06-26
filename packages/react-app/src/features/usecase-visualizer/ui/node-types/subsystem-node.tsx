@@ -5,8 +5,9 @@
 
 import type {Node, NodeProps} from '@xyflow/react';
 
+import type {SubsystemNode as SubsystemNodeData} from '~entities/graph';
+
 import {useNodeHighlight} from '../../model/use-node-highlight';
-import type {SubsystemNode as SubsystemNodeData} from '../../model/visualizer.types';
 
 import {PortHandles} from './port-handles';
 

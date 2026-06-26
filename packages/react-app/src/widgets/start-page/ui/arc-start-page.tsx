@@ -28,13 +28,9 @@ import {ProgressRing} from '@qualcomm-ui/react/progress-ring';
 import {useListCollection} from '@qualcomm-ui/react-core/collection';
 import {useFilter} from '@qualcomm-ui/react-core/locale';
 
-import type ProjectInfo from '~entities/project/model/project-info.types';
-import {ProjectService} from '~entities/project/services';
+import {type ProjectInfo, ProjectService} from '~entities/project';
 import {useDeviceManager} from '~features/device-operations';
-import {
-  useProjectLifecycle,
-  useProjectOpener,
-} from '~features/project-operations';
+import {useProjectLifecycle} from '~features/project-operations';
 import useArcRecentProjects from '~features/recent-projects/hooks/use-recent-projects';
 import UnifiedGridView from '~features/recent-projects/ui/unified-grid-view';
 import UnifiedListView from '~features/recent-projects/ui/unified-list-view';
@@ -43,6 +39,8 @@ import {showToast} from '~shared/controls/global-toaster';
 import {logger} from '~shared/lib/logger';
 import {useRegisterSideNav, useSideNav} from '~shared/lib/side-nav';
 import type DeviceInfo from '~shared/types/device-info.types';
+
+import {useProjectOpener} from '../use-project-opener';
 
 const projectTypes = ['Active', 'Inactive', 'Diff/Merge'];
 

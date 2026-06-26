@@ -1,4 +1,4 @@
-export {useProjectOpener, useProjectLifecycle} from './hooks';
+export {useProjectLifecycle} from './hooks';
 export type {
   ProjectOpenResult,
   ProjectLoadingState,

@@ -5,10 +5,7 @@
 
 import {render} from '@testing-library/react';
 
-import type {
-  LevelView,
-  SubgraphProxyNode,
-} from '~features/usecase-visualizer/model/visualizer.types';
+import type {LevelView, SubgraphProxyNode} from '~entities/graph';
 import {UsecaseVisualizer} from '~features/usecase-visualizer/ui/usecase-visualizer';
 
 import {latestReactFlowProps} from '../test-utils/xyflow-mock-factory';

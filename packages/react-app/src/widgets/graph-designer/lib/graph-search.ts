@@ -24,7 +24,7 @@ import type {
   ModuleNode,
   SubgraphNode,
   SubsystemNode,
-} from '~features/usecase-visualizer';
+} from '~entities/graph';
 import {ConvertStringToNumber} from '~shared/utils/converter-utils';
 
 const KNOWN_PREFIXES = ['cnt', 'mod', 'sg', 'ss'] as const;

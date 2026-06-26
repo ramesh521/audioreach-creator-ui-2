@@ -9,7 +9,7 @@ import type {
   LevelView,
   ModuleNode,
   SubgraphNode,
-} from '~features/usecase-visualizer';
+} from '~entities/graph';
 import {applyCollapses} from '~widgets/graph-designer/lib/apply-collapses';
 
 function subgraph(id: number): SubgraphNode {

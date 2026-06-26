@@ -18,7 +18,7 @@ import type {
   SubgraphNode,
   SubgraphProxyNode,
   SubsystemNode,
-} from '../model/visualizer.types';
+} from '~entities/graph';
 
 import {controlHandleId, dataHandleId} from './port-geometry';
 

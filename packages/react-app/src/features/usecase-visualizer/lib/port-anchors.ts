@@ -5,7 +5,7 @@
 
 import {Position} from '@xyflow/react';
 
-import type {ModuleShape, Port} from '../model/visualizer.types';
+import type {ModuleShape, Port} from '~entities/graph';
 
 import {controlHandleId, dataHandleId, offsetForIndex} from './port-geometry';
 

@@ -5,7 +5,7 @@
 
 import {useRef} from 'react';
 
-import {ProjectImageService} from '~entities/project/services/project-image-service';
+import {ProjectImageService} from '~entities/project';
 import {ConfigFileManager} from '~shared/config/config-manager';
 import {logger} from '~shared/lib/logger';
 
@@ -16,15 +16,12 @@ import type {ProjectLifecycleHook} from '../model/types';
  * Handles project close with screenshot capture
  */
 export function useProjectLifecycle(): ProjectLifecycleHook {
-  // Local screenshot registry - stores screenshot functions for each project
   const screenshotRegistryRef = useRef<
     Map<string, () => Promise<string | null>>
   >(new Map());
 
-  /**
-   * Handles project close - captures screenshot, saves config, and updates MRU
-   * This runs BEFORE the project is removed, while GraphDesigner is still mounted
-   */
+  // Must run before the project is unmounted — screenshot capture requires a
+  // live GraphDesigner.
   const handleProjectClose = async (
     projectId: string,
     projectName: string,
@@ -35,48 +32,48 @@ export function useProjectLifecycle(): ProjectLifecycleHook {
       projectId,
     });
 
-    try {
-      const screenshotFn = screenshotRegistryRef.current.get(projectId);
+    const screenshotFn = screenshotRegistryRef.current.get(projectId);
 
-      if (screenshotFn) {
-        // Capture screenshot BEFORE component unmounts
-        await ProjectImageService.captureAndSave(projectId, screenshotFn);
-      }
-    } catch (error) {
+    const [screenshotResult, configResult] = await Promise.allSettled([
+      screenshotFn
+        ? ProjectImageService.captureAndSave(projectId, screenshotFn)
+        : Promise.resolve(),
+      ConfigFileManager.instance.archiveProjectConfig(projectId),
+    ] as const);
+
+    if (screenshotResult.status === 'rejected') {
       logger.error('Failed to capture screenshot during project close', {
         action: 'close_project',
         component: 'useProjectLifecycle',
-        error: error instanceof Error ? error.message : String(error),
+        error:
+          screenshotResult.reason instanceof Error
+            ? screenshotResult.reason.message
+            : String(screenshotResult.reason),
         projectId,
       });
       // Don't block close on screenshot failure
     }
 
-    // Save project configuration
-    try {
-      const saved =
-        await ConfigFileManager.instance.archiveProjectConfig(projectId);
-      if (!saved) {
-        logger.warn('Failed to archive project configuration', {
-          action: 'close_project',
-          component: 'useProjectLifecycle',
-          projectId,
-        });
-      }
-    } catch (error) {
+    if (configResult.status === 'rejected') {
       logger.error('Failed to save project configuration during close', {
         action: 'close_project',
         component: 'useProjectLifecycle',
-        error: error instanceof Error ? error.message : String(error),
+        error:
+          configResult.reason instanceof Error
+            ? configResult.reason.message
+            : String(configResult.reason),
         projectId,
       });
       // Don't block close on config save failure
-    } finally {
-      // Cleanup registry
-      screenshotRegistryRef.current.delete(projectId);
+    } else if (!configResult.value) {
+      logger.warn('Failed to archive project configuration', {
+        action: 'close_project',
+        component: 'useProjectLifecycle',
+        projectId,
+      });
     }
 
-    // Allow close to proceed
+    screenshotRegistryRef.current.delete(projectId);
     return true;
   };
 

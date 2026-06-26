@@ -34,6 +34,14 @@ import {
 import {Menu} from '@qualcomm-ui/react/menu';
 import {Portal} from '@qualcomm-ui/react-core/portal';
 
+import {
+  type AnyEdge,
+  type AnyNode,
+  EDGE_KIND,
+  type LevelView,
+  NODE_KIND,
+  PORT_IO_TYPE,
+} from '~entities/graph';
 import {Theme, useTheme} from '~shared/providers/theme-provider';
 
 import '@xyflow/react/dist/style.css';
@@ -50,14 +58,8 @@ import {
   VisualizerStoreProvider,
 } from '../model/visualizer-store-context';
 import {
-  type AnyEdge,
-  type AnyNode,
   type ContextMenuItem,
   type ContextMenuTarget,
-  EDGE_KIND,
-  type LevelView,
-  NODE_KIND,
-  PORT_IO_TYPE,
   type UsecaseVisualizerProps,
   type ViewportState,
   VISUALIZER_MODE,

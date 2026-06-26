@@ -9,7 +9,8 @@ import {
   PanelTabEntity,
   useProjectLayoutStore,
 } from '~shared/store/use-project-layout-store';
-import {KeyConfiguratorPanel} from '~widgets/key-configurator-panel';
+
+import {KeyConfiguratorPanel} from './ui';
 
 // Unique ID for the Key Configurator view panel
 const KEY_CONFIGURATOR_VIEW_PANEL_ID = 'key-configurator-view-panel';

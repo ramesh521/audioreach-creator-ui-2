@@ -34,10 +34,6 @@ import {
   createValidationResultSlice,
   type ValidationResultSlice,
 } from '~shared/store/tab-store-slices/validation-result-slice';
-import {
-  createVisualizerSlice,
-  type VisualizerSlice,
-} from '~shared/store/tab-store-slices/visualizer-slice';
 
 import {createGraphDataSlice, type GraphDataSlice} from './graph-data-slice';
 import {createKeyConfigSlice, type KeyConfigSlice} from './key-config-slice';
@@ -46,6 +42,7 @@ import {
   createSubgraphListSlice,
   type SubgraphListSlice,
 } from './subgraph-list-slice';
+import {createVisualizerSlice, type VisualizerSlice} from './visualizer-slice';
 
 // ── Store type ──────────────────────────────────────────────────────────────
 

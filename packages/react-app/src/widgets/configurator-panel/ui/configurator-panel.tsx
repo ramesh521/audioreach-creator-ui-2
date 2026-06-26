@@ -9,41 +9,7 @@ import {ChevronDown, ChevronRight, X} from 'lucide-react';
 
 import {IconButton} from '@qualcomm-ui/react/button';
 
-// Types for different configuration views
-export enum ConfigurationItemType {
-  MODULE = 'Module',
-  SUBGRAPH = 'Subgraph',
-  SUBSYSTEM = 'Subsystem',
-}
-
-// Base interface with common properties
-interface BaseConfigurationItem {
-  id: number;
-  name: string;
-  systemId: string;
-}
-
-// Module-specific configuration item
-export interface ModuleConfigurationItem extends BaseConfigurationItem {
-  instanceId: number;
-  type: ConfigurationItemType.MODULE;
-}
-
-// Subgraph-specific configuration item
-export interface SubgraphConfigurationItem extends BaseConfigurationItem {
-  type: ConfigurationItemType.SUBGRAPH;
-}
-
-// Subsystem-specific configuration item
-export interface SubsystemConfigurationItem extends BaseConfigurationItem {
-  type: ConfigurationItemType.SUBSYSTEM;
-}
-
-// Discriminated union type
-export type ConfigurationItem =
-  | ModuleConfigurationItem
-  | SubgraphConfigurationItem
-  | SubsystemConfigurationItem;
+import type {ConfigurationItem} from '~features/key-configurator';
 
 export interface ConfigurationSection {
   isExpanded: boolean;

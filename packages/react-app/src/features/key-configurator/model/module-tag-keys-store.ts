@@ -5,7 +5,7 @@
 
 import {create} from 'zustand';
 
-import {getAllTagDefinitions} from '~entities/key-definitions/api/key-definition-api';
+import {getAllTagDefinitions} from '~entities/key-definitions';
 import {logger} from '~shared/lib/logger';
 
 import {

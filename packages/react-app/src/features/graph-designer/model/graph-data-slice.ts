@@ -5,15 +5,11 @@
 
 import type {StoreApi} from 'zustand';
 
-import {getUsecaseComponents} from '~entities/usecases/api/usecases-api';
+import {getUsecaseComponents} from '~entities/usecases';
 import {logger} from '~shared/lib/logger';
 import type {SliceStatus} from '~shared/store/global-store.types';
 
 import type {ModuleListSlice} from './module-list-slice';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export type DiffState = 'added' | 'removed' | 'modified' | 'common';
 
@@ -106,10 +102,6 @@ export interface GraphDataSlice {
   markDirty: () => void;
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function toDiffState(changeType: string): DiffState | undefined {
   switch (changeType) {
     case 'CREATE':
@@ -124,10 +116,6 @@ function toDiffState(changeType: string): DiffState | undefined {
       return undefined;
   }
 }
-
-// ---------------------------------------------------------------------------
-// Slice creator
-// ---------------------------------------------------------------------------
 
 /**
  * Creates the graph-data slice for composing into a tab store.
@@ -232,7 +220,6 @@ export function createGraphDataSlice<
           }
         }
 
-        // moduleInstances
         const moduleInstances: Record<string, ModuleInstance> = {};
         for (const m of spfModules) {
           const inputPorts: Port[] = (m.dataPorts ?? [])
@@ -318,7 +305,6 @@ export function createGraphDataSlice<
           }
         }
 
-        // subsystems
         const subsystems: Record<string, Subsystem> = {};
         for (const ss of subsystemDtos) {
           subsystems[ss.systemId] = {

@@ -11,8 +11,7 @@ import {createPortal} from 'react-dom';
 import {ProgressRing} from '@qualcomm-ui/react/progress-ring';
 import {TextInput} from '@qualcomm-ui/react/text-input';
 
-import {deleteUsecases} from '~entities/usecases/api/usecases-api';
-import type {KeyValueInfo} from '~entities/usecases/model/usecase.dto';
+import {deleteUsecases, type KeyValueInfo} from '~entities/usecases';
 import {showToast} from '~shared/controls/global-toaster';
 
 import type {KeyValue, Usecase, UsecaseCategory} from '../model/types';

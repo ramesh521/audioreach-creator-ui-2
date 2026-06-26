@@ -5,11 +5,11 @@
 
 import {Handle} from '@xyflow/react';
 
+import type {AnyNode} from '~entities/graph';
 import {ConvertNumberToHexString} from '~shared/utils/converter-utils';
 
 import {useNodeHighlight} from '../model/use-node-highlight';
 import {useVisualizerStore} from '../model/visualizer-store-context';
-import type {AnyNode} from '../model/visualizer.types';
 
 import {getPortAnchors} from './port-anchors';
 import {anchorStyle} from './port-geometry';

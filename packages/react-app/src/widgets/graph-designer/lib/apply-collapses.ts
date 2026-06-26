@@ -14,16 +14,16 @@
  * the Visualizer fits the view when subgraphProxies.length changes.
  */
 
-import {
-  type ControlLink,
-  type DataLink,
-  type LevelView,
-  NODE_DIMENSIONS,
-  type Port,
-  type ProxyControlLink,
-  type ProxyDataLink,
-  type SubgraphProxyNode,
-} from '~features/usecase-visualizer';
+import type {
+  ControlLink,
+  DataLink,
+  LevelView,
+  Port,
+  ProxyControlLink,
+  ProxyDataLink,
+  SubgraphProxyNode,
+} from '~entities/graph';
+import {NODE_DIMENSIONS} from '~features/usecase-visualizer';
 
 const subgraphProxyId = (sgId: number): string => `subgraph-proxy-${sgId}`;
 
@@ -83,6 +83,16 @@ export function applyCollapses(
 
   const {insideNodeToSubgraph} = buildCollapseContext(level, collapsed);
 
+  // Pre-build port name lookup to avoid repeated linear scans over edges.
+  const portNameIndex = new Map(
+    [...(level.modules ?? []), ...(level.subgraphProxies ?? [])].map((node) => [
+      node.id,
+      new Map(node.ports.map((p) => [p.id, p.name])),
+    ]),
+  );
+  const lookupPortName = (nodeId: string, portId: string): string | undefined =>
+    portNameIndex.get(nodeId)?.get(portId);
+
   // Per-proxy accumulated ports, deduped by port id.
   const proxyPorts = new Map<number, Map<string, Port>>();
   const ensureProxyPort = (
@@ -101,16 +111,6 @@ export function applyCollapses(
       ports.set(id, {id, locked: true, name, portIoType});
     }
     return id;
-  };
-
-  const lookupPortName = (
-    nodeId: string,
-    portId: string,
-  ): string | undefined => {
-    const node =
-      level.modules?.find((m) => m.id === nodeId) ??
-      level.subgraphProxies?.find((p) => p.id === nodeId);
-    return node?.ports.find((p) => p.id === portId)?.name;
   };
 
   const keptDataLinks: DataLink[] = [];
