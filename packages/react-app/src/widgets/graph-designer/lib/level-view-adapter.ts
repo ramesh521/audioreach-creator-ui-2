@@ -20,6 +20,7 @@ import {
 import type {UsecaseGraphData} from '~features/graph-designer/model/graph-data-slice';
 import {NODE_DIMENSIONS} from '~features/usecase-visualizer';
 import {logger} from '~shared/lib/logger';
+import {ConvertNumberToHexString} from '~shared/utils/converter-utils';
 
 import {containerNodeId, subgraphNodeId} from './node-id';
 
@@ -119,7 +120,7 @@ export function buildLevelViewFromGraphData(
       containerId: Number(m.containerId),
       height: 0,
       id: key,
-      label: `Container ${m.containerId}`,
+      label: `Container: ${ConvertNumberToHexString(Number(m.containerId))}`,
       nodeKind: NODE_KIND.CONTAINER,
       parentId: subgraphNodeId(m.subgraphId),
       width: 0,

@@ -53,13 +53,18 @@ export function SubgraphNode({data: node, selected}: SubgraphNodeProps) {
       data-testid="subgraph-node"
       style={{
         backgroundColor:
-          selected || highlight.state === 'active'
-            ? 'var(--color-background-support-info-subtle)'
-            : 'transparent',
+          highlight.state === 'active'
+            ? highlight.activeBackgroundColor
+            : selected
+              ? 'var(--color-background-support-info-subtle)'
+              : 'transparent',
         borderColor:
-          selected || highlight.state !== 'none'
+          selected && highlight.state === 'none'
             ? 'var(--color-border-support-info)'
-            : 'var(--color-border-neutral-10)',
+            : highlight.borderColor,
+        ...(highlight.borderWidth != null
+          ? {borderWidth: highlight.borderWidth}
+          : {}),
         height: '100%',
         width: '100%',
       }}
@@ -69,10 +74,9 @@ export function SubgraphNode({data: node, selected}: SubgraphNodeProps) {
         data-testid="subgraph-header"
       >
         <span className="text-primary flex items-center gap-1 truncate text-xs font-semibold">
-          {node.label}
           {showSubgraphId ? (
             <span className="text-secondary" data-testid="subgraph-id">
-              {`#${ConvertNumberToHexString(node.subgraphId) ?? node.subgraphId}`}
+              {`Subgraph: ${ConvertNumberToHexString(node.subgraphId) ?? node.subgraphId}`}
             </span>
           ) : null}
         </span>

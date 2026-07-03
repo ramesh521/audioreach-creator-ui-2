@@ -15,7 +15,7 @@
  */
 export const NODE_DIMENSIONS = {
   container: {
-    headerHeight: 32,
+    headerHeight: 48,
     padding: 12,
   },
   module: {

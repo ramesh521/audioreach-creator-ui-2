@@ -10,6 +10,8 @@ export interface NodeHighlight {
   activeBackgroundColor: string;
   /** CSS value for borderColor derived from highlight state. */
   borderColor: string;
+  /** CSS value for borderWidth when the node is a non-active search match. */
+  borderWidth: string | undefined;
   /** Tailwind class to append when the node is a contains-match ancestor. */
   containsMatchClass: string;
   /** Tailwind class to append when this node is the active search result. */
@@ -41,6 +43,7 @@ export function useNodeHighlight(nodeId: string): NodeHighlight {
       state !== 'none'
         ? 'var(--color-border-support-warning)'
         : 'var(--color-border-neutral-10)',
+    borderWidth: state === 'match' ? '4px' : undefined,
     containsMatchClass: isContainsMatch ? 'search-contains-match' : '',
     highlightActiveClass: state === 'active' ? 'search-highlight-active' : '',
     highlightMatchClass: state === 'match' ? 'search-highlight-match' : '',

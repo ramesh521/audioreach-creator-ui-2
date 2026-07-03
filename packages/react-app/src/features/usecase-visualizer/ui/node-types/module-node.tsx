@@ -61,12 +61,14 @@ function ShapeOutline({
   border,
   height,
   shape,
+  strokeWidth,
   width,
 }: {
   background: string;
   border: string;
   height: number;
   shape: Exclude<ModuleShape, 'rect'>;
+  strokeWidth: number;
   width: number;
 }): ReactNode {
   return (
@@ -84,14 +86,14 @@ function ShapeOutline({
           fill={background}
           r={Math.min(width, height) / 2 - 1}
           stroke={border}
-          strokeWidth={1.5}
+          strokeWidth={strokeWidth}
         />
       ) : (
         <polygon
           fill={background}
           points={SHAPE_POINTS[shape](width, height)}
           stroke={border}
-          strokeWidth={1.5}
+          strokeWidth={strokeWidth}
         />
       )}
     </svg>
@@ -177,7 +179,13 @@ export function ModuleNode({data: node, selected}: ModuleNodeProps) {
         style={{
           height: boxHeight,
           ...(shape === 'rect'
-            ? {backgroundColor: background, borderColor}
+            ? {
+                backgroundColor: background,
+                borderColor,
+                ...(highlight.borderWidth != null
+                  ? {borderWidth: highlight.borderWidth}
+                  : {}),
+              }
             : {}),
         }}
       >
@@ -187,6 +195,7 @@ export function ModuleNode({data: node, selected}: ModuleNodeProps) {
             border={borderColor}
             height={boxHeight}
             shape={shape}
+            strokeWidth={highlight.state === 'match' ? 5 : 1.5}
             width={node.width}
           />
         ) : null}

@@ -36,13 +36,18 @@ export function SubsystemNode({data: node, selected}: SubsystemNodeProps) {
       data-testid="subsystem-node"
       style={{
         backgroundColor:
-          selected || highlight.state === 'active'
-            ? 'var(--color-background-support-info-subtle)'
-            : 'var(--color-background-neutral-05)',
+          highlight.state === 'active'
+            ? highlight.activeBackgroundColor
+            : selected
+              ? 'var(--color-background-support-info-subtle)'
+              : 'var(--color-background-neutral-05)',
         borderColor:
-          selected || highlight.state !== 'none'
+          selected && highlight.state === 'none'
             ? 'var(--color-border-support-info)'
-            : 'var(--color-border-neutral-10)',
+            : highlight.borderColor,
+        ...(highlight.borderWidth != null
+          ? {borderWidth: highlight.borderWidth}
+          : {}),
         height: '100%',
         width: '100%',
       }}

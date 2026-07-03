@@ -38,12 +38,11 @@ export function ContainerNode({data: node, selected}: ContainerNodeProps) {
     .filter(Boolean)
     .join(' ');
 
-  // Search highlight and selection both show the info border; search wins,
-  // then selection, then hover, then the neutral default.
+  // Search highlight wins; selection and hover fall back to info; neither → neutral.
   const borderColor =
-    highlight.state !== 'none' || selected || isHighlighted
+    (selected || isHighlighted) && highlight.state === 'none'
       ? 'var(--color-border-support-info)'
-      : 'var(--color-border-neutral-10)';
+      : highlight.borderColor;
 
   return (
     <div
@@ -60,6 +59,9 @@ export function ContainerNode({data: node, selected}: ContainerNodeProps) {
             ? highlight.activeBackgroundColor
             : 'var(--color-background-neutral-02)',
         borderColor,
+        ...(highlight.borderWidth != null
+          ? {borderWidth: highlight.borderWidth}
+          : {}),
         height: '100%',
         width: '100%',
       }}
