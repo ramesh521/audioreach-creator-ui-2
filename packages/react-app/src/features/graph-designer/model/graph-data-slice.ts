@@ -8,6 +8,7 @@ import type {StoreApi} from 'zustand';
 import {getUsecaseComponents} from '~entities/usecases';
 import {logger} from '~shared/lib/logger';
 import type {SliceStatus} from '~shared/store/global-store.types';
+import {deepEqual} from '~shared/utils/deep-equality';
 
 import type {ModuleListSlice} from './module-list-slice';
 
@@ -159,6 +160,19 @@ export function createGraphDataSlice<
       usecases: string[],
       _options?: {stagingSessionId?: string},
     ) => {
+      const current = get();
+      if (
+        current.graphDataStatus === 'ready' &&
+        current.graphData !== null &&
+        !current.isDirty &&
+        deepEqual(current.graphData.selectedUsecases, usecases)
+      ) {
+        logger.debug('graphDataSlice: loadGraphData — cache hit, skipping', {
+          action: 'loadGraphData',
+          component: 'graphDataSlice',
+        });
+        return;
+      }
       logger.debug('graphDataSlice: loadGraphData — loading', {
         action: 'loadGraphData',
         component: 'graphDataSlice',
