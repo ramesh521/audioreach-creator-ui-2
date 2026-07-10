@@ -81,7 +81,7 @@ session and passed to the backend routing algorithm on Apply Changes so the
 routing engine does not use them when generating use cases.
 
 **REQ-015** A subgraph already on the canvas is shown as **disabled** in the
-subgraph palette with a tooltip "Already in this use case". Duplicate placement
+subgraph palette with a tooltip "Already present on the canvas". Duplicate placement
 is blocked.
 
 **REQ-016a** Removing a **palette-placed** subgraph (one placed in the current
@@ -230,7 +230,9 @@ options:
 ## 8. KV assignment — existing subgraph (palette-placed)
 
 **REQ-039** When an existing subgraph is placed on the canvas, its supported
-KVs are loaded from the subgraph DTO returned with the subgraph contents.
+KVs are loaded from the subgraph DTO returned with the subgraph contents. No
+KVs are selected automatically — the user must select the desired KVs
+explicitly from the Key Configurator panel.
 
 **REQ-040** The **Key Configurator panel** for a selected existing subgraph
 shows a checklist of its supported KVs. User can select or unselect each
@@ -387,7 +389,7 @@ yet committed. A confirmation prompt is shown before discarding. On
 confirmation, a rollback request is sent to the backend, which atomically
 clears all staged changes and returns the canonical graph state. The UI updates
 to reflect that state and returns to View mode. If the user closes the project
-or navigates away while in edit mode, the same discard flow is triggered.
+the same discard flow is triggered.
 
 **REQ-062** The **"Start Graph Modification"** button is always visible in View
 mode. It is disabled with an explanatory tooltip when the Discovery Wizard or
@@ -404,6 +406,17 @@ nodes and edges simultaneously. Cascades apply per node type (see REQ-048) —
 if a parent and child are both selected, the child delete is handled as part of
 the parent cascade and is not issued as a separate operation.
 
+**REQ-069** User can copy and paste one or more components at the same
+hierarchy level. When multiple components are selected, all connections between
+the selected components are automatically included in the paste. Pasted
+components are placed at the current canvas viewport center or cursor position.
+
+**REQ-070** User can copy components from one hierarchy level (e.g., inside a
+subsystem) and paste them at a different level (e.g., outside the subsystem or
+into a different subsystem). Connections between the copied components are
+replicated in the target context where valid. Connections to components outside
+the copied selection are not carried over.
+
 ---
 
 ## 20. Visual feedback
@@ -415,9 +428,6 @@ selected use cases:
 - **Grey**: some connections to this port are on the canvas (their use cases
   are selected) and some are not (their use cases are not selected).
 - **White**: this port has no connections.
-
-When all connections to a port are deleted, the port reverts to **white**
-regardless of use case selection state.
 
 **REQ-065** All operations that require a backend call display a loading spinner
 on the affected component until the backend response is received. While a
@@ -441,17 +451,6 @@ a change history panel in edit mode.
 **REQ-068** Context menus on nodes and edges can be replaced with inline
 **quick actions** — icon buttons that appear on hover or selection — to reduce
 the number of right-click interactions required for common operations.
-
-**REQ-069** User can copy and paste one or more components at the same
-hierarchy level. When multiple components are selected, all connections between
-the selected components are automatically included in the paste. Pasted
-components are placed at the current canvas viewport center or cursor position.
-
-**REQ-070** User can copy components from one hierarchy level (e.g., inside a
-subsystem) and paste them at a different level (e.g., outside the subsystem or
-into a different subsystem). Connections between the copied components are
-replicated in the target context where valid. Connections to components outside
-the copied selection are not carried over.
 
 ---
 
