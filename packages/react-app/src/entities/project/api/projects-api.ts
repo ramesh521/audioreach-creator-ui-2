@@ -3,7 +3,10 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-import type {ProjectInfoResponseDto} from '~entities/project/model/project.dto';
+import type {
+  ProjectFilesDownload,
+  ProjectInfoResponseDto,
+} from '~entities/project/model/project.dto';
 import type {ApiResult} from '~shared/api/api-response.types';
 import {httpClient} from '~shared/api/http-client';
 
@@ -45,6 +48,64 @@ export async function closeProject(
   return httpClient.patch<void>(
     `/projects/${projectId}/disconnect-from-project`,
   );
+}
+
+/**
+ * Download all project files from the backend.
+ * The backend returns multipart/form-data with two parts:
+ *   - "workspaceFile" → the .awsp workspace file
+ *   - "acdbFile"      → the .acdb binary file
+ * processApiResponse detects the multipart content-type and returns FormData.
+ */
+export async function downloadProjectFiles(
+  projectId: string,
+): Promise<{data?: ProjectFilesDownload; message?: string; success: boolean}> {
+  try {
+    const result = await httpClient.get<FormData>(
+      `/projects/${projectId}/download-files`,
+    );
+    if (!result.success || !result.data) {
+      return {message: result.message, success: false};
+    }
+
+    const workspaceEntry = result.data.get('workspaceFile');
+    const acdbEntry = result.data.get('acdbFile');
+
+    if (!(workspaceEntry instanceof File)) {
+      return {
+        message: 'Workspace file not found in download response',
+        success: false,
+      };
+    }
+
+    if (!(acdbEntry instanceof File)) {
+      return {
+        message: 'ACDB file not found in download response',
+        success: false,
+      };
+    }
+
+    const workspaceContent = await workspaceEntry.arrayBuffer();
+
+    return {
+      data: {
+        acdbFile: {
+          content: await acdbEntry.arrayBuffer(),
+          name: acdbEntry.name,
+        },
+        workspaceFile: {
+          content: workspaceContent,
+          name: workspaceEntry.name,
+        },
+      },
+      success: true,
+    };
+  } catch (error) {
+    return {
+      message: error instanceof Error ? error.message : String(error),
+      success: false,
+    };
+  }
 }
 
 /**

@@ -14,6 +14,14 @@ export enum SessionMode {
 }
 
 /**
+ * Files returned by the backend download-files endpoint
+ */
+export interface ProjectFilesDownload {
+  acdbFile: {content: ArrayBuffer; name: string};
+  workspaceFile: {content: ArrayBuffer; name: string};
+}
+
+/**
  * Project information returned by the backend
  */
 export interface ProjectInfoResponseDto {

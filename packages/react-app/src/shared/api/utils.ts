@@ -22,6 +22,23 @@ export async function processApiResponse<T>(
     };
   }
 
+  const contentType = response.headers.get('content-type') ?? '';
+
+  if (contentType.includes('multipart/form-data')) {
+    try {
+      const formData = await response.formData();
+      // Deliberate cast: multipart endpoints return FormData, not a JSON DTO.
+      // Callers must pass T = FormData when using get<T>() against multipart endpoints.
+      return {data: formData as unknown as T, message: '', success: true};
+    } catch {
+      return {
+        errors: ['Invalid multipart response'],
+        message: 'Failed to parse multipart response',
+        success: false,
+      };
+    }
+  }
+
   try {
     // Parse the response as JSON
     return await response.json();

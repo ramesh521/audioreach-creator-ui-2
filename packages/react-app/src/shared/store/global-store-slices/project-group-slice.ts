@@ -71,5 +71,18 @@ export function createProjectGroupSlice(
         projectId,
       });
     },
+
+    updateProjectFilePath: (projectId: string, newFilePath: string): void => {
+      set({
+        openProjects: get().openProjects.map((pg) =>
+          pg.projectId === projectId ? {...pg, filePath: newFilePath} : pg,
+        ),
+      });
+      logger.debug('Project file path updated', {
+        action: 'update_project_file_path',
+        component: 'ProjectGroupSlice',
+        projectId,
+      });
+    },
   };
 }

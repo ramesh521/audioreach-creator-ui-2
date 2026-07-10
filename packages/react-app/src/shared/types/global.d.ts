@@ -4,6 +4,7 @@ import type {
   LogViewApi,
   MruStoreApi,
   ProjectContextApi,
+  SaveFileApi,
 } from '@audioreach-creator-ui/api-utils';
 
 declare global {
@@ -13,5 +14,6 @@ declare global {
     logViewApi: LogViewApi;
     mruStoreApi: MruStoreApi;
     projectContextApi: ProjectContextApi;
+    saveFileApi: SaveFileApi;
   }
 }

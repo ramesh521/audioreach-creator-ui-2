@@ -14,6 +14,7 @@ import type {
   MruProjectInfo,
   MruStoreApi,
   ProjectContextApi,
+  SaveFileApi,
 } from '@audioreach-creator-ui/api-utils';
 import {contextBridge, ipcRenderer} from 'electron';
 
@@ -99,3 +100,22 @@ const projectContextApi: ProjectContextApi = {
 };
 
 contextBridge.exposeInMainWorld('projectContextApi', projectContextApi);
+
+// Save File API
+function createMenuListener(
+  channel: string,
+): (callback: () => void) => () => void {
+  return (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on(channel, listener);
+    return () => ipcRenderer.removeListener(channel, listener);
+  };
+}
+
+const saveFileApi: SaveFileApi = {
+  onSaveAll: createMenuListener('menu:save-all'),
+  onSaveProject: createMenuListener('menu:save-project'),
+  onSaveProjectAs: createMenuListener('menu:save-project-as'),
+};
+
+contextBridge.exposeInMainWorld('saveFileApi', saveFileApi);

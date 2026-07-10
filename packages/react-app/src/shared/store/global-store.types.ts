@@ -82,4 +82,5 @@ export interface ProjectGroupSlice {
   openProjects: ProjectGroup[];
   registerProjectGroup: (projectId: string, filePath: string) => void;
   removeProjectGroup: (projectId: string) => void;
+  updateProjectFilePath: (projectId: string, newFilePath: string) => void;
 }

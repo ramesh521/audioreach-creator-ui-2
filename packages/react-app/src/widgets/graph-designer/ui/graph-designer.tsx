@@ -7,14 +7,12 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
 import {
   Clipboard,
-  Copy,
   Cpu,
   Download,
   Edit,
   FileText,
   Package,
   Redo,
-  Save,
   Search,
   Type,
   Undo,
@@ -315,7 +313,6 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
   }, [graphDataStatus, graphData, levelView, selectedUsecases, setLevelView]);
 
   // Side nav implementation
-  const hasUnsavedChanges = false; // TODO: Implement actual unsaved changes detection
   const hasSelection = (graph.modules?.length ?? 0) > 0;
   const canUndoRedo = false; // TODO: Support undo/redo stack
 
@@ -360,22 +357,6 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
 
   const sideNavItems = useMemo(
     () => [
-      // File group
-      {
-        disabled: !hasUnsavedChanges,
-        group: 'File',
-        icon: Save,
-        id: 'save',
-        label: 'Save',
-        shortcut: 'Ctrl+S',
-      },
-      {
-        group: 'File',
-        icon: Copy,
-        id: 'save-as',
-        label: 'Save As',
-        shortcut: 'Ctrl+Shift+S',
-      },
       // Edit group
       {
         disabled: !canUndoRedo,
@@ -460,7 +441,7 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
         label: 'Discovery Wizard',
       },
     ],
-    [hasUnsavedChanges, hasSelection, canUndoRedo],
+    [hasSelection, canUndoRedo],
   );
 
   const sideNavHandlers = useMemo(
@@ -514,20 +495,6 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
         });
         showToast('Redo', 'info');
       },
-      save: () => {
-        logger.info('Save action triggered', {
-          action: 'save',
-          component: 'GraphDesigner',
-        });
-        showToast('Project saved', 'success');
-      },
-      'save-as': () => {
-        logger.info('Save As action triggered', {
-          action: 'save_as',
-          component: 'GraphDesigner',
-        });
-        showToast('Save As dialog opened', 'info');
-      },
       search: () => {
         openSearch();
       },
@@ -561,13 +528,6 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
       'Ctrl+f': () => {
         openSearch();
       },
-      'Ctrl+Shift+S': () => {
-        logger.info('Save As shortcut triggered', {
-          action: 'save_as',
-          component: 'GraphDesigner',
-        });
-        showToast('Save As dialog opened', 'info');
-      },
       'Ctrl+v': () => {
         logger.info('Paste shortcut triggered', {
           action: 'paste',
@@ -576,17 +536,6 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
         showToast('Pasted from clipboard', 'success');
       },
     };
-
-    // Only add Save shortcut if there are unsaved changes
-    if (hasUnsavedChanges) {
-      shortcuts['Ctrl+s'] = () => {
-        logger.info('Save shortcut triggered', {
-          action: 'save',
-          component: 'GraphDesigner',
-        });
-        showToast('Project saved', 'success');
-      };
-    }
 
     // Only add Copy shortcut if there's a selection
     if (hasSelection) {
@@ -618,7 +567,7 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
     }
 
     return shortcuts;
-  }, [hasUnsavedChanges, hasSelection, canUndoRedo, openSearch]);
+  }, [hasSelection, canUndoRedo, openSearch]);
 
   const sideNav = useSideNav(sideNavItems, sideNavHandlers, sideNavShortcuts);
 

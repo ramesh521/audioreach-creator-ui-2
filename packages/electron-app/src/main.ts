@@ -25,7 +25,9 @@ import {setTimeout} from 'node:timers/promises';
 
 import {
   getFileModificationDateSync,
+  getSaveAsProjectFilePath,
   openProjectFile,
+  saveProjectFile,
   saveValidationResults,
   showProjectInExplorer,
 } from './project-file-api';
@@ -50,7 +52,35 @@ function createApplicationMenu(): void {
   // File menu
   template.push({
     label: 'File',
-    submenu: [isMac ? {role: 'close'} : {role: 'quit'}],
+    submenu: [
+      ...(hasActiveProject
+        ? [
+            {
+              accelerator: 'CmdOrCtrl+S',
+              click: () => {
+                win.webContents.send('menu:save-project');
+              },
+              label: 'Save',
+            },
+            {
+              accelerator: 'CmdOrCtrl+Shift+S',
+              click: () => {
+                win.webContents.send('menu:save-project-as');
+              },
+              label: 'Save As...',
+            },
+            {
+              accelerator: 'CmdOrCtrl+Shift+A',
+              click: () => {
+                win.webContents.send('menu:save-all');
+              },
+              label: 'Save All',
+            },
+            {type: 'separator' as const},
+          ]
+        : []),
+      isMac ? {role: 'close' as const} : {role: 'quit' as const},
+    ],
   });
 
   // View menu with log view toggle
@@ -275,6 +305,23 @@ ipcMain.handle(
         response = saveFileResponse.response;
         data = saveFileResponse.data;
         break;
+      case ApiRequest.SaveProjectFile: {
+        const saveProjectResponse = await saveProjectFile(
+          args.data.projectFiles,
+        );
+        response = saveProjectResponse.response;
+        data = saveProjectResponse.data;
+        break;
+      }
+      case ApiRequest.GetSaveAsProjectFilePath: {
+        const getPathResponse = await getSaveAsProjectFilePath(
+          win,
+          args.data.defaultPath,
+        );
+        response = getPathResponse.response;
+        data = getPathResponse.data;
+        break;
+      }
       default:
         response = 'Unknown request type';
     }

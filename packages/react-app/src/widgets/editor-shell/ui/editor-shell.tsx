@@ -5,8 +5,13 @@
 
 import {useEffect, useRef} from 'react';
 
+import {createPortal} from 'react-dom';
+
+import {ProgressRing} from '@qualcomm-ui/react/progress-ring';
+
 import {useLogView} from '~features/log-view';
 import {PanelIconBar} from '~features/panel-collapse';
+import {useProjectSaver} from '~features/project-operations';
 import {ConfigFileManager} from '~shared/config/config-manager';
 import {ArcSideNav} from '~shared/controls/arc-side-nav';
 import {GlobalToaster} from '~shared/controls/global-toaster';
@@ -18,6 +23,7 @@ import {logger} from '~shared/lib/logger';
 import {useKeyboardShortcuts} from '~shared/lib/side-nav';
 import {Theme, useTheme} from '~shared/providers/theme-provider';
 import {AppTabEntity, useProjectLayoutStore} from '~shared/store';
+import {useGlobalStore} from '~shared/store/global-store';
 import {TabGroupType} from '~shared/store/project-layout.types';
 import {useKeyConfiguratorView} from '~widgets/key-configurator-panel';
 import ProjectLayoutManager from '~widgets/project-layout/project-layout-manager';
@@ -77,6 +83,54 @@ export const EditorShell: React.FC = () => {
   const {isLogViewOpen, toggleLogView} = useLogView();
   const {isKeyConfiguratorViewOpen, toggleKeyConfiguratorView} =
     useKeyConfiguratorView();
+  const {isSaving, saveAllProjects, saveProject, saveProjectAs} =
+    useProjectSaver();
+
+  // Set up IPC listeners for Save, Save As, and Save All
+  useEffect(() => {
+    if (!window.saveFileApi) {
+      return;
+    }
+
+    const getActiveProject = () => {
+      const state = useGlobalStore.getState();
+      const activeId = state.activeProjectId;
+      if (!activeId) {
+        return null;
+      }
+      const projectGroup = state.openProjects.find(
+        (p) => p.projectId === activeId,
+      );
+      return projectGroup ? {activeId, projectGroup} : null;
+    };
+
+    const unsubscribeSaveProject = window.saveFileApi.onSaveProject(() => {
+      const active = getActiveProject();
+      if (!active) {
+        return;
+      }
+      void saveProject(active.activeId, active.projectGroup.filePath);
+    });
+
+    const unsubscribeSaveProjectAs = window.saveFileApi.onSaveProjectAs(() => {
+      const active = getActiveProject();
+      if (!active) {
+        return;
+      }
+      void saveProjectAs(active.activeId, active.projectGroup.filePath);
+    });
+
+    const unsubscribeSaveAll = window.saveFileApi.onSaveAll(
+      () => void saveAllProjects(),
+    );
+
+    return () => {
+      unsubscribeSaveProject();
+      unsubscribeSaveProjectAs();
+      unsubscribeSaveAll();
+    };
+  }, [saveProject, saveProjectAs, saveAllProjects]);
+
   // Set up IPC listener for log view toggle from menu
   useEffect(() => {
     if (!window.logViewApi) {
@@ -269,6 +323,40 @@ export const EditorShell: React.FC = () => {
 
   return (
     <SideNavProvider>
+      {isSaving &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm"
+            style={{
+              backgroundColor:
+                'color-mix(in oklab, var(--color-surface-overlay) 50%, transparent)',
+            }}
+          >
+            <div
+              className="rounded-lg p-8 shadow-xl"
+              style={{backgroundColor: 'var(--color-surface-raised)'}}
+            >
+              <div className="text-center">
+                <div className="mb-4 flex justify-center">
+                  <ProgressRing />
+                </div>
+                <div
+                  className="mb-2 text-lg font-semibold"
+                  style={{color: 'var(--color-text-neutral-primary)'}}
+                >
+                  Saving...
+                </div>
+                <div
+                  className="text-sm"
+                  style={{color: 'var(--color-text-neutral-secondary)'}}
+                >
+                  Please wait...
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
       <EditorShellContent />
     </SideNavProvider>
   );

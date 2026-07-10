@@ -10,6 +10,8 @@ export enum ApiRequest {
   OpenProjectFile = 'open-project-file',
   ShowProjectFileInExplorer = 'show-project-file-in-explorer',
   SaveValidationResults = 'save-validation-results',
+  SaveProjectFile = 'save-project-file',
+  GetSaveAsProjectFilePath = 'get-save-as-project-file-path',
 }
 
 /**
@@ -85,4 +87,11 @@ export interface LogViewApi {
 /** Project Context API exposed to renderer process */
 export interface ProjectContextApi {
   setProjectContext: (isActive: boolean) => Promise<void>;
+}
+
+/** Save File API exposed to renderer process */
+export interface SaveFileApi {
+  onSaveAll: (callback: () => void) => () => void;
+  onSaveProject: (callback: () => void) => () => void;
+  onSaveProjectAs: (callback: () => void) => () => void;
 }

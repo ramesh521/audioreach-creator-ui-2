@@ -61,9 +61,53 @@ export type SaveValidationResultsApiRequest = {
   requestType: ApiRequest.SaveValidationResults;
 };
 
+/** A single file to be written to disk */
+export interface ProjectFile {
+  /** Binary content of the file */
+  fileContent: Uint8Array;
+  /** Filename e.g. "project.awsp" or "project.acdb" */
+  fileName: string;
+  /** Absolute path to write the file.
+   *  Optional — Electron computes it for secondary files (e.g. .acdb). */
+  filePath?: string;
+}
+
+/** Request to save project files to disk (used for both Save and Save As) */
+export interface SaveProjectFilesRequest {
+  projectFiles: ProjectFile[];
+}
+
+export interface GetSaveAsProjectFilePathRequest {
+  /** Default path pre-filled in the save dialog */
+  defaultPath?: string;
+}
+
+export interface GetSaveAsProjectFilePathResponseData {
+  cancelled?: boolean;
+  error?: string;
+  /** The path the user confirmed in the save dialog */
+  filePath?: string;
+}
+
+export type GetSaveAsProjectFilePathApiRequest = {
+  data: GetSaveAsProjectFilePathRequest;
+  requestType: ApiRequest.GetSaveAsProjectFilePath;
+};
+
+export interface SaveProjectFileResponseData {
+  error?: string;
+}
+
+export type SaveProjectFileApiRequest = {
+  data: SaveProjectFilesRequest;
+  requestType: ApiRequest.SaveProjectFile;
+};
+
 /** The superset of all File Property Requests */
 export type ProjectFileApiRequestTypes =
   | GetProjectFileModificationDateRequest
   | OpenProjectFileRequest
   | ShowProjectInExplorerRequest
-  | SaveValidationResultsApiRequest;
+  | SaveValidationResultsApiRequest
+  | SaveProjectFileApiRequest
+  | GetSaveAsProjectFilePathApiRequest;
