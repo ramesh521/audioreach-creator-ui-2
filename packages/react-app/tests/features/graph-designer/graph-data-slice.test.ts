@@ -186,3 +186,51 @@ describe('createGraphDataSlice — Subsystem.subgraphs population (B5)', () => {
     expect(subsystem?.subgraphs).toHaveLength(0);
   });
 });
+
+describe('createGraphDataSlice — ModuleInstance ckvs/tags (D1)', () => {
+  const ckv = {
+    keyValueCollection: [],
+    supportedParameters: [],
+    systemId: 'ckv-1',
+  };
+  const tag = {
+    systemId: 'tag-1',
+    tagId: 1,
+    tagName: 'tag',
+    tkvs: [],
+  };
+
+  it('populates ckvs and tags from the module DTO when present', async () => {
+    const dtoWithCkvsTags = {
+      ...minimalDto,
+      spfModules: [{...minimalDto.spfModules[0], ckvs: [ckv], tags: [tag]}],
+    };
+    const store = makeStore([]);
+    mockGetUsecaseComponents.mockResolvedValueOnce({
+      data: dtoWithCkvsTags as never,
+      message: undefined,
+      success: true,
+    });
+
+    await store.getState().loadGraphData(['uc-1']);
+
+    const instance = store.getState().graphData?.moduleInstances['sys-mod-1'];
+    expect(instance?.ckvs).toEqual([ckv]);
+    expect(instance?.tags).toEqual([tag]);
+  });
+
+  it('leaves ckvs and tags undefined when absent on the module DTO', async () => {
+    const store = makeStore([]);
+    mockGetUsecaseComponents.mockResolvedValueOnce({
+      data: minimalDto as never,
+      message: undefined,
+      success: true,
+    });
+
+    await store.getState().loadGraphData(['uc-1']);
+
+    const instance = store.getState().graphData?.moduleInstances['sys-mod-1'];
+    expect(instance?.ckvs).toBeUndefined();
+    expect(instance?.tags).toBeUndefined();
+  });
+});

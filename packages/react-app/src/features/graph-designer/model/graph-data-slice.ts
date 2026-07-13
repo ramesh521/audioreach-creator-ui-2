@@ -5,6 +5,7 @@
 
 import type {StoreApi} from 'zustand';
 
+import type {CkvDto, TagInfoDto} from '~entities/spf-module-data';
 import {getUsecaseComponents} from '~entities/usecases';
 import {logger} from '~shared/lib/logger';
 import type {SliceStatus} from '~shared/store/global-store.types';
@@ -22,6 +23,7 @@ export interface Port {
 }
 
 export interface ModuleInstance {
+  ckvs?: CkvDto[];
   containerId: string;
   diffChangedFields?: string[];
   diffState?: DiffState;
@@ -34,6 +36,7 @@ export interface ModuleInstance {
   outputPorts: Port[];
   position: {x: number; y: number};
   subgraphId: string;
+  tags?: TagInfoDto[];
 }
 
 export interface Connection {
@@ -263,6 +266,12 @@ export function createGraphDataSlice<
           const diffState = toDiffState(m.changeInfo?.changeType);
           if (diffState) {
             instance.diffState = diffState;
+          }
+          if (m.ckvs) {
+            instance.ckvs = m.ckvs;
+          }
+          if (m.tags) {
+            instance.tags = m.tags;
           }
           moduleInstances[m.systemId] = instance;
         }

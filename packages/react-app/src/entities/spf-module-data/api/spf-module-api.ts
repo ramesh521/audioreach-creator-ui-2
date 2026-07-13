@@ -34,9 +34,13 @@ export async function putCalData(
   spfModuleSystemId: string,
   ckvSystemId: string,
   payload: UpdateSpfModuleCalDataRequest,
+  paramSystemIds?: string[],
 ): Promise<ApiResult<CalDataDto>> {
+  const params = paramSystemIds?.length
+    ? `?param-system-ids=${paramSystemIds.join(',')}`
+    : '';
   return httpClient.put<CalDataDto>(
-    `/projects/${projectId}/spf-modules/${spfModuleSystemId}/cal-data/${ckvSystemId}`,
+    `/projects/${projectId}/spf-modules/${spfModuleSystemId}/cal-data/${ckvSystemId}${params}`,
     payload,
     {retries: 0},
   );

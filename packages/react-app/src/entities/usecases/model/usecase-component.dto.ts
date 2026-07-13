@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+import type {CkvDto, TagInfoDto} from '~entities/spf-module-data';
+
 export type PortIOType = 'Input' | 'Output';
 export type PortType = 'Static' | 'Dynamic';
 export type ConnectionType =
@@ -53,6 +55,7 @@ export interface ControlPortDto {
 export interface SpfModuleDto {
   alias: string;
   changeInfo: ChangeInfoDto;
+  ckvs?: CkvDto[];
   containerId: number;
   controlPorts: ControlPortDto[];
   dataPorts: DataPortDto[];
@@ -67,6 +70,7 @@ export interface SpfModuleDto {
   relatedEndPointLinks: EndPointLink[];
   subgraphId: number;
   systemId: string;
+  tags?: TagInfoDto[];
 }
 
 export class KeyInfo {

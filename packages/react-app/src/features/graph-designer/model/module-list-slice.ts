@@ -39,6 +39,7 @@ export interface ModuleDefinition {
 
 export interface ModuleListSlice {
   loadModuleList: () => Promise<void>;
+  moduleDefinitionsById: Record<string, SpfModuleDefinitionResponseDto>;
   moduleList: ModuleDefinition[];
   moduleListSearchQuery: string;
   moduleListStatus: SliceStatus;
@@ -179,7 +180,16 @@ export function createModuleListSlice<S extends ModuleListSlice>(
         const allModuleTypes = [...categorySet].sort();
         const cached = filterCache.get(projectId);
 
+        const moduleDefinitionsById: Record<
+          string,
+          SpfModuleDefinitionResponseDto
+        > = {};
+        for (const dto of result.data) {
+          moduleDefinitionsById[String(dto.moduleId)] = dto;
+        }
+
         setSlice({
+          moduleDefinitionsById,
           moduleList: modules,
           moduleListStatus: 'ready',
           selectedDspTypes: cached?.dspTypes ?? allDspTypes,
@@ -202,6 +212,8 @@ export function createModuleListSlice<S extends ModuleListSlice>(
         setSlice({moduleListStatus: 'error'});
       }
     },
+
+    moduleDefinitionsById: {},
 
     moduleList: [],
 
