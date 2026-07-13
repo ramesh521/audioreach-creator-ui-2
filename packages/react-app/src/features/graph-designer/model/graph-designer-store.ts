@@ -44,6 +44,10 @@ import {createKeyConfigSlice, type KeyConfigSlice} from './key-config-slice';
 import {createModuleDataSlice, type ModuleDataSlice} from './module-data-slice';
 import {createModuleListSlice, type ModuleListSlice} from './module-list-slice';
 import {
+  createSubgraphHeaderSelectionSlice,
+  type SubgraphHeaderSelectionSlice,
+} from './subgraph-header-selection-slice';
+import {
   createSubgraphListSlice,
   type SubgraphListSlice,
 } from './subgraph-list-slice';
@@ -59,6 +63,7 @@ export type GraphDesignerStore = UsecaseSelectionSlice &
   ModuleListSlice &
   ModuleDataSlice &
   SubgraphListSlice &
+  SubgraphHeaderSelectionSlice &
   PropertiesViewSlice &
   PanelLayoutSlice &
   PanelTabRegistrySlice &
@@ -82,6 +87,7 @@ export function createGraphDesignerStore(
     ...createModuleListSlice(set, get, projectId),
     ...createModuleDataSlice(set, get, projectId),
     ...createSubgraphListSlice(set, get, projectId),
+    ...createSubgraphHeaderSelectionSlice(set, get),
     ...createPropertiesViewSlice(set),
     ...createPanelLayoutSlice(set),
     ...createPanelTabRegistrySlice(set),
