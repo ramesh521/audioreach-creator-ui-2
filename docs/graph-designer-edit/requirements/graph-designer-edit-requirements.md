@@ -7,10 +7,20 @@ is entered via a **"Start Graph Modification"** button. Edit mode is exited via
 the **"Apply Changes"** button (commits staged edits) or the **"Discard"**
 button (abandons the session).
 
+**REQ-001a** In View mode, the canvas renders use cases from the last
+selection. If no prior selection is available, the first use case in the list
+is shown. The Graph Visualizer and Log View panels are shown alongside the
+canvas.
+
 **REQ-002** In View mode, the canvas renders already-created use cases. The
 only available operation is double-clicking a module, which opens a new tab for
 cal/tag data tuning. No structural editing operations are available in View
 mode.
+
+**REQ-002a** In View mode, clicking a module, subgraph, container, or
+data/control link opens the properties panel for that component in a
+read-only view. This is separate from the double-click behavior in REQ-002,
+which opens a dedicated cal/tag tuning tab — the two interactions coexist.
 
 **REQ-003** In Edit mode, the canvas exposes: module palette, subgraph palette,
 context menus, inline connection creation, properties panel, Key Configurator
@@ -22,12 +32,13 @@ panel, Apply Changes button, Discard button.
 
 **REQ-004** User can add a module instance by dragging from the module palette
 onto any container. Multiple instances of the same module definition are
-allowed.
+allowed within a container.
 
 **REQ-005** When a module is added to a container that belongs to an existing
 subgraph, the backend is called immediately and the canvas is updated only
-after the backend confirms the change. The change propagates to all use cases
-that contain that subgraph when Apply Changes is run.
+after the backend confirms the change. If the call fails, an error toast is
+shown and no change is applied to the canvas. The change propagates to all
+use cases that contain that subgraph only when Apply Changes is run.
 
 **REQ-006** User can add a module by dragging from the module palette onto
 **empty canvas space**. This atomically auto-creates a new subgraph → new
@@ -38,11 +49,12 @@ and no change is applied to the canvas.
 **REQ-007** User can add a module by dragging it inside a subgraph but
 **outside any existing container**. The tool auto-creates a new container
 within that subgraph and places the module inside it. The canvas is updated
-only after the backend confirms.
+only after the backend confirms. If the call fails, an error toast is shown
+and no change is applied to the canvas.
 
-**REQ-008** User can delete a module instance via the context menu or the
-**Delete key**. The canvas is updated only after the backend confirms the
-deletion. On failure, an error toast is shown.
+**REQ-008** User can select and delete a module instance via the context
+menu or the **Delete key**. The canvas is updated only after the backend
+confirms the deletion. On failure, an error toast is shown.
 
 **REQ-009** When a module deletion is confirmed by the backend, the backend
 also deletes all links connected to that module. The UI must remove those links
@@ -51,9 +63,13 @@ from the canvas in the same response cycle to stay in sync.
 **REQ-010** User can rename a module instance via the properties panel. The
 rename is confirmed by the backend before the canvas reflects the change.
 
-**REQ-011** Dropping a module onto another module is not permitted. The tool
-must reject such a drop at the drag-and-drop level and provide a visual
-indicator that the target is invalid.
+**REQ-011** Dropping a module onto another module, onto a subgraph proxy
+node, or onto a subsystem node is not permitted. The tool must reject such
+a drop at the drag-and-drop level and provide a visual indicator that the
+target is invalid. (Dropping a module onto a subsystem while the canvas is
+in subsystem mode is separately covered by REQ-047's palette-disable, but
+the rejection here also applies in raw mode, where the subsystem node is
+still on canvas and the module palette is not disabled.)
 
 ---
 
@@ -80,9 +96,15 @@ backend — the connection remains in the graph. Excluded links are tracked per
 session and passed to the backend routing algorithm on Apply Changes so the
 routing engine does not use them when generating use cases.
 
+**REQ-014a** Once a connection is excluded per REQ-014, it is removed from the
+visual canvas. It remains tracked in session state (per REQ-014) and is
+included in the Apply Changes payload — only its on-canvas rendering is
+affected.
+
 **REQ-015** A subgraph already on the canvas is shown as **disabled** in the
 subgraph palette with a tooltip "Already present on the canvas". Duplicate placement
-is blocked.
+is blocked. Palette ordering is unaffected — disabled entries are shown
+greyed-out in their existing list position rather than sorted to the bottom.
 
 **REQ-016a** Removing a **palette-placed** subgraph (one placed in the current
 session via the subgraph palette) from the canvas is a UI cache delete only —
@@ -90,15 +112,20 @@ no backend call is made, since the placement was never staged to the backend.
 
 **REQ-016b** Removing a **pre-loaded** subgraph (one that was part of the
 selected use case when edit mode was entered) from the canvas stages a delete
-to the backend immediately. The canvas is updated only after the backend
+to the backend immediately, via the same delete call used for REQ-016c. The
+backend cascades the deletion to all of the subgraph's containers, modules,
+and links atomically. The canvas is updated only after the backend
 confirms. On Apply Changes, the routing algorithm accounts for this deletion
 and impacts all use cases that contained this subgraph.
 
 **REQ-016c** Deleting a **newly created subgraph** (created in this session,
-e.g., via drag-to-empty-space) cascades to remove all its containers, modules,
-and associated links atomically. This can be triggered via context menu or the
-**Delete key**. The canvas is updated only after the backend confirms the
-entire deletion. On failure, an error toast is shown and no change is applied.
+e.g., via drag-to-empty-space) stages the same delete call as REQ-016b. The
+backend cascades the deletion to all of the subgraph's containers, modules,
+and links atomically — there is no separate cascade-specific endpoint; both
+provenances delete identically from the frontend's perspective. This can be
+triggered via context menu or the **Delete key**. The canvas is updated only
+after the backend confirms the entire deletion. On failure, an error toast is
+shown and no change is applied.
 
 **REQ-017** User can rename a subgraph via the properties panel. The rename is
 confirmed by the backend before the canvas reflects the change.
@@ -107,9 +134,13 @@ confirmed by the backend before the canvas reflects the change.
 module onto empty canvas space, which auto-creates a new subgraph, container,
 and module instance). There is no explicit standalone "add subgraph" action.
 
-**REQ-019** Dropping a subgraph inside an existing subgraph is not permitted.
-The tool must reject such a drop at the drag-and-drop level and provide a
-visual indicator that the target is invalid.
+**REQ-019** Dropping a subgraph onto an existing subgraph, onto any of that
+subgraph's contents (containers or modules), or onto a subgraph proxy node,
+is not permitted. The tool must reject such a drop at the drag-and-drop
+level and provide a visual indicator that the target is invalid. (Dropping a
+subgraph onto a subsystem is separately prevented by REQ-047, since the
+subgraph palette is disabled entirely while the canvas is in subsystem
+mode.)
 
 ---
 
@@ -259,11 +290,15 @@ Changes is triggered.
 ## 10. Apply Changes
 
 **REQ-044** An "Apply Changes" button is visible in edit mode and disabled
-while an Apply is in-flight.
+while an Apply is in-flight, or while any other staged operation
+(module/subgraph/link/etc. add, delete, rename, port-count change) is still
+awaiting backend confirmation — see `core-edit-session-design.md`'s
+`pendingEntityIds` mechanism (REQ-065).
 
 **REQ-045** Apply sends the following to the backend routing endpoint: the
 selected use cases, any excluded data/control links from the current session
-(REQ-014), and the selected KV assignments for all subgraphs on canvas.
+(REQ-014), the selected KV assignments for all subgraphs on canvas, and the
+assigned Keys for all subsystems on canvas (REQ-071).
 
 **REQ-046** On Apply success, the backend returns a **modification summary**.
 The UI displays this summary to the user. On failure, the failure details are
@@ -276,6 +311,17 @@ shown within the summary view rather than as a toast notification.
 **REQ-047** Dragging and dropping subgraphs from the subgraph palette is
 **not permitted when the canvas is in subsystem mode**. Palette items are shown
 as disabled in subsystem mode with a tooltip explaining the restriction.
+
+> **Dependency note:** "Subsystem mode" vs. "raw mode" is a pre-existing
+> display toggle (subsystem mode shows subsystems for the selected use
+> cases; raw mode hides all subsystems even if present) that applies to both
+> View and Edit mode — it is not introduced by this feature. As of this
+> writing, the toggle is not yet implemented in code (no consuming
+> state/UI/canvas-filtering logic exists; the closest analogs are two
+> unwired preference fields, `visualization.simplifySubsystems` and
+> `usecases.mode`). Building that toggle is **out of scope** for Graph
+> Designer Edit — this feature only consumes whatever state it exposes once
+> built elsewhere.
 
 ---
 
@@ -346,6 +392,30 @@ controlled by user preference:
 - **Virtual connection view**: shows a single logical connection line hiding
   the intermediate complexity.
 
+**REQ-072** User can right-click any module and select **"Offload to other
+DSP"** from the context menu, then choose the target DSP from a list of
+available DSPs. The tool calls a new backend API for this operation:
+- **First offload of this module**: the backend inserts a new IPC TX module
+  (before the offloaded module, on its original DSP) and a new IPC RX module
+  (after it, on the target DSP), reassigns the offloaded module's container
+  to one associated with the target DSP, and reroutes any existing links
+  connected to the module through the new IPC TX/RX pair.
+- **Re-offloading a module that already has an IPC TX/RX pair from a prior
+  offload** (including offloading it back to its original DSP): the backend
+  updates the existing IPC TX/RX pair in place to reflect the new target
+  DSP, rather than inserting an additional pair or deleting and recreating
+  one. There is no dedicated "un-offload" action — offloading back to the
+  original DSP is the same action, targeting that DSP.
+- In both cases, the backend returns a component collection describing
+  everything added/changed (new or updated IPC modules, new/rerouted links,
+  new container assignment), and the UI updates in the same response cycle.
+- This follows the same backend-driven intermediate-insertion pattern as
+  REQ-027/055. The IPC TX/RX modules are subject to REQ-055's
+  Expanded/Virtual display-mode preference, the same as other cross-DSP
+  bridge modules.
+- The canvas is updated only after the backend confirms. On failure, an
+  error toast is shown and no change is applied.
+
 ---
 
 ## 16. Subgraph proxy node operations
@@ -387,9 +457,11 @@ are unavailable.
 edit session. Changes made during the session are staged to the backend but not
 yet committed. A confirmation prompt is shown before discarding. On
 confirmation, a rollback request is sent to the backend, which atomically
-clears all staged changes and returns the canonical graph state. The UI updates
-to reflect that state and returns to View mode. If the user closes the project
-the same discard flow is triggered.
+clears all staged changes; the rollback response itself carries no graph
+payload. The tool returns to View mode, and the View-mode session fetches the
+components for the currently selected use cases fresh from the backend and
+renders them. If the user closes the project the same discard flow is
+triggered.
 
 **REQ-062** The **"Start Graph Modification"** button is always visible in View
 mode. It is disabled with an explanatory tooltip when the Discovery Wizard or
@@ -417,6 +489,14 @@ into a different subsystem). Connections between the copied components are
 replicated in the target context where valid. Connections to components outside
 the copied selection are not carried over.
 
+> **Copyable node types (clarified):** REQ-069/070 apply to modules,
+> containers, and **subgraphs**. Pasting a subgraph creates a brand-new
+> backend subgraph populated with the copied contents (containers, modules,
+> internal links) — it does not reference or alias the original subgraph.
+> The pasted subgraph has the same provenance as any other session-created
+> subgraph (see REQ-006/REQ-018). Subsystems are not a copyable unit — they
+> only appear in these requirements as the *context* pasted into or out of.
+
 ---
 
 ## 20. Visual feedback
@@ -440,17 +520,21 @@ spinner is active, the component is not interactive.
 **REQ-066** The backend returns a `changeId` with each successful staged edit
 response.
 
-**REQ-067** The frontend maintains a `changeId` stack and exposes undo/redo via
-a change history panel in edit mode.
+**REQ-067** *(Out of scope for the current design pass — deferred to a
+future enhancement once its own requirements are defined.)* The frontend
+maintains a `changeId` stack and exposes undo/redo via a change history
+panel in edit mode.
 
 > **Open design problem:** Session-local palette subgraph placements have no
 > backend `changeId`. Including them in the undo/redo stack requires either a
 > client-side undo layer or staging palette drops to the backend on drop. This
 > must be resolved before the undo/redo milestone is planned.
 
-**REQ-068** Context menus on nodes and edges can be replaced with inline
-**quick actions** — icon buttons that appear on hover or selection — to reduce
-the number of right-click interactions required for common operations.
+**REQ-068** *(Out of scope for the current design pass — deferred to a
+future enhancement, same treatment as REQ-067.)* Context menus on nodes and
+edges can be replaced with inline **quick actions** — icon buttons that
+appear on hover or selection — to reduce the number of right-click
+interactions required for common operations.
 
 ---
 
@@ -466,3 +550,11 @@ the number of right-click interactions required for common operations.
   outside the staged-edit workflow.
 - **Excluded links API**: DTO shape for passing excluded link identifiers to
   the routing algorithm on Apply Changes (REQ-014).
+- **Batch/multi-entity creation for paste**: REQ-069/070 (copy/paste) can
+  create many entities in one user action — multiple modules/containers plus
+  their inter-connections, or a full subgraph snapshot (containers, modules,
+  internal links) when a subgraph is pasted. A batch-create endpoint (or an
+  equivalent atomic multi-entity contract, mirroring REQ-006's atomic
+  subgraph+container+module creation) is needed so a paste either fully
+  succeeds or fully fails, rather than partially applying via sequential
+  single-entity calls.
