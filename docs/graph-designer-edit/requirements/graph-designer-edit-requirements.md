@@ -293,7 +293,7 @@ Changes is triggered.
 while an Apply is in-flight, or while any other staged operation
 (module/subgraph/link/etc. add, delete, rename, port-count change) is still
 awaiting backend confirmation — see `core-edit-session-design.md`'s
-`pendingEntityIds` mechanism (REQ-065).
+`isMutating` lock (REQ-065).
 
 **REQ-045** Apply sends the following to the backend routing endpoint: the
 selected use cases, any excluded data/control links from the current session
@@ -456,8 +456,8 @@ are unavailable.
 **REQ-061** The user can click the **Discard** button at any time during the
 edit session. Changes made during the session are staged to the backend but not
 yet committed. A confirmation prompt is shown before discarding. On
-confirmation, a rollback request is sent to the backend, which atomically
-clears all staged changes; the rollback response itself carries no graph
+confirmation, a discard request is sent to the backend, which atomically
+clears all staged changes; the discard response itself carries no graph
 payload. The tool returns to View mode, and the View-mode session fetches the
 components for the currently selected use cases fresh from the backend and
 renders them. If the user closes the project the same discard flow is
@@ -540,16 +540,30 @@ interactions required for common operations.
 
 ## Open items (TBD with backend team)
 
-- **API contracts**: endpoint paths and DTO shapes for all staging operations,
-  subgraph palette placement content fetch, subgraph-pairs API, atomic
-  new-subgraph creation, KV/CKV/TKV staging, port count changes, routing
-  apply, session discard/rollback, and undo/redo restore.
-- **Subsystem CRUD backend API**: endpoint shapes for add, delete, rename,
-  subgraph assignment, and expand (REQ-032) operations.
+- **API contracts still unconfirmed**: module/container/subgraph/subsystem
+  add/delete/rename/move/expand (Section 2–4, 6), port count changes
+  (REQ-033–037), CKV/TKV staging (REQ-053), DSP offload (REQ-072), and
+  `SubgraphPairDto`'s field shape (REQ-013 — the endpoint path is
+  confirmed, but the DTO is currently an empty placeholder in the API
+  spec). See each design doc's own "Open Items Inherited" for detail.
+  **Resolved, no longer open**: subgraph palette placement content fetch
+  (REQ-012, `getSubgraphContents` → `GET /subgraphs/{id}/components`),
+  subgraph-pairs API path (REQ-013 → `GET /subgraphs/{id}/subgraph-pairs`),
+  Apply Changes / routing (REQ-044–046 → `POST /projects/{id}/usecases`,
+  `CreateUsecasesRequestDto`/`CreateUsecasesResponseDto`), session discard
+  (REQ-061 → `POST /projects/{id}/discard-changes`,
+  `DiscardChangesRequestDto`/`DiscardChangesResponseDto`), and excluded
+  links (REQ-014 → `excludedDataLinkSystemIds`/`excludedControlLinkSystemIds`
+  on the Apply Changes payload) — all confirmed in
+  `core-edit-session-design.md`. Undo/redo restore remains out of scope
+  per REQ-067 and is not designed here regardless of contract status.
+- **Subsystem Keys assignment (REQ-071) has no backend contract at all** —
+  not merely an unconfirmed path/DTO on an otherwise-real endpoint; no
+  endpoint in the current API accepts this payload. See
+  `kv-key-configuration-design.md`/`core-edit-session-design.md`'s Open
+  Items.
 - **Position persistence**: mechanism for persisting layout overrides (REQ-059)
   outside the staged-edit workflow.
-- **Excluded links API**: DTO shape for passing excluded link identifiers to
-  the routing algorithm on Apply Changes (REQ-014).
 - **Batch/multi-entity creation for paste**: REQ-069/070 (copy/paste) can
   create many entities in one user action — multiple modules/containers plus
   their inter-connections, or a full subgraph snapshot (containers, modules,

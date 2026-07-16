@@ -126,7 +126,7 @@ This document designs only the consuming side:
 // 'subsystem' so the palette is never spuriously disabled — do not block
 // on the toggle's own delivery.
 const isRawMode = useSubsystemDisplayMode() === 'raw';
-const isDuplicatePlacement = placedSubgraphDefIds.has(item.subgraphDefId); // REQ-015, node-operations-design.md
+const isDuplicatePlacement = placedSubgraphIds.has(item.subgraphId); // REQ-015, node-operations-design.md
 
 const disabled = isRawMode || isDuplicatePlacement;
 const tooltip = isRawMode
@@ -147,10 +147,11 @@ drag payload does exist and REQ-011 must reject it.) If a future change
 makes subsystem-mode toggling possible mid-drag, this assumption would
 need revisiting, but no such case exists today.
 
-**REQ-015 — duplicate-placement guard.** `placedSubgraphDefIds` is a
-derived read from `GraphDataSlice`, computed by comparing subgraph
-*definition* ID (not node ID) against currently-placed subgraph nodes — see
-`node-operations-design.md` for the derivation. This section owns only the
+**REQ-015 — duplicate-placement guard.** `placedSubgraphIds` is a
+derived read from `GraphDataSlice`, comparing the palette entry's own
+`subgraphId` against currently-placed subgraph nodes' `subgraphId` — there
+is no separate definition ID for subgraphs, unlike modules (see
+`node-operations-design.md` for why). This section owns only the
 palette's rendering of the disabled state and tooltip text.
 
 ---
@@ -328,6 +329,7 @@ function deleteByType(item: Selectable): Promise<void> {
 }
 
 function deleteSelection(selection: Selectable[]): Promise<void> {
+  if (get().mode !== 'edit') return Promise.resolve(); // Delete key fires in View mode too (REQ-063) — no-op, not an error
   if (get().isMutating) return Promise.resolve(); // core-edit-session-design.md — no-op while a mutation is already in flight
   const selectedNodes = selection.filter((item) => item.kind !== 'edge');
   const roots = selectedNodes.filter(
@@ -355,11 +357,16 @@ internal `Promise.all` over multiple roots is one mutation from
 `isMutating`'s perspective — this is intentional concurrency *within* one
 locked operation, not a violation of the "one mutation at a time" rule,
 which only prevents a *second, independently-triggered* action from
-starting before this one finishes. The top-of-function `isMutating` check
-additionally guards against the Delete key itself being pressed again (or
-the context-menu Delete clicked) while a previous batch — or any other
-edit — is still in flight; REQ-050's Delete-key/context-menu parity means
-both entry points reach this same guarded function.
+starting before this one finishes. The top-of-function `mode`/`isMutating`
+checks additionally guard against the Delete key being pressed in View
+mode, or pressed again (or the context-menu Delete clicked) while a
+previous batch — or any other edit — is still in flight; REQ-050's
+Delete-key/context-menu parity means both entry points reach this same
+guarded function. The `mode` check here is a plain no-op, not the thrown
+error `withMutationLock` uses (`core-edit-session-design.md`) — pressing
+Delete on a View-mode selection is an expected, normal user action
+(REQ-063 explicitly permits selection in View mode), not a bug, so it
+must fail silently rather than surface an error.
 
 Pure client-side filtering logic — no new backend contract; each root's
 delete call already cascades to its selected descendants per
@@ -418,17 +425,40 @@ position differently:
   the exact point that was right-clicked to open the menu — the same
   coordinate the context menu itself is anchored to.
 
+**Both entry points call one shared `pasteSelection` function, guarded on
+`mode` the same way `deleteSelection` is.** Ctrl+V is a global `keydown`
+listener like the Delete key (`Multi-Select & Batch Delete`, above) —
+copying is harmless in View mode (REQ-069/070 don't restrict Copy to Edit
+mode), but Paste ultimately calls the same mutating actions
+(`createModuleWithAutoCreate`, `pasteSubgraphFromSnapshot`, etc.) that
+route through `withMutationLock` (`core-edit-session-design.md`), which
+throws if `mode !== 'edit'` on the assumption that only an already
+Edit-mode-gated UI surface could reach it. A stray Ctrl+V in View mode is
+exactly the same "normal user action, not a bug" case as Delete, so it
+needs the same no-op guard at its own entry point rather than surfacing
+that thrown error:
+
+```typescript
+function pasteSelection(position: XY): Promise<void> {
+  if (get().mode !== 'edit') return Promise.resolve(); // Ctrl+V fires in View mode too — no-op, not an error, same as deleteSelection
+  // ...target resolution and dispatch, below
+}
+```
+
 **Target container/subgraph resolution.** Once a raw `(x, y)` is chosen by
 either trigger, the paste target is resolved the same way a drag-drop
 target is (see [Shared Drag-and-Drop Validation](#shared-drag-and-drop-validation)
 above): a hit-test against on-canvas node bounding boxes at that point. If
 the point falls inside a container, modules paste into that container; if
 inside a subgraph but outside any container, REQ-007's
-`createContainerWithModule` semantics apply; if on empty canvas space,
-REQ-006's `createSubgraphWithModule` semantics apply (mirrored below for
-paste). This reuses the exact target-classification the drop-validation
-table already defines — paste does not introduce a second hit-testing
-mechanism.
+`createModuleWithAutoCreate` (with `existingSubgraphId` set) semantics
+apply; if on empty canvas space, REQ-006's `createModuleWithAutoCreate`
+(both IDs omitted) semantics apply (mirrored below for paste) — see
+`node-operations-design.md`'s [Sequence: Module Drop on Empty
+Canvas](../design/node-operations-design.md#sequence-module-drop-on-empty-canvas)
+for the real two-round-trip flow this now implies. This reuses the exact
+target-classification the drop-validation table already defines — paste
+does not introduce a second hit-testing mechanism.
 
 **Copyable node types: modules, containers, and subgraphs.** Subsystems are
 not a copyable unit — they appear in REQ-070 only as the *context* pasted
@@ -443,17 +473,17 @@ interface ClipboardBuffer {
 
 **Paste behavior branches by node type:**
 
-- **Modules/containers**: replay the existing add-module/add-container
-  actions (`node-operations-design.md`) per pasted instance, targeting the
+- **Modules/containers**: replay the existing add-module action
+  (`node-operations-design.md`'s `addModuleInstance`/
+  `createModuleWithAutoCreate`) per pasted instance, targeting the
   container/subgraph the paste lands in. If the paste position lands on
   **empty canvas space** rather than an existing container/subgraph, this
-  mirrors REQ-006's behavior — the same atomic
-  `createSubgraphWithModule`/`createContainerWithModule` actions run,
-  creating whatever intermediate structure (subgraph, container) is needed
-  to place the pasted node(s), rather than being disallowed. Inter-
-  connections from the snapshot are recreated via the existing
-  link-creation action (`link-and-port-design.md`) once the pasted nodes
-  exist.
+  mirrors REQ-006's behavior — `createModuleWithAutoCreate` runs (with its
+  own module-create-then-query flow, per that section), creating whatever
+  intermediate structure (subgraph, container) is needed to place the
+  pasted node(s), rather than being disallowed. Inter-connections from the
+  snapshot are recreated via the existing link-creation action
+  (`link-and-port-design.md`) once the pasted nodes exist.
 - **Subgraphs**: pasting a subgraph creates a **brand-new** backend
   subgraph populated with the copied contents — it does not alias or
   reference the original:
@@ -463,15 +493,20 @@ interface ClipboardBuffer {
     snapshot: {containers: Container[]; modules: ModuleInstance[]; links: Connection[]},
     position: XY,
   ): Promise<ComponentCollectionDto>
-  // collection.added = {subgraphs: [subgraph], containers, modules, links}
+  // collection.spfModules = every pasted module, changeType: 'CREATE',
+  //   each carrying its new subgraphId/containerId — subgraph/container
+  //   are derived from these, same as REQ-006 (core-edit-session-design.md)
+  // collection.dataLinks/controlLinks = the recreated internal connections, changeType: 'CREATE'
   ```
 
-  Parallel to REQ-006's `createSubgraphWithModule`, but accepting a full
+  Parallel to REQ-006's `createModuleWithAutoCreate`, but accepting a full
   snapshot instead of a single module, and merged the same way — via
-  `applyComponentCollection` (`core-edit-session-design.md`). The caller
-  stamps `provenance: 'newly-created'` (`node-operations-design.md`) on the
-  returned subgraph before passing the collection to the reconciler, the
-  same as drag-to-empty-space.
+  `applyComponentCollection` (`core-edit-session-design.md`), which derives
+  the new subgraph/containers purely from the pasted modules' own fields.
+  The caller stamps `provenance: 'newly-created'`
+  (`node-operations-design.md`) into `EditSessionSlice.subgraphProvenanceById`
+  for the new subgraph ID before passing the collection to the reconciler,
+  the same as drag-to-empty-space.
 
 **REQ-070 — cross-level connection replication.** For each edge in the
 snapshot, if both endpoints were pasted, attempt to recreate it in the new
@@ -490,7 +525,7 @@ sequenceDiagram
   U->>CB: Paste (at viewport center or cursor, possibly a different hierarchy level)
   alt snapshot contains a subgraph
     CB->>B: pasteSubgraphFromSnapshot(snapshot, position)
-    B-->>CB: ComponentCollectionDto (provenance stamped 'newly-created' before merge)
+    B-->>CB: ComponentCollectionDto (pasted modules/links, each changeType: 'CREATE'; provenance stamped 'newly-created' before merge)
   else modules/containers only
     loop each node in snapshot
       CB->>B: existing add-module/add-container action

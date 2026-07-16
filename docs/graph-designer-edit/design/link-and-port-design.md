@@ -8,9 +8,9 @@ bridge connections, the proxy-node connection restriction, and DSP offload.
 All operations here assume the edit session (`core-edit-session-design.md`)
 is active and reuse the `provenance`/`excludedLinkIds` concepts from
 `node-operations-design.md`. Every backend-calling action below is wrapped
-in `core-edit-session-design.md`'s `isMutating` lock (REQ-065),
-same as every other document in this feature — stated once here, not
-repeated per operation.
+in `core-edit-session-design.md`'s `withMutationLock` (REQ-065), which also
+enforces `mode === 'edit'` — same as every other document in this feature —
+stated once here, not repeated per operation.
 
 ## Table of Contents
 
@@ -103,6 +103,8 @@ candidate port's ID, not from `LevelView`'s own (potentially partial) edge
 list. `LevelView` port data is still the source for the port's *type* and
 `maxConnections` limit — only the current-connection-count numerator must
 come from the full graph state.
+
+**REQ-025 — Escape cancels.** Clears the in-progress state to `null` inside
 the Visualizer only. No callback fires, no API call is made.
 
 **REQ-026 — cross-subgraph/subsystem/module-to-subsystem-port.** No new
@@ -134,9 +136,9 @@ sequenceDiagram
     alt matches an excluded pair-link
       O->>O: clear exclusion, re-render existing edge — no backend call
     else genuinely new connection
-      O->>B: create-link request
+      O->>B: create-link request (createDataLink or createControlLink, by payload.edgeKind)
       alt backend accepts
-        B-->>O: ComponentCollectionDto (added.links — see REQ-027 for the multi-link case)
+        B-->>O: ComponentCollectionDto (spfModules/dataLinks/controlLinks tagged CREATE — see REQ-027 for the multi-link case)
         O->>O: applyComponentCollection(collection) — core-edit-session-design.md
       else backend rejects
         Note over O: error toast, canvas unchanged
@@ -171,8 +173,11 @@ function handleEdgeConnected(payload: EdgeConnectPayload): Promise<void> {
     return Promise.resolve();
   }
 
-  // Genuinely new connection — proceed with normal link creation.
-  return createLink(payload);
+  // Genuinely new connection — proceed with normal link creation,
+  // dispatched to the data or control endpoint by payload.edgeKind.
+  return payload.edgeKind === 'control'
+    ? createControlLink(payload)
+    : createDataLink(payload);
 }
 ```
 
@@ -193,42 +198,70 @@ REQ-013's `getSubgraphPairs` response is received
 **REQ-027 — cross-subsystem bridge connections.** When the user connects a
 module inside Subsystem A to a module inside Subsystem B, the backend
 creates the full intermediate set in one response: module→A, A→B, B→module.
-`createLink`'s return type is `ComponentCollectionDto`
-(`core-edit-session-design.md`), the same shared shape every cascading
-operation in this feature uses:
+`createDataLink`/`createControlLink` (the API exposes one endpoint per
+link kind, mirroring `deleteDataLink`/`deleteControlLink`'s split, above —
+not a single unified `createLink`) return the real, confirmed
+`ComponentCollectionDto` API shape (`spfModules`/`dataLinks`/`controlLinks`,
+every affected entity self-tagged via its own `changeInfo.changeType`) —
+`core-edit-session-design.md`'s shared reconciler, not a bespoke shape per
+endpoint:
 
 ```typescript
-createLink(payload: EdgeConnectPayload): Promise<ComponentCollectionDto>
-// collection.added.links contains however many links the backend created
-// for this connection attempt — one for an ordinary link, three for a
-// cross-subsystem bridge (module→A, A→B, B→module), etc.
+createDataLink(payload: EdgeConnectPayload): Promise<ComponentCollectionDto>
+createControlLink(payload: EdgeConnectPayload): Promise<ComponentCollectionDto>
+// collection.dataLinks/controlLinks (matching payload.edgeKind) contains
+// however many links the backend created for this connection attempt —
+// one for an ordinary link, three for a cross-subsystem bridge (module→A,
+// A→B, B→module), each changeInfo.changeType: 'CREATE'
 ```
+
+**Which variant — plain vs. `-with-subsystems` — is decided once for the
+whole edit session, not per call.** Per `core-edit-session-design.md`'s
+`usesSubsystemVariant` flag (set in `enterEditMode()` from whichever
+raw/subsystem display mode was active when Edit mode started, and fixed
+for the session since that toggle can't change mid-edit),
+`createDataLink`/`createControlLink` here mean "call whichever of the two
+real endpoints for this link kind — plain or `-with-subsystems` — the
+session decided on." A cross-subsystem bridge connection (this REQ) only
+produces `subsystems`-bucket entities when the session is using the
+`-with-subsystems` variant; in the plain-variant session, the same bridge
+is still fully represented via `spfModules`/`dataLinks`/`controlLinks`
+alone (subsystem port changes simply aren't surfaced, consistent with the
+canvas not rendering subsystems in raw mode).
 
 `onEdgeConnected`'s success path is a single `applyComponentCollection`
-call regardless of how many links came back — no per-link-count branching
-needed, since the reconciler already merges whatever `added.links` contains.
+call regardless of how many links, which kind, or which variant came back
+— no per-link-count, per-kind, or per-variant branching needed beyond the
+one dispatch in `handleEdgeConnected` above, since the reconciler already
+merges whatever the response contains.
 
-**REQ-030 — link delete.** Context menu or Delete key:
+**REQ-030 — link delete.** Context menu or Delete key. The API exposes two
+separate endpoints by link kind, not one unified `deleteLink` — the
+consumer widget dispatches on the edge's own `connectionType` field:
 
 ```typescript
-deleteLink(linkId: string): Promise<void>
+deleteDataLink(dataLinkSystemId: string): Promise<DataLinkDto> // changeInfo.changeType: 'DELETE'
+deleteControlLink(controlLinkSystemId: string): Promise<ControlLinkDto> // changeInfo.changeType: 'DELETE'
 ```
 
-Removed from canvas only after the backend confirms. This one stays a
-narrow `Promise<void>` rather than `ComponentCollectionDto` — deleting a
-single link is not a cascade; the caller already knows the one ID to
-remove and does so directly, per `core-edit-session-design.md`'s "what does
-not go through this mechanism" note.
+Each returns the deleted link's own DTO (tagged `changeType: 'DELETE'`,
+"for undo support" per the API description — not consumed by this feature
+since undo/redo is out of scope, REQ-067), not `void` and not a
+`ComponentCollectionDto` — deleting a single link is not a cascade, so the
+response is just that one entity, confirming it's gone. The consumer
+removes the edge from `GraphDataSlice` by the returned `systemId` on
+success; on failure, toast and no change, per the standard pattern.
 
 **Pair-API-origin edges (`origin: 'pair-api'`, `node-operations-design.md`)
 show only "Exclude Link" on their context menu, not "Delete."** These edges
 represent a real, pre-existing backend connection the user did not create
 this session; REQ-014's "Exclude Link" is the only removal action offered
-for them, and it never calls `deleteLink` — it only removes the edge from
-canvas per the exclusion flow above. The generic "Delete" menu item
-(REQ-049) is suppressed for edges carrying `origin: 'pair-api'`; it remains
-available, calling `deleteLink` as normal, for every other edge (ordinary
-staged links and REQ-027's bridge-connection links).
+for them, and it never calls `deleteDataLink`/`deleteControlLink` — it only
+removes the edge from canvas per the exclusion flow above. The generic
+"Delete" menu item (REQ-049) is suppressed for edges carrying
+`origin: 'pair-api'`; it remains available, calling the appropriate delete
+endpoint as normal, for every other edge (ordinary staged links and
+REQ-027's bridge-connection links).
 
 ---
 
@@ -355,26 +388,26 @@ owns the menu itself). The tool calls a new backend endpoint:
 
 ```typescript
 offloadModuleToDsp(moduleId: string, targetDspId: string): Promise<ComponentCollectionDto>
-// first offload: collection.added = {modules: [ipcTxModule, ipcRxModule]}
-// re-offload:    collection.updated = {modules: [ipcTxModule, ipcRxModule]}
-// both cases:    collection.updated also includes the offloaded module itself
-//                (new containerId) and every rerouted link
+// collection.spfModules includes:
+//   - the offloaded module itself, changeType: 'UPDATE' (new containerId, on the target DSP)
+//   - the IPC TX module, changeType: 'CREATE' (first offload) or 'UPDATE' (re-offload)
+//   - the IPC RX module, changeType: 'CREATE' (first offload) or 'UPDATE' (re-offload)
+// collection.dataLinks/controlLinks includes every rerouted link, changeType: 'UPDATE'
 ```
 
 **The response shape does not distinguish "first offload" from
-"re-offload" at the type level — the backend just returns the current
-state of the IPC pair either way, via `ComponentCollectionDto`'s
-`added`/`updated` buckets.** Whether the backend inserted a brand-
-new IPC TX/RX pair or updated an existing one from a prior offload is a
-backend-internal decision (REQ-072's "first offload" vs. "re-offload"
-cases) that the UI does not need to branch on: `applyComponentCollection`
-(`core-edit-session-design.md`) already treats `added` and `updated` as
-the same upsert-by-ID operation, so the offloaded module's reassigned
+"re-offload" at the type level — each entity's own `changeInfo.changeType`
+already says whether it was created or updated.** Whether the backend
+inserted a brand-new IPC TX/RX pair or updated an existing one from a
+prior offload is a backend-internal decision (REQ-072's "first offload"
+vs. "re-offload" cases) that the UI does not need to branch on:
+`applyComponentCollection` (`core-edit-session-design.md`) upserts every
+module by its own `systemId` regardless of whether that entity's
+`changeType` is `CREATE` or `UPDATE` — so the offloaded module's reassigned
 container, the IPC TX/RX pair (new or revisited), and every rerouted link
-all merge in one `applyComponentCollection` call regardless of which
-bucket the backend placed them in. This mirrors REQ-027's "backend returns
-everything, UI reconciles in one shot" pattern — no bespoke upsert logic
-needed here beyond what the shared reconciler already does.
+all merge in one `applyComponentCollection` call with no special-cased
+upsert logic. This mirrors REQ-027's "backend returns everything, UI
+reconciles in one shot" pattern.
 
 ```mermaid
 sequenceDiagram
@@ -387,7 +420,7 @@ sequenceDiagram
   CM->>O: offloadModuleToDsp(moduleId, targetDspId)
   O->>B: request
   alt backend accepts
-    B-->>O: ComponentCollectionDto (IPC pair, reassigned module, rerouted links)
+    B-->>O: ComponentCollectionDto (offloaded module, IPC pair, rerouted links — each self-tagged CREATE/UPDATE)
     O->>O: applyComponentCollection(collection) — core-edit-session-design.md
   else backend rejects
     Note over O: error toast, canvas unchanged
@@ -408,14 +441,14 @@ bridge modules — no separate toggle, no separate rendering path.
 
 ## Open Items Inherited
 
-- **API contracts** for `updatePortCount`, `deleteLink`, and the
-  connection-creation endpoint behind `onEdgeConnected` — all TBD with the
-  backend team.
-- **Response shape for REQ-027's bridge-connection case** — not yet
-  defined; this document assumes a response containing an array of created
-  links but the exact DTO is unspecified.
+- **API contract for `updatePortCount`** — still TBD with the backend team;
+  no port-count-change endpoint exists in the API today, unlike link
+  create/delete which are confirmed as `POST /data-links`(`/with-subsystems`)
+  and `POST /control-links`(`/with-subsystems`).
 - **`offloadModuleToDsp` API contract** (REQ-072) — endpoint path, the list
   of "available DSPs" source (where does the target-DSP picker's list come
   from — the use case's known DSP set, presumably, but the DTO is
-  unspecified), and confirmation of the upsert-vs-insert response shape
-  above — all TBD with the backend team.
+  unspecified) — all TBD with the backend team. The response *shape* is
+  confirmed as `ComponentCollectionDto` (this document's own pattern,
+  consistent with every other structural endpoint), but this specific
+  endpoint doesn't exist in the API yet.

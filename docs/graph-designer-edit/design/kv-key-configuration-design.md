@@ -10,8 +10,9 @@ assignment for subsystems. All operations here assume the edit session
 from `node-operations-design.md`. Most assignment here is UI-only until
 Apply Changes (no backend call, so no loading state applies) — the one
 exception is CKV/TKV (REQ-053), which stages immediately and is wrapped in
-`core-edit-session-design.md`'s `isMutating` lock (REQ-065) like
-every other backend-calling action in this feature.
+`core-edit-session-design.md`'s `withMutationLock` (REQ-065), which also
+enforces `mode === 'edit'` — same as every other backend-calling action in
+this feature.
 
 ## Table of Contents
 
@@ -28,78 +29,102 @@ every other backend-calling action in this feature.
 ## KV Assignment — Existing Subgraphs
 
 **REQ-039 — loading.** Supported KVs come from the same
-`getSubgraphContents` DTO used for placement (REQ-012,
-`node-operations-design.md`) — no separate fetch. Nothing is auto-selected.
+`getSubgraphContents` response used for placement (REQ-012,
+`node-operations-design.md`) — no separate fetch:
+`SubgraphDto.SGKV: KeyValuePairsInfo[]`. Nothing is auto-selected.
 
-**REQ-040–041 — storage shape.** A bare `selectedKvIds: string[]` cannot
-represent "known but unselected" without diffing against the DTO's
-supported list externally, and that diffing breaks down entirely for
-custom/user-added KVs which aren't in the supported list at all. Instead,
-each subgraph node carries a single self-describing array:
+**SGKV is a list of selectable *cases*, not a flat list of individual
+KVs.** Each `KeyValuePairsInfo` entry is `{systemId, keyValueCollection:
+KeyValueInfo[]}` — one whole combination of Key+Value pairs
+(`KeyValueInfo = {keyInfo: KeyInfo, valueInfo: ValueInfo}`) that the
+subgraph supports as a unit. The Apply-time payload confirms this
+case-level granularity: `SubgraphKvSelectionDto.valueSystemIds:
+string[][]` is "one inner array per case, containing the value system IDs
+of the KVs active in that case" — so selection happens at the case level
+(a whole `KeyValuePairsInfo` entry is selected or not), not by toggling
+individual Key=Value pairs within a case independently. This replaces an
+earlier draft of this document that modeled `KvAssignment` as a flat
+`{key: string, value: string}` pair with its own `selected` flag — that
+doesn't match the real API, which has no per-KV-pair selection, only
+per-case.
+
+**REQ-040–041 — storage shape.** A bare `selectedCaseIds: string[]` cannot
+represent "known but unselected" without diffing against the DTO's case
+list externally, and that diffing breaks down entirely for custom/user-added
+cases which aren't in the supported list at all. Instead, each subgraph
+node carries a single self-describing array of cases:
 
 ```typescript
-interface KvAssignment {
-  id: string;
-  key: string;
-  value: string;
-  source: 'supported' | 'custom'; // from the backend DTO vs. user-added (REQ-041)
+interface KvCase {
+  id: string; // this case's own SGKV systemId if supported; a client-generated placeholder if custom (never sent to the backend as a systemId)
+  keyValuePairs: KeyValueInfo[]; // mirrors KeyValuePairsInfo.keyValueCollection — {keyInfo: KeyInfo, valueInfo: ValueInfo}[]
+  source: 'supported' | 'custom'; // from SGKV vs. user-added (REQ-041)
   selected: boolean;
 }
 
 interface Subgraph {
   // ...existing fields, including provenance...
-  kvAssignments: KvAssignment[];
+  kvCases: KvCase[];
 }
 ```
 
 **Custom KV entry is a picker against the project-wide Key/Value catalog,
-not free text.** REQ-041/043's "add a custom KV" reuses the same
-`getAllKeyDefinitions`/`GraphKey.values: KeyValue[]` catalog the CKV/TKV
-panel already uses to populate its own key/value pickers — the user picks
-a `Key` (by `name`) and then one of its `KeyValue` entries (also by
-`name`), and those two names populate `key`/`value` above. This keeps
-"custom" scoped to "not in this subgraph's `supportedKvs` list," not
-"arbitrary unvalidated string" — the Key/Value pair itself still comes from
-the same catalog every other Key-typed UI in the app draws from.
+not free text, and produces a one-pair case.** REQ-041/043's "add a custom
+KV" reuses the same `getAllKeyDefinitions`/`GraphKey.values: KeyValue[]`
+catalog the CKV/TKV panel already uses to populate its own key/value
+pickers — the user picks a `Key` and then one of its `Value` entries, and
+that single `{keyInfo, valueInfo}` pair becomes a new `KvCase` with
+exactly one entry in `keyValuePairs`. This keeps "custom" scoped to "not
+one of this subgraph's SGKV cases," not "arbitrary unvalidated string" —
+the Key/Value pair itself still comes from the same catalog every other
+Key-typed UI in the app draws from. (The requirements text's "custom KV"
+is singular by design — a custom *case* of more than one pair is not a
+REQ-041 scenario.)
 
-- **On placement (REQ-039):** `kvAssignments` is seeded from the DTO's
-  `supportedKvs`, each entry `{source: 'supported', selected: false}`.
-- **Checklist toggle (REQ-040):** flips `selected` in place. Both selected
-  and unselected entries stay visible in the same array — the checklist
-  renders directly from it, no external bookkeeping needed. UI-only, not
-  sent to the backend until Apply Changes.
-- **Custom KV add (REQ-041):** appends `{source: 'custom', selected: true}`
-  — adding a KV implies wanting it applied. UI-only, not sent until Apply.
-- **Apply Changes** (`core-edit-session-design.md`) reads
-  `kvAssignments.filter((kv) => kv.selected)` per subgraph to build its
-  payload. This single array is both the checklist's render source and the
-  Apply-time source of truth.
+- **On placement (REQ-039):** `kvCases` is seeded one-to-one from the
+  DTO's `SGKV` array, each entry `{id: kv.systemId, keyValuePairs:
+  kv.keyValueCollection, source: 'supported', selected: false}`.
+- **Checklist toggle (REQ-040):** flips `selected` in place on the whole
+  case. Both selected and unselected cases stay visible in the same array
+  — the checklist renders directly from it, no external bookkeeping
+  needed. UI-only, not sent to the backend until Apply Changes.
+- **Custom KV add (REQ-041):** appends a new one-pair case,
+  `{id: <client-generated>, keyValuePairs: [{keyInfo, valueInfo}],
+  source: 'custom', selected: true}` — adding implies wanting it applied.
+  UI-only, not sent until Apply.
+- **Apply Changes** (`core-edit-session-design.md`) builds each
+  subgraph's `SubgraphKvSelectionDto` from
+  `kvCases.filter((c) => c.selected).map((c) => c.keyValuePairs.map((p) =>
+  p.valueInfo.valueSystemId))` — one inner `string[]` per selected case,
+  listing that case's value system IDs. This single array is both the
+  checklist's render source and the Apply-time source of truth.
 
 **Custom KV removal is asymmetric by subgraph provenance.** On a
-palette-placed (existing) subgraph, a custom KV added per REQ-041 can only
-be unchecked (`selected: false`) — REQ-041 grants "add," not "remove," so
-outright deletion of the entry is not available here. This distinction is
-easy to miss from the requirements text alone and must be enforced in the
-Key Configurator panel's rendering: the delete-entry affordance on a custom
-KV row is only shown when the owning subgraph's `provenance ===
-'newly-created'` (see the next section).
+palette-placed (existing) subgraph, a custom case added per REQ-041 can
+only be unchecked (`selected: false`) — REQ-041 grants "add," not
+"remove," so outright deletion of the entry is not available here. This
+distinction is easy to miss from the requirements text alone and must be
+enforced in the Key Configurator panel's rendering: the delete-entry
+affordance on a custom case row is only shown when the owning subgraph's
+`provenance === 'newly-created'` (see the next section).
 
 ---
 
 ## KV Assignment — Newly-Created Subgraphs
 
-**REQ-042–043.** A newly-created subgraph has no backend-provided supported
-KV list — the panel shows only a free-form "Add KV" form. This reuses the
-exact same `kvAssignments: KvAssignment[]` shape above; the only difference
-is which UI renders (checklist vs. free-form-only), decided by
-`provenance`, not a data-model difference:
+**REQ-042–043.** A newly-created subgraph has no backend-provided SGKV
+list — the panel shows only a free-form "Add KV" form. This reuses the
+exact same `kvCases: KvCase[]` shape above; the only difference is which
+UI renders (checklist vs. free-form-only), decided by `provenance`, not a
+data-model difference:
 
 - Seeded empty at creation — no `supported`-source entries, since there's
   no DTO to seed from.
-- Every user-added entry gets `{source: 'custom', selected: true}`.
-- **Outright removal (splicing the entry out, not just unchecking) is
+- Every user-added entry gets a new one-pair `KvCase`,
+  `{source: 'custom', selected: true}`, same as REQ-041 above.
+- **Outright removal (splicing the case out, not just unchecking) is
   available here**, per REQ-043's "add and remove freely" — in contrast to
-  the palette-placed case above, where a custom entry can only be
+  the palette-placed case above, where a custom case can only be
   unchecked.
 
 ---
@@ -123,10 +148,10 @@ ones** (REQ-039–040 do not distinguish the two — REQ-039's text says
 assignment — existing subgraph (palette-placed)," undersells this: a
 subgraph already on canvas when Edit mode is entered is exactly the same
 "existing" case, just with a different provenance value). The only
-difference is where `kvAssignments` is seeded from: a `pre-loaded`
-subgraph's `kvAssignments` is seeded at Edit-mode entry (not at
+difference is where `kvCases` is seeded from: a `pre-loaded`
+subgraph's `kvCases` is seeded at Edit-mode entry (not at
 `getSubgraphContents` fetch time, since it was never fetched via that
-call) from the same `supportedKvs`/prior-selection data already present
+call) from the same `SGKV`/prior-selection data already present
 in whatever DTO populates the canvas on entering Edit mode — the seeding
 *mechanism* is identical to REQ-039's, just triggered at a different point
 in the session lifecycle.
@@ -172,13 +197,20 @@ per-action backend calls that don't exist yet — not a reuse of already-working
 ## Keys Assignment — Subsystems
 
 **REQ-071.** Distinct from subgraph KV assignment: a "Key" here carries no
-value, just an identifier. Like KV assignment, this is **UI-only, staged at
-Apply** — `core-edit-session-design.md`'s `applyChanges()` reads
-`assignedKeyIds` off every subsystem node on canvas as part of its request
-payload, alongside subgraph `kvAssignments`. Because REQ-071 does not
+value, just an identifier. Like KV assignment, this is intended to be
+**UI-only, staged at Apply** — but unlike subgraph KV assignment, **there
+is no confirmed backend contract for this at all.**
+`core-edit-session-design.md`'s `CreateUsecasesRequestDto` (the real,
+confirmed Apply Changes payload) has no field for subsystem keys, and
+`SubsystemDto.filteredKeys` — the closest existing field — is read-only
+query data, not a mutation target. This design proceeds with a UI-side
+model on the assumption a home for it will be added, but where/how it
+reaches the backend on Apply is a genuinely open item (see
+`core-edit-session-design.md`'s Open Items), not merely an unconfirmed
+path/DTO name on an otherwise-real endpoint. Because REQ-071 does not
 describe a backend-provided candidate list to check items off against —
-unlike KV's `supportedKvs` — the shape is simpler than `KvAssignment`, a
-plain ID list on the subsystem node:
+unlike KV's `SGKV` — the shape is simpler than `KvCase`, a plain ID list
+on the subsystem node:
 
 ```typescript
 interface Subsystem {
@@ -219,6 +251,11 @@ confirmation. No new state.
 
 ## Open Items Inherited
 
-- **API contracts** for KV/CKV/TKV staging and the routing/apply payload
-  shape for KV assignments and subsystem Keys — TBD with the backend team,
-  per the requirements doc's own open items.
+- **API contract for CKV/TKV staging** — TBD with the backend team; the
+  Key Configurator panel's existing `saveToBackend()` stubs (REQ-053,
+  above) need real per-action endpoints that don't exist yet.
+- **Subsystem Keys assignment (REQ-071) backend contract** — no confirmed
+  home in the API at all, per the Keys Assignment section above; flagged
+  in `core-edit-session-design.md`'s Open Items as well. Subgraph KV
+  assignment, by contrast, is now confirmed via `CreateUsecasesRequestDto`/
+  `SubgraphKvSelectionDto` — no longer an open item for its own contract.

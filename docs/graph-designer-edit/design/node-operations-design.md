@@ -13,6 +13,8 @@ operations here assume the edit session designed in
 - [Shared Mutation Pattern](#shared-mutation-pattern)
 - [Subgraph Provenance](#subgraph-provenance)
 - [Module Operations](#module-operations)
+  - [Sequence: Module Drop on Empty Canvas](#sequence-module-drop-on-empty-canvas)
+  - [Sequence: Delete Module (Cascading to Container/Subgraph)](#sequence-delete-module-cascading-to-containersubgraph)
 - [Container Operations](#container-operations)
 - [Subgraph Operations](#subgraph-operations)
 - [Subsystem Operations](#subsystem-operations)
@@ -26,26 +28,36 @@ Every operation in this document follows the pattern established in
 `core-edit-session-design.md`: a dedicated async action calls the backend,
 merges the returned DTOs into `GraphDataSlice` only on success, and shows an
 error toast with no canvas change on failure. Every action is also wrapped
-in `core-edit-session-design.md`'s `isMutating` lock (REQ-065) so the
-canvas is non-interactive until the response arrives. This section states
-both patterns once; each operation below names only its action and
-payload, not the wrapping.
+in `core-edit-session-design.md`'s `withMutationLock` (REQ-065) so the
+canvas is non-interactive until the response arrives — this also enforces
+`mode === 'edit'` (throwing if it's not, since every action here is only
+ever invoked from a UI surface that already doesn't render outside Edit
+mode), so no operation below needs its own separate mode check. This
+section states both patterns once; each operation below names only its
+action and payload, not the wrapping.
 
 **Cascading operations must return their full blast radius in one
 response, using the shared `ComponentCollectionDto` shape.**
 Several operations here (module delete, container delete, subgraph delete,
 subsystem delete, subsystem expand) cascade to child entities and their
 links. For the UI to reconcile in a single response cycle — as the
-requirements repeatedly demand — the backend response must enumerate every
-added/updated/deleted ID, not just the ID of the entity the user directly
-acted on. Rather than each operation below inventing its own bespoke
-response shape, every cascading endpoint in this document returns
-`ComponentCollectionDto` (designed once in `core-edit-session-design.md`'s
+requirements repeatedly demand — the backend response must include every
+affected module/link (each self-tagged via its own `changeInfo.changeType`),
+not just the entity the user directly acted on. Rather than each operation
+below inventing its own bespoke response shape, every cascading endpoint
+in this document returns `ComponentCollectionDto` (the real, confirmed API
+shape — `spfModules`/`dataLinks`/`controlLinks`, each entity self-tagged
+`CREATE`/`UPDATE`/`DELETE`, designed once in `core-edit-session-design.md`'s
 [Response Reconciliation](../design/core-edit-session-design.md#response-reconciliation--component-collections)
 section) and is merged via that document's single
 `applyComponentCollection` reconciler — no operation here hand-writes its
-own merge. These are net-new requirements on endpoints that do not yet
-exist, flagged for the backend team.
+own merge, and none of them needs a separate `deletedContainerIds`/
+`deletedSubgraphIds`-style field, since containers/subgraphs are derived
+from grouped modules and disappear automatically once their last module is
+tagged `DELETE`. The specific cascading endpoints below (delete/expand/
+move/offload) don't exist in the API yet — these are net-new requirements
+flagged for the backend team, but expected to return this same shape once
+built, consistent with every endpoint that does exist today.
 
 ## Subgraph Provenance
 
@@ -62,9 +74,21 @@ type SubgraphProvenance = 'pre-loaded' | 'palette-placed' | 'newly-created';
 interface Subgraph {
   // ...existing fields...
   provenance: SubgraphProvenance;
-  subgraphDefId: number; // definition ID, distinct from this node's instance subgraphId — see REQ-015 below
 }
 ```
+
+**There is no separate "subgraph definition" ID, unlike modules
+(`moduleId` vs. `moduleInstanceId`).** An earlier draft of this document
+assumed subgraphs had the same definition/instance split as modules and
+introduced a `subgraphDefId` field to track it — this doesn't match the
+real API. `SubgraphController_getAllSubgraphs`/`querySubgraphs` (the
+subgraph palette's own data source) return `SubgraphDto[]` keyed by the
+same `systemId` that `getComponentsForSubgraph(subgraphSystemId)`
+(REQ-012, below) fetches contents for — placing a subgraph from the
+palette doesn't instantiate anything new, it renders the contents of an
+already-existing subgraph by its one and only ID. So `Subgraph.subgraphId`
+(the existing field) is already the ID REQ-015's duplicate-placement guard
+needs — see the corrected guard, below.
 
 | Provenance | Set when | Delete behavior |
 | --- | --- | --- |
@@ -80,15 +104,21 @@ does not compute or submit the cascade itself:
 
 ```typescript
 deleteSubgraph(subgraphId: string): Promise<ComponentCollectionDto>
-// collection.deleted = {subgraphIds: [subgraphId], containerIds, moduleIds, linkIds}
+// every module that belonged to this subgraph comes back with
+// changeInfo.changeType: 'DELETE'; every dataLink/controlLink connected to
+// any of those modules likewise comes back tagged 'DELETE'
 ```
 
 The response shape is the same `ComponentCollectionDto` every cascading
 delete in this document uses (`core-edit-session-design.md`) — the canvas
-needs the full set of removed IDs to clear containers, modules, and links
-from `GraphDataSlice` in one pass via `applyComponentCollection`, regardless
-of which provenance triggered the call. Only `palette-placed` skips the
-backend entirely, per REQ-016a.
+needs the full set of removed modules/links to clear them from
+`GraphDataSlice` in one pass via `applyComponentCollection`, regardless of
+which provenance triggered the call. There is no separate
+`deletedSubgraphId` field to read — once every module tagged `DELETE` is
+removed, `recomputeContainersAndSubgraphs` (`core-edit-session-design.md`)
+naturally produces no entry for this subgraph's ID, since no surviving
+module references it. Only `palette-placed` skips the backend entirely,
+per REQ-016a.
 
 The Delete context-menu/Delete-key handler (`canvas-ui-mechanics-design.md`)
 branches purely on the `provenance` field — no separate tracking map is
@@ -99,54 +129,246 @@ needed, and no branching on the API called, since `pre-loaded` and
 
 ## Module Operations
 
+**All three of REQ-004–007 call the same real endpoint, `addSpfModule`
+(`POST /projects/{projectId}/spf-modules`, `CreateSpfModuleRequest`) —
+not three separate atomic-creation endpoints.** `subgraphSystemId`/
+`containerSystemId` are both optional on the request; the backend
+auto-creates whichever is omitted. The response is a single `SpfModuleDto`
+— **not** `ComponentCollectionDto` — carrying the new module's own
+`subgraphId`/`containerId` fields, which are the *systemIds* of the
+(possibly just-auto-created) subgraph/container, not the entities
+themselves:
+
+```typescript
+addSpfModule(request: {
+  moduleSystemId: number;
+  procSystemId: number;
+  parentId?: number;
+  subgraphSystemId?: number;  // omit to auto-create a new subgraph
+  containerSystemId?: number; // omit to auto-create a new container
+}): Promise<SpfModuleDto>
+```
+
 **REQ-004–005 — add to existing container.** Drag from the module palette
-onto a container that belongs to an existing subgraph → immediate backend
-call:
+onto a container that belongs to an existing subgraph → both
+`subgraphSystemId` and `containerSystemId` are supplied (the target
+container's own subgraph and container IDs, already known client-side) →
+immediate backend call:
 
 ```typescript
-addModuleInstance(containerId: string, moduleDefId: string, position: XY): Promise<ComponentCollectionDto>
-// collection.added = {modules: [module]}
+addModuleInstance(containerId: string, subgraphId: string, moduleDefId: string, position: XY): Promise<void>
+// internally: const module = await addSpfModule({..., subgraphSystemId: subgraphId, containerSystemId: containerId});
+//             applyComponentCollection({spfModules: [module], dataLinks: [], controlLinks: []});
+// the response's subgraphId/containerId are entities GraphDataSlice
+// already has — no follow-up query needed, unlike REQ-006/007 below
 ```
 
-Canvas updates only after confirmation — the response is merged via
-`applyComponentCollection` (`core-edit-session-design.md`). The change
-propagates to every use case containing that subgraph on Apply Changes.
+Canvas updates only after confirmation — the returned `SpfModuleDto` is
+merged directly (no cascade, no follow-up fetch, since its container and
+subgraph both already exist in `GraphDataSlice`). The change propagates to
+every use case containing that subgraph on Apply Changes.
 
-**REQ-006 — add to empty canvas space.** Atomic: one backend call creates
-subgraph → container → module instance together, not three sequential
-calls:
+**REQ-006 — add to empty canvas space, and REQ-007 — add inside a
+subgraph outside any container — are the same endpoint with fewer IDs
+supplied, and require a follow-up query the response alone can't
+satisfy.** For REQ-006, both `subgraphSystemId`/`containerSystemId` are
+omitted (auto-create both); for REQ-007, only `subgraphSystemId` is
+supplied (auto-create the container only). In both cases, the response's
+`subgraphId`/`containerId` reference entities `GraphDataSlice` has never
+seen before — there is **no atomic single-response contract** that hands
+back the new subgraph/container as objects; the frontend must query for
+them by the systemIds the module response reveals:
 
 ```typescript
-createSubgraphWithModule(moduleDefId: string, position: XY): Promise<ComponentCollectionDto>
-// collection.added = {subgraphs: [subgraph], containers: [container], modules: [module]}
+createModuleWithAutoCreate(
+  moduleDefId: string,
+  position: XY,
+  existingSubgraphId?: string, // present for REQ-007, absent for REQ-006
+): Promise<void>
 ```
 
-All three entities merge into `GraphDataSlice` together on success via
-`applyComponentCollection`; the caller stamps the new subgraph's
-`provenance: 'newly-created'` on the response before passing it to the
-reconciler (`core-edit-session-design.md`'s caller-owned-fields note). On
-failure: toast, nothing added — atomicity means no partial state is
-possible.
+See [Sequence: Module Drop on Empty Canvas](#sequence-module-drop-on-empty-canvas)
+below for the full flow (REQ-006's case; REQ-007 is identical minus the
+subgraph-query step, since its subgraph already exists). On failure at
+any step — the module create call, or either follow-up query — toast, no
+change applied; see that section for the specific partial-state failure
+mode when the module create succeeds but a follow-up query fails.
 
-**REQ-007 — add inside a subgraph, outside any container.** Same
-atomicity, one level shallower — the subgraph already exists, so there's no
-provenance change:
+### Sequence: Module Drop on Empty Canvas
 
-```typescript
-createContainerWithModule(subgraphId: string, moduleDefId: string, position: XY): Promise<ComponentCollectionDto>
-// collection.added = {containers: [container], modules: [module]}
+**Strictly pessimistic — nothing is merged into `GraphDataSlice` until
+the entire sequence resolves.** REQ-006's empty-canvas drop is not one
+atomic backend call; it is a module create followed by two dependent
+lookups, and only the last of those three round-trips' combined result is
+merged, in one update. A placeholder node renders at the drop position
+immediately (REQ-058) with a cosmetic spinner — this is purely a canvas
+affordance so the user sees *something* land where they dropped; it holds
+no real data and is discarded (not reconciled) if any step fails.
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant W as graph-designer widget
+  participant ES as EditSessionSlice
+  participant B as Backend
+  participant GD as GraphDataSlice
+
+  U->>W: drop module on empty canvas space
+  W->>ES: withMutationLock(action)
+  Note over ES: mode !== 'edit'? throw — defensive only, palette doesn't render outside Edit mode
+  ES->>ES: beginMutation() — isMutating = true
+  W->>W: render placeholder node at drop position (REQ-058), cosmetic spinner, client-generated placeholder ID
+  W->>B: POST /spf-modules {moduleSystemId, procSystemId} — subgraphSystemId/containerSystemId both omitted
+  alt module create fails
+    B-->>W: error
+    W->>W: remove placeholder node, error toast
+    ES->>ES: endMutation() — isMutating = false
+  else module create succeeds
+    B-->>W: SpfModuleDto {systemId, subgraphId, containerId, ...}
+    W->>GD: check subgraphId/containerId against GraphDataSlice.subgraphs/containers
+    Note over GD: not found locally — both are brand new, backend just auto-created them
+    W->>B: POST /subgraphs/query {systemIds: [subgraphId]}
+    W->>B: POST /containers/query {systemIds: [containerId]}
+    alt either query fails
+      B-->>W: error
+      Note over W: module already exists server-side — this is a genuine partial-state failure, not a clean rollback
+      W->>W: remove placeholder node, error toast (distinct message: "module created but could not load its new subgraph/container — reload to see it")
+      ES->>ES: endMutation() — isMutating = false
+    else both queries succeed
+      B-->>W: SubgraphDto[], ContainerDto[]
+      W->>ES: stamp provenance: 'newly-created' into subgraphProvenanceById[subgraphId]
+      W->>GD: applyComponentCollection({spfModules: [module], dataLinks: [], controlLinks: []})
+      Note over GD: recomputeContainersAndSubgraphs synthesizes the Subgraph/Container entries from the module alone (name, containment)
+      Note over W: single combined canvas update — placeholder ID swapped for the real systemId
+      ES->>ES: endMutation() — isMutating = false
+    end
+  end
 ```
+
+**The partial-state failure mode (module created, follow-up query failed)
+is called out explicitly, not glossed over.** Unlike every other failure
+path in this feature ("toast, no change applied, atomicity means no
+partial state is possible" — REQ-006's original framing, since retired),
+this one **cannot** guarantee no partial state: `addSpfModule` already
+committed a real module (and its auto-created subgraph/container) on the
+backend before the follow-up queries ever run, and there is no
+compensating delete call in this flow to undo that if the queries fail.
+The UI's only correct response is to surface a **distinct error message**
+telling the user the module exists server-side but isn't visible yet, and
+prompt a reload (re-running the existing use-case load path,
+`core-edit-session-design.md`) to pick it up — not to retry
+`addSpfModule`, which would create a second module.
+
+**Why the follow-up queries can't be skipped or deferred, precisely.**
+`recomputeContainersAndSubgraphs` (`core-edit-session-design.md`) can
+already synthesize a *usable* `Subgraph`/`Container` entry from the
+module alone — `containerName`/`subgraphName` are placeholder strings
+derived from the systemId (e.g. `Subgraph ${id}`) and `containers`/
+`moduleInstances` membership comes purely from grouping, exactly as
+`loadGraphData` already does today. What the module response cannot
+supply is `SubgraphDto.subgraphType` (needed by REQ-054's MDF guard,
+`kv-key-configuration-design.md`) and `SubgraphDto.SGKV` (needed by
+REQ-039's KV Configurator seeding) — both fields exist only on the real
+`SubgraphDto`, never on `SpfModuleDto`. Skipping the query would place a
+usable-looking node on canvas whose Key Configurator panel and MDF
+exclusion are silently wrong (empty SGKV, `subgraphType: ''` always
+failing the MDF check) until the next full reload happened to correct it
+— worse than the visible "reload to see it" failure toast this design
+chooses instead.
 
 **REQ-008–009 — delete module.** Context menu or Delete key:
 
 ```typescript
 deleteModuleInstance(moduleId: string): Promise<ComponentCollectionDto>
-// collection.deleted = {moduleIds: [moduleId], linkIds: deletedLinkIds}
+// collection.spfModules = [the deleted module, changeType: 'DELETE']
+// collection.dataLinks/controlLinks = every link that was connected to it, changeType: 'DELETE'
 ```
 
 The backend also deletes every link connected to the module; the UI removes
 those links from canvas in the same response cycle via
 `applyComponentCollection`.
+
+**The backend cascades further than the module alone — it also deletes
+the container/subgraph if the module was their last surviving member —
+and the frontend does not compute or predict this, only reflect it.**
+`deleteModuleInstance`'s response is not limited to the one module the
+user selected. Containers/subgraphs have no `changeType` of their own to
+carry that cascade (`core-edit-session-design.md`'s Response
+Reconciliation section — they aren't first-class entities in the
+response), so the backend expresses it purely through modules: if
+deleting the selected module empties its container, every other module
+that was in that container comes back tagged `changeType: 'DELETE'` too,
+not only the one the user selected. Same one level up: if the container
+being emptied was the subgraph's last container, every module across the
+whole subgraph comes back tagged `'DELETE'`. The frontend has no "is this
+the last module" logic to write — `applyComponentCollection`'s
+`recomputeContainersAndSubgraphs` step (`core-edit-session-design.md`)
+already derives containers/subgraphs fresh from whichever modules survive
+after every one tagged `'DELETE'` is removed, so an emptied container or
+subgraph simply fails to re-appear in that derivation, with the
+session-local `subgraphProvenanceById`/`pairLinksById`/`excludedLinkIds`
+maps pruned in the same pass (see that section for the mechanism). See
+[Sequence: Delete Module (Cascading to Container/Subgraph)](#sequence-delete-module-cascading-to-containersubgraph)
+below for the full flow.
+
+### Sequence: Delete Module (Cascading to Container/Subgraph)
+
+**The backend decides how far the cascade reaches; the response already
+contains every affected module — the frontend only reconciles what comes
+back, it never asks "was this the last one?" itself.** This is the same
+`applyComponentCollection`/`recomputeContainersAndSubgraphs` mechanism
+every other cascading action in this feature uses
+(`core-edit-session-design.md`) — deleting a module is not a special case
+requiring its own container/subgraph-emptiness detection.
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant W as graph-designer widget
+  participant ES as EditSessionSlice
+  participant B as Backend
+  participant GD as GraphDataSlice
+
+  U->>W: Delete (context menu or Delete key) on a module
+  W->>ES: withMutationLock(action)
+  ES->>ES: beginMutation() — isMutating = true
+  W->>B: DELETE (or equivalent) for the selected module
+  alt delete fails
+    B-->>W: error
+    W->>W: error toast, canvas unchanged
+    ES->>ES: endMutation() — isMutating = false
+  else delete succeeds
+    B-->>W: ComponentCollectionDto
+    Note over B: backend already decided the cascade extent — response<br/>contains every module actually deleted, not only the selected one
+    alt module was not its container's/subgraph's last member
+      Note over B: collection.spfModules = [the one deleted module] - sibling modules unaffected
+    else module emptied its container (but not the whole subgraph)
+      Note over B: collection.spfModules = every module that was in that container, all changeType: 'DELETE'
+    else module emptied the subgraph's last container
+      Note over B: collection.spfModules = every module across the whole subgraph, all changeType: 'DELETE'
+    end
+    Note over B: collection.dataLinks/controlLinks = every link connected to any deleted module, changeType: 'DELETE'
+    W->>GD: applyComponentCollection(collection)
+    GD->>GD: upsertOrDeleteModule for each — every DELETE-tagged module removed from moduleInstances
+    GD->>GD: recomputeContainersAndSubgraphs — re-derives containers/subgraphs from survivors only
+    Note over GD: emptied container/subgraph simply doesn't reappear — no explicit "delete container/subgraph" step
+    GD->>ES: prune subgraphProvenanceById for any subgraph that no longer derives
+    GD->>ES: prune pairLinksById/excludedLinkIds for every DELETE-tagged link
+    Note over W: canvas re-renders once — module, and (if emptied) its container/subgraph, all disappear together
+    ES->>ES: endMutation() — isMutating = false
+  end
+```
+
+**Why the frontend must not attempt its own "is this the last module"
+check before calling `deleteModuleInstance`.** The client-side module list
+could, in principle, count siblings in the same container/subgraph and
+predict the cascade before the call — but that count can be stale the
+moment another tab or a concurrent operation changes it, and predicting
+wrong would either show a premature "this will delete the whole subgraph"
+warning that doesn't happen, or miss one that does. The backend response
+is the only source of truth for cascade extent, consistent with this
+feature's "no optimistic mutation" rule (`core-edit-session-design.md`) —
+the frontend reflects, it does not predict.
 
 **REQ-010 — rename module.** Properties panel field:
 
@@ -178,7 +400,8 @@ every module instance inside it and their links:
 
 ```typescript
 deleteContainer(containerId: string): Promise<ComponentCollectionDto>
-// collection.deleted = {containerIds: [containerId], moduleIds, linkIds}
+// every module the container held comes back changeType: 'DELETE',
+// plus every link that was connected to any of them, also 'DELETE'
 ```
 
 **REQ-021 — no rename.** Containers have no name field. The properties
@@ -198,26 +421,26 @@ updateContainerId(containerId: string, newId: string): Promise<void>
 **This edits the container's primary `containerId`, not a separate cosmetic
 field** — `Container` (`graph-data-slice.ts`) has only one ID field, unlike
 `ModuleInstance`'s distinction elsewhere in the app between a primary key
-and a display label. Because `ModuleInstance.containerId` references this
-value by ID, this call can re-key more than one entity (the container
-itself, plus every module instance that referenced its old ID) — per
-`core-edit-session-design.md`'s dividing line, that makes it a
-`ComponentCollectionDto` case, not a single-field response. **The container
-itself goes in `deleted`+`added` (old ID removed, new-ID entity inserted),
-not `updated`** — `applyComponentCollection`'s upsert-by-ID would otherwise
-leave a stale orphaned entry at the old `containerId` behind, since a
-rename changes the very key the upsert keys on; this is the one exception
-to "added/updated are both a plain upsert" called out in
-`core-edit-session-design.md`. The referencing modules *do* go in
-`updated`, since their own ID is unchanged — only their `containerId`
-field value changes:
+and a display label. **Containers are derived, not a first-class entity in
+`ComponentCollectionDto`** (`core-edit-session-design.md`) — there is no
+`ContainerDto` to tag `DELETE`/`UPDATE` in the response. Instead, every
+module the container held comes back with its `containerId` field already
+set to the new value and `changeType: 'UPDATE'`:
 
 ```typescript
 updateContainerId(containerId: string, newId: string): Promise<ComponentCollectionDto>
-// collection.deleted = {containerIds: [containerId]}     — old key removed
-// collection.added   = {containers: [container w/ newId]} — new key inserted
-// collection.updated = {modules: [every module re-keyed to containerId: newId]}
+// collection.spfModules = every module formerly in `containerId`, each
+// with containerId: newId and changeInfo.changeType: 'UPDATE'
 ```
+
+`applyComponentCollection`'s `recomputeContainersAndSubgraphs` step
+(`core-edit-session-design.md`) derives the renamed container purely from
+these updated modules' `containerId` field — the old container ID simply
+stops appearing once no module references it anymore, and the new ID
+appears because every affected module now carries it. No delete+add
+bookkeeping is needed on the frontend side for this rename, since
+containers were never stored as their own addressable entity to begin
+with.
 
 Confirmed by the backend before the canvas reflects the update via
 `applyComponentCollection`; error toast on failure.
@@ -231,19 +454,27 @@ contents (containers, modules, internal links) from the backend and render
 them on canvas. This is session-local, **not staged**:
 
 ```typescript
-getSubgraphContents(subgraphDefId: string): Promise<{
-  subgraph: SubgraphDto; // includes supportedKvs — see kv-key-configuration-design.md
-  containers: Container[];
-  modules: ModuleInstance[];
-  links: Connection[];
-}>
+getSubgraphContents(subgraphSystemId: string): Promise<ComponentCollectionDto>
+// same shape as every other structural endpoint (core-edit-session-design.md)
+// — every returned module/link is tagged changeInfo.changeType: 'NONE',
+// since this is a read query, not a mutation; the reconciler is not used
+// here (see below) — this response is merged by REQ-012's own placement
+// logic, not applyComponentCollection
 ```
 
 This is a read-only fetch — no `changeId`, no Apply-time staging. A failed
 fetch shows a toast and places nothing. The new subgraph node gets
-`provenance: 'palette-placed'`, and its `subgraphDefId` field (added to the
-`Subgraph` interface above) is populated from this DTO's `subgraph` — this
-is what REQ-015's duplicate-placement guard, below, compares against.
+`provenance: 'palette-placed'`, derived by grouping the response's
+`spfModules` by `subgraphId`/`containerId` (same grouping
+`recomputeContainersAndSubgraphs` uses, `core-edit-session-design.md`) —
+not merged via `applyComponentCollection`, since that reconciler assumes
+delta-only `CREATE`/`UPDATE`/`DELETE` responses and this one is a
+`NONE`-tagged snapshot, closer to `loadGraphData`'s own merge. Because the
+call is scoped to one specific subgraph rather than a use-case selection,
+this placement logic can't simply call `loadGraphData` either — it seeds
+just the newly-placed subgraph's own entities into `GraphDataSlice`
+alongside whatever's already there, rather than replacing the whole
+`graphData` object.
 
 **REQ-013 — pair-link auto-render.** Immediately after a successful
 placement, the tool calls the subgraph-pairs API to retrieve all known
@@ -251,6 +482,11 @@ linked pairs, and for each pair where one side is the newly-dropped subgraph
 and the other is already on canvas, renders that connection:
 
 ```typescript
+// SubgraphPairDto's real API definition is an empty placeholder object
+// ({"type": "object", "properties": {}}) as of this writing — fields TBD
+// with the backend team. The shape below is this document's own working
+// assumption, needed to build even a stub pair-rendering flow; confirm
+// against the real contract once published.
 interface SubgraphPairDto {
   id: string; // link ID — same ID used as the key in excludedLinkIds/pairLinksById
   sourceSubgraphId: string;
@@ -261,7 +497,7 @@ interface SubgraphPairDto {
   toPortId: string;
 }
 
-getSubgraphPairs(subgraphDefId: string): Promise<SubgraphPairDto[]>
+getSubgraphPairs(subgraphSystemId: string): Promise<SubgraphPairDto[]>
 ```
 
 A `getSubgraphPairs` failure does **not** roll back the placement — the
@@ -308,6 +544,16 @@ interface EditSessionSlice {
 }
 ```
 
+**At Apply time, `excludedLinkIds` is split by kind, not sent as one
+combined list.** `core-edit-session-design.md`'s confirmed
+`CreateUsecasesRequestDto` has two separate fields —
+`excludedDataLinkSystemIds`/`excludedControlLinkSystemIds` — rather than
+one. `applyChanges()` derives both by filtering `excludedLinkIds` against
+each link's own `connectionType` in `pairLinksById`/`GraphDataSlice`; this
+document's `excludedLinkIds` remains the single UI-side list REQ-014's
+Exclude Link action reads and writes — the kind-split is Apply-time
+plumbing, not a change to how exclusion is tracked during the session.
+
 **Reversing an exclusion has no dedicated "un-exclude" UI.** The user
 reverses it by manually re-drawing the connection via the normal right-click
 port-to-port flow (REQ-024). That flow's connection-completion handler
@@ -329,12 +575,12 @@ sequenceDiagram
   participant V as Visualizer (right-click connect)
 
   U->>ES: Exclude Link (on a pair-rendered connection)
-  ES->>ES: excludedLinkIds.push(linkId); edge removed from canvas
+  ES->>ES: excludedLinkIds.push (linkId) - edge removed from canvas
   Note over U: link stays in backend, unaffected until Apply
-  U->>V: manually redraws same source/target port pair
+  U->>V: manually redraws same source and target port pair
   V->>ES: connection-completion handler checks excludedLinkIds + pairs data
   alt matches an excluded pair-link
-    ES->>ES: excludedLinkIds.remove(linkId); edge re-rendered — no backend call
+    ES->>ES: excludedLinkIds.remove(linkId) - edge re-rendered — no backend call
   else genuinely new connection
     Note over V: proceeds as ordinary link creation (link-and-port-design.md)
   end
@@ -342,12 +588,14 @@ sequenceDiagram
 
 **REQ-015 — duplicate-placement guard.** The subgraph palette
 (`canvas-ui-mechanics-design.md` owns rendering) needs to know which
-subgraph *definitions* are currently placed, compared by definition ID, not
-node ID — a derived read from `GraphDataSlice`:
+subgraph IDs are currently placed on canvas — since there is no separate
+definition ID (above), this compares palette entries' own `subgraphId`
+directly against placed subgraphs' `subgraphId`, both ultimately the same
+`SubgraphDto.systemId` — a derived read from `GraphDataSlice`:
 
 ```typescript
-const placedSubgraphDefIds = new Set(
-  Object.values(graphData.subgraphs).map((sg) => sg.subgraphDefId),
+const placedSubgraphIds = new Set(
+  Object.values(graphData.subgraphs).map((sg) => sg.subgraphId),
 );
 ```
 
@@ -390,16 +638,17 @@ moveToSubsystem(
   nodeId: string,
   target: {subsystemId: string} | {createNew: true; name: string},
 ): Promise<ComponentCollectionDto>
-// createNew path: collection.added = {subsystems: [subsystem]}, plus the moved node in `updated`
-// existing-subsystemId path: the moved node appears in `updated` only
+// createNew path: collection.subsystems includes the new subsystem, changeType: 'CREATE';
+//                 collection.spfModules includes the moved node's modules, changeType: 'UPDATE' (new parentId)
+// existing-subsystemId path: collection.spfModules includes the moved node's modules, changeType: 'UPDATE' only
 ```
 
 Confirmed by the backend before the canvas reflects the change, merged via
 `applyComponentCollection`. On the `createNew` path, the new subsystem node
 is positioned at the moved node's own prior position (the subsystem
 visually replaces it on canvas). On the existing-`subsystemId` path, no new
-node is created — only the moved node's `parentId`/containment changes,
-which is why it comes back in `updated` rather than `added` on that path.
+subsystem entity is created — only the moved node's modules change
+`parentId`, which is why no `subsystems` entry appears on that path.
 
 **REQ-031c — rename subsystem.** Properties panel field, same shape as
 subgraph rename (REQ-017):
@@ -414,7 +663,9 @@ Confirmed by the backend before the canvas reflects the change.
 
 ```typescript
 deleteSubsystem(subsystemId: string): Promise<ComponentCollectionDto>
-// collection.deleted = {subsystemIds: [subsystemId], subgraphIds, containerIds, moduleIds, linkIds}
+// collection.subsystems = [this subsystem, changeType: 'DELETE']
+// collection.spfModules = every module it contained, changeType: 'DELETE'
+// collection.dataLinks/controlLinks = every link connected to any of them, changeType: 'DELETE'
 ```
 
 **REQ-031c — rename.** Standard properties-panel rename, confirmed before
@@ -433,18 +684,20 @@ same cascading-response pattern as delete operations above:
 
 ```typescript
 expandSubsystem(subsystemId: string): Promise<ComponentCollectionDto>
-// promoted nodes come back in `updated` (reparented, not deleted);
-// collection.deleted = {linkIds: deletedConnectionIds} for the severed external-port connections
+// collection.subsystems = [the expanded subsystem, changeType: 'DELETE']
+// collection.spfModules = every promoted module, changeType: 'UPDATE'
+//   (parentId/subgraphId/containerId updated to reflect the promoted level)
+// collection.dataLinks/controlLinks = the severed external-port connections, changeType: 'DELETE'
 ```
 
-Each promoted node's containment (`parentId`/`subsystemId`, whichever field
-its node type uses) is set to the **expanded subsystem's own former
-parent** — already known client-side before the call, since the subsystem
-node being expanded already carries that value. The backend response does
-not need to repeat it; the client stamps this onto each promoted node
-(the same caller-owned-fields pattern as `provenance`,
-`core-edit-session-design.md`) before passing the collection to
-`applyComponentCollection`.
+Each promoted module's new containment fields
+(`parentId`/`subgraphId`/`containerId`, whichever apply) come back already
+set by the backend to reflect the **expanded subsystem's own former
+parent** — the response is self-describing, so
+`recomputeContainersAndSubgraphs` (`core-edit-session-design.md`) can
+re-derive the promoted subgraphs/containers purely from the updated
+modules' own fields, with no client-side guessing needed and no separate
+`promotedNodeIds` list to cross-reference.
 
 Standard failure handling: toast, no change applied.
 
@@ -452,15 +705,28 @@ Standard failure handling: toast, no change applied.
 
 ## Open Items Inherited
 
-- **Excluded links API**: DTO shape for passing `excludedLinkIds` to the
-  routing algorithm on Apply Changes (REQ-014) — TBD with the backend team.
-  `applyChanges()` (`core-edit-session-design.md`) is the call site that
-  depends on this contract existing.
 - **Subsystem CRUD backend API**: endpoint shapes for `moveToSubsystem`,
   `deleteSubsystem`, rename, and `expandSubsystem` — all TBD with the
   backend team, per the requirements doc's own open items.
-- **API contracts** for all module/container/subgraph mutation endpoints
-  above (`addModuleInstance`, `createSubgraphWithModule`,
-  `createContainerWithModule`, `deleteModuleInstance`, `deleteContainer`,
-  `getSubgraphContents`, `getSubgraphPairs`) — none exist today; this
-  document specifies required response shapes but not final paths/DTOs.
+- **API contracts** for the module/container/subgraph *deletion* endpoints
+  that don't exist yet (`deleteModuleInstance`, `deleteContainer`,
+  `deleteSubgraph`, `updateContainerId`) — this document specifies required
+  `ComponentCollectionDto` contents but not final paths/DTOs. **REQ-004–007
+  (module add, both existing-container and auto-create) are, by contrast,
+  now confirmed** via the real `addSpfModule` endpoint
+  (`POST /spf-modules`, `CreateSpfModuleRequest`/`SpfModuleDto`) — no
+  longer an open item; see the Module Operations section above,
+  including its corrected non-`ComponentCollectionDto` response shape and
+  the two-round-trip auto-create flow. `getSubgraphContents`
+  and `getSubgraphPairs` (REQ-012/013) are similarly already confirmed
+  real endpoints (`GET /subgraphs/{id}/components`,
+  `GET /subgraphs/{id}/subgraph-pairs`) — no longer an open item for their
+  *paths*. **`SubgraphPairDto`'s field shape is still genuinely open**,
+  though — the real API defines it as an empty placeholder object with no
+  fields yet; the shape used above is this document's own working
+  assumption pending backend confirmation.
+
+Excluded-links Apply payload shape is now resolved — see
+`core-edit-session-design.md`'s confirmed `CreateUsecasesRequestDto`
+(`excludedDataLinkSystemIds`/`excludedControlLinkSystemIds`), no longer an
+open item.
