@@ -354,7 +354,8 @@ sequenceDiagram
     Note over GD: emptied container/subgraph simply doesn't reappear — no explicit "delete container/subgraph" step
     GD->>ES: prune subgraphProvenanceById for any subgraph that no longer derives
     GD->>ES: prune pairLinksById/excludedLinkIds for every DELETE-tagged link
-    Note over W: canvas re-renders once — module, and (if emptied) its container/subgraph, all disappear together
+    GD->>GD: decrementSurvivingPortCounts — for every deleted link, decrement totalLinksAtPort on whichever endpoint is still alive (REQ-064)
+    Note over W: canvas re-renders once — module and links disappear, adjacent surviving ports' colors update, and (if emptied) the container/subgraph vanish, all together
     ES->>ES: endMutation() — isMutating = false
   end
 ```

@@ -519,6 +519,7 @@ function applyComponentCollection(collection: ComponentCollectionDto): void {
     for (const ss of collection.subsystems ?? []) upsertOrDeleteSubsystem(state, ss);
     recomputeContainersAndSubgraphs(state); // also prunes subgraphProvenanceById, above
     pruneDeletedLinkBookkeeping(state, collection); // pairLinksById/excludedLinkIds
+    decrementSurvivingPortCounts(state, [...collection.dataLinks, ...collection.controlLinks]); // totalLinksAtPort — REQ-064, canvas-ui-mechanics-design.md
   });
 }
 
@@ -532,6 +533,17 @@ function pruneDeletedLinkBookkeeping(state: GraphDesignerStore, collection: Comp
   }
 }
 ```
+
+**`decrementSurvivingPortCounts` is designed in full in
+`canvas-ui-mechanics-design.md`'s Port Coloring section (REQ-064) — it is
+called from here because it must run in the same
+`applyComponentCollection` pass as everything else above, on every
+cascading delete, not only module delete.** Deleting a module, container,
+or subsystem all sever links whose surviving endpoint's `totalLinksAtPort`
+would otherwise go stale; that section covers why this can't come from
+the backend response (the response never includes the surviving sibling
+module, only the deleted entities) and why a plain decrement is
+same-selection-scope-safe.
 
 **This generalizes to every cascading action in the feature, not just
 module delete.** Container delete, subsystem delete, subsystem expand,

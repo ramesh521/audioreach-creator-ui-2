@@ -403,6 +403,73 @@ Computed by the port-handle component (`ui/node-types/port-handles`) from
 existing connection data and the existing use-case-selection state already
 present elsewhere in the app — no new state.
 
+**`totalLinksAtPort` must be added to the frontend `Port` type — it is not
+threaded through today.** `graph-data-slice.ts`'s current module-mapping
+loop builds each `Port` as `{direction, isStatic, portId, portName,
+portType}`, dropping `DataPortDto.totalLinksAtPort` entirely (confirmed by
+reading the mapping code — no field carries it through). This is a
+prerequisite gap this feature must close, not something already working
+that this document can assume:
+
+```typescript
+interface Port {
+  // ...existing fields...
+  totalLinksAtPort: number; // new — copied from DataPortDto.totalLinksAtPort at mapping time
+}
+```
+
+Every place that constructs a `Port` from a `DataPortDto` — the initial
+`loadGraphData` mapping and, per below, `applyComponentCollection`'s
+module upsert — must copy this field across, exactly as the other four
+fields already are.
+
+**On module delete, `totalLinksAtPort` on the deleted links' *surviving*
+endpoints must be decremented client-side — the backend response does not
+carry this correction.** `deleteModuleInstance`'s response
+(`ComponentCollectionDto`) only contains the deleted module(s) and the
+deleted links connected to them, each tagged `changeType: 'DELETE'`
+(`node-operations-design.md`'s cascading-delete sequence) — it never
+includes the *other* endpoint of a deleted link, i.e. the still-alive
+sibling module whose port just lost a connection. Confirmed
+same-selection-scope: `totalLinksAtPort` counts only links within the
+currently-selected use cases, the same scope `GraphDataSlice.connections`
+already lives in — so a plain decrement-by-one per severed connection is
+correct with no cross-scope adjustment needed, unlike a naive assumption
+that it might count links from unselected use cases too.
+
+```typescript
+function decrementSurvivingPortCounts(state: GraphDesignerStore, deletedLinks: Array<DataLinkDto | ControlLinkDto>): void {
+  for (const link of deletedLinks) {
+    if (link.changeInfo.changeType !== 'DELETE') continue;
+    // sourceId/destinationId are numeric backend IDs — resolve to the
+    // module's own systemId the same way loadGraphData's numericIdToSystemId map already does
+    for (const [moduleNumericId, portNumericId] of [
+      [link.sourceId, link.sourcePortId],
+      [link.destinationId, link.destinationPortId],
+    ]) {
+      const module = findModuleByNumericId(state, moduleNumericId); // undefined if this endpoint was itself deleted — nothing to decrement
+      if (!module) continue;
+      const port = [...module.inputPorts, ...module.outputPorts].find((p) => p.portId === String(portNumericId));
+      if (port) port.totalLinksAtPort -= 1;
+    }
+  }
+}
+```
+
+This runs as one more step inside `applyComponentCollection`
+(`core-edit-session-design.md`), alongside the existing
+`recomputeContainersAndSubgraphs`/`pruneDeletedLinkBookkeeping` calls —
+same reconciler, same single-pass-over-the-response pattern, not a
+delete-module-specific special case. **A link endpoint that was itself
+deleted in the same cascade is silently skipped**, not an error: if the
+whole container/subgraph emptied out, every module in it — including both
+endpoints of some severed links — is gone, and there is no surviving port
+to decrement for those. `findModuleByNumericId` looks the endpoint up
+*after* `upsertOrDeleteModule` has already removed every `DELETE`-tagged
+module from `moduleInstances`, so a deleted endpoint naturally returns
+`undefined` here without needing a separate check against the deleted-IDs
+list.
+
 ---
 
 ## Copy/Paste
