@@ -78,6 +78,40 @@ This was chosen over two alternatives considered during design:
   the backend confirms an edit; a separate store would only add cross-store
   sync plumbing for no isolation benefit.
 
+**Architectural principle — every backend-confirmed edit must reconcile
+through one path back into shared state, not only structural/cascading
+ones.** "No optimistic mutation," above, is stated in terms of "structural
+edit," but the same rule holds for every backend-confirmed mutation in this
+feature — including narrow single-entity edits (renames, `updatePortCount`)
+and, this is a correction to an earlier draft of this section and of
+`kv-key-configuration-design.md`'s REQ-053/071 sections, CKV/TKV and
+Subsystem Keys assignment. As originally drafted, CKV/TKV staging was
+directed entirely into the pre-existing, separate `features/key-configurator`
+stores (`calibration-keys-store.ts`, `module-tag-keys-store.ts`,
+`subgraph-config-store.ts`, `subsystem-config-store.ts`), which have no
+designed connection back to `GraphDataSlice`/`EditSessionSlice`. Implemented
+exactly as originally drafted, a confirmed CKV/TKV change would update its
+own siloed store correctly but give no other component reading shared state
+(canvas, properties panel) any way to observe it — the same failure mode
+already diagnosed and fixed for `kvCasesById`/`provenance` elsewhere in this
+document, just at the level of an entire feature's storage rather than one
+field. The corrected principle: whichever store physically receives a
+mutation's confirmed response, that response must also be merged into
+`GraphDataSlice` — for module/subsystem-level fields, this means the
+existing node object directly (Subsystem Keys assignment, REQ-071, is the
+concrete example: its response writes straight onto
+`Subsystem.filteredKeys`, no intermediate `EditSessionSlice` map involved —
+see `kv-key-configuration-design.md`'s Keys Assignment section) — no edit's
+confirmed result may live only in a component-local or feature-local store
+with no path back to the state other components read. See
+`kv-key-configuration-design.md`'s CKV/TKV section for the specific
+correction this implies there, and this document's own
+[Response Reconciliation](#response-reconciliation--component-collections)
+section for why the *shape* of a narrow single-entity response is still
+correct as designed — this principle is about where the response's result
+is written, not about forcing every endpoint through the three-collection
+mechanism.
+
 ---
 
 ## Mode State & Exclusive Locking
@@ -87,8 +121,9 @@ structural editing surfaces — module/subgraph palettes, context-menu
 structural actions, and the Key Configurator panel — do not render
 (REQ-002). Two interactions remain available in `view` regardless of mode:
 the existing double-click-to-tune flow (REQ-002, unchanged), and clicking a
-module/subgraph/container/data-or-control-link, which opens the **same**
-properties panel used in Edit mode but in a **read-only** state (REQ-002a)
+module/subgraph/container/subsystem/subgraph-proxy/data-or-control-link,
+which opens the **same** properties panel used in Edit mode but in a
+**read-only** state (REQ-002a)
 — every field rendered, none editable, no port-count steppers, no rename
 input. This is a `readOnly` prop threaded into the existing panel widget
 (`widgets/properties-panel/`, same component REQ-051 designs the editable
@@ -175,24 +210,26 @@ from a previous selection.
 
 **Every other session-local `EditSessionSlice` map is cleared on the same
 `'view'` transition, not only `kvCasesById`.** `excludedLinks`,
-`pairLinksById`, `subgraphProvenanceById`, and
-`assignedKeyIdsBySubsystemId` (`kv-key-configuration-design.md`'s Keys
-Assignment section) are all plain session bookkeeping with no source of
-truth to recompute from once the session that populated them ends —
-unlike `kvCasesById`, none of them get a fresh reseed from
-`getAllSubgraphs`/placement fetches on the next Edit session, so simply
-not clearing them would leave them holding entries from a *previous* edit
-session (one already Applied or Discarded) once a new one starts. Effect
-A's body, on every run where `mode === 'view'` (the same guard as
-REQ-061's own reset, below), clears all five maps together as one step,
-immediately before `kvCasesById`'s clear-and-reseed loop:
+`pairLinksById`, and `subgraphProvenanceById` are all plain session
+bookkeeping with no source of truth to recompute from once the session
+that populated them ends — unlike `kvCasesById`, none of them get a fresh
+reseed from `getAllSubgraphs`/placement fetches on the next Edit session,
+so simply not clearing them would leave them holding entries from a
+*previous* edit session (one already Applied or Discarded) once a new one
+starts. (Subsystem Keys assignment, REQ-071, has no equivalent map to clear
+here — see `kv-key-configuration-design.md`'s Keys Assignment section: it
+reads/writes `Subsystem.filteredKeys` directly in `GraphDataSlice`, which is
+already replaced wholesale by the normal View-mode `loadGraphData` reload,
+so there is nothing session-local to reset for it.) Effect A's body, on
+every run where `mode === 'view'` (the same guard as REQ-061's own reset,
+below), clears all four maps together as one step, immediately before
+`kvCasesById`'s clear-and-reseed loop:
 
 ```typescript
 if (mode === 'view') {
   get().excludedLinks = [];
   get().pairLinksById.clear();
   get().subgraphProvenanceById.clear();
-  get().assignedKeyIdsBySubsystemId.clear();
   get().kvCasesById.clear();
   // ...existing reseed loop for kvCasesById, using the freshly-cleared maps above
 }
@@ -370,6 +407,59 @@ sequenceDiagram
   G-->>GD: activeExclusiveModeByProject[projectId] → 'none' (selector re-render)
   Note over GD: "Start Graph Modification" now enabled
 ```
+
+**Re-opening a project that's already open never acquires a second lock.**
+This app routes "open project X" to the existing tab/tab-group for X if one
+is already open, rather than mounting a second instance — so there is only
+ever at most one `EditSessionSlice`/lock-acquiring component per project,
+confirming the single-instance-per-project assumption the lock design above
+already relies on. This is an existing app-level behavior this feature
+depends on, not something introduced here.
+
+**Lock release is wired into every graceful close path that can tear down
+the app without running React unmount cleanup — not just the acquiring
+component's `useEffect` cleanup.** A lock stuck in
+`activeExclusiveModeByProject` with no live component to release it would
+leave "Start Graph Modification"/the Discovery Wizard menu entry disabled
+for that project until the app restarts. The `useEffect` cleanup (above) is
+the release point for every *confirmed* close — including the
+discard-confirmation flow below, since `confirmDiscard()`'s `exitEditMode()`
+call releases the lock, and the tab only actually unmounts (running the
+`useEffect` cleanup too) once that confirmation succeeds. `onClose`/
+`onGroupClose` (`widgets/project-layout/project-layout-manager.tsx`'s
+`createProjectMainTab`) is deliberately **not** a second release point: it
+fires before the confirmation dialog resolves, and REQ-061 already routes it
+through `requestDiscard()`'s cancellable prompt — releasing the lock there
+unconditionally would open exactly the race this lock exists to prevent (the
+user clicks Cancel on the confirmation, the edit session stays alive with
+`mode: 'edit'`, but the lock is already gone, so a second tab or Discovery
+Wizard could now acquire it and mutate the same graph concurrently).
+
+The one gap the `useEffect` cleanup genuinely does not cover is an app
+quit/reload that tears down the renderer without giving React a chance to
+run unmount cleanup at all:
+
+- **`beforeunload`** (`widgets/editor-shell/ui/editor-shell.tsx`, already
+  wired for `ConfigFileManager.instance.save()` on app exit) — this
+  feature's session gains a release call in the same handler, covering an
+  app quit/reload while a project has an active edit session, ahead of
+  (or instead of) any per-tab unmount cycle running. Calling
+  `releaseExclusiveMode` here even when the `useEffect` cleanup would also
+  have fired is safe and not double-registration in the problematic sense
+  above: `beforeunload` fires only on whole-app teardown, never on an
+  ordinary tab close, so it can never race the confirmation-gated path.
+
+**What this does not cover: abnormal termination, where no
+application code runs at all.** A renderer crash, an uncaught exception
+during teardown, or a forced process kill gives neither release point above
+a chance to fire — `activeExclusiveModeByProject` is
+in-memory only, so the lock for that project stays held until the app
+process itself restarts (which resets the whole map). This is accepted as a
+known limitation, not solved by this design: the release points above close
+the gap for every close path this app actually exercises during
+normal operation; only true abnormal termination — which a restart already
+recovers from — remains unaddressed, and is not considered worth a
+force-unlock UI or a liveness/heartbeat mechanism for this pass.
 
 ---
 
@@ -589,25 +679,6 @@ reconciler. A mutation response's three collections never contain a
 definition, changed.
 
 ```typescript
-function applyComponentCollection(collections: {
-  addedComponentCollectionDto: ComponentCollectionDto;
-  updatedComponentCollectionDto: ComponentCollectionDto;
-  deletedComponentCollectionDto: ComponentCollectionDto;
-}): void {
-  set((state) => {
-    for (const m of collections.addedComponentCollectionDto.spfModules) upsertModule(state, m);
-    for (const m of collections.updatedComponentCollectionDto.spfModules) upsertModule(state, m);
-    for (const m of collections.deletedComponentCollectionDto.spfModules) removeModule(state, m);
-    for (const l of [...collections.addedComponentCollectionDto.dataLinks, ...collections.updatedComponentCollectionDto.dataLinks]) upsertLink(state, l, 'data');
-    for (const l of collections.deletedComponentCollectionDto.dataLinks) removeLink(state, l, 'data');
-    for (const l of [...collections.addedComponentCollectionDto.controlLinks, ...collections.updatedComponentCollectionDto.controlLinks]) upsertLink(state, l, 'control');
-    for (const l of collections.deletedComponentCollectionDto.controlLinks) removeLink(state, l, 'control');
-    for (const ss of [...(collections.addedComponentCollectionDto.subsystems ?? []), ...(collections.updatedComponentCollectionDto.subsystems ?? [])]) upsertSubsystem(state, ss);
-    for (const ss of collections.deletedComponentCollectionDto.subsystems ?? []) removeSubsystem(state, ss);
-    recomputeContainersAndSubgraphs(state); // re-derive by grouping state.moduleInstances, same logic loadGraphData already uses
-  });
-}
-
 function upsertModule(state: GraphDataState, m: SpfModuleDto): void {
   state.graphData.moduleInstances[m.systemId] = toModuleInstance(m); // same mapping loadGraphData already does
 }
@@ -639,6 +710,13 @@ function applyDeletedCollection(collection: ComponentCollectionDto): void {
   });
 }
 ```
+
+`applyComponentCollection` itself — the function these two helpers call —
+is defined once, in full, in
+[Response Reconciliation](#response-reconciliation--component-collections)'s
+later listing (alongside `pruneDeletedLinkBookkeeping`/
+`adjustSurvivingPortCounts`, which must run in the same pass); it is not
+repeated here.
 
 **Containers/subgraphs are never deleted directly — they disappear when
 their last module does.** Because they're derived, not stored as their own
@@ -1007,12 +1085,26 @@ Apply is running. The "Apply Changes" button's `disabled` condition is
 `applyStatus === 'in-flight' || isMutating`, not `applyStatus` alone.
 
 **Success and failure are both surfaced through the same summary view, not
-a toast.** This is a deliberate departure from the rest of the feature's
-"toast on failure" pattern. Unlike the rest of this feature's endpoints,
-`createUsecases` doesn't have a binary success/fail response — it always
-returns `200` with `created`/`updated`/`deleted`/`issues`; "failure" here
-means `issues` contains entries with `severity: 'FATAL'` or `'ERROR'`
-(`'WARNING'` entries are informational, not failures):
+a toast — but this only applies once the backend actually responds.** This
+is a deliberate departure from the rest of the feature's "toast on failure"
+pattern, scoped specifically to the `200`-with-`issues` case. Unlike the
+rest of this feature's endpoints, `createUsecases` doesn't have a binary
+success/fail response for a completed request — it always returns `200`
+with `created`/`updated`/`deleted`/`issues`; "failure" in that case means
+`issues` contains entries with `severity: 'FATAL'` or `'ERROR'`
+(`'WARNING'` entries are informational, not failures).
+
+**A transport-level failure — the request never completing (network error,
+timeout, non-2xx, thrown exception) — is a distinct case, not folded into
+the issues-based failure above.** There is no response body to render in a
+summary view in this case, so it follows the same "toast + no change" rule
+every other backend call in this feature uses, rather than being treated as
+a `0`-length `issues` array or silently swallowed: `applyStatus` returns to
+`'idle'`, `modificationSummary` stays `null` (the summary view never opens),
+an error toast is shown, and the session **stays in Edit mode** with staged
+changes intact — the same outcome as the issues-based failure case, just
+surfaced as a toast instead of a summary view, since there is nothing
+issues-shaped to display:
 
 ```mermaid
 sequenceDiagram
@@ -1023,20 +1115,27 @@ sequenceDiagram
   U->>ES: click Apply Changes
   ES->>ES: applyStatus = 'in-flight'
   ES->>B: POST /projects/{projectId}/usecases (CreateUsecasesRequestDto)
-  B-->>ES: CreateUsecasesResponseDto {created, updated, deleted, issues}
-  ES->>ES: modificationSummary = result, applyStatus = 'idle'
-  alt no FATAL/ERROR issues
-    ES->>ES: exitEditMode() — releases lock, mode → 'view'
-    Note over ES: canvas re-fetches/reconciles against committed backend state
-  else FATAL/ERROR issues present
-    Note over ES: mode stays 'edit', staged changes remain intact
+  alt request fails (network error, timeout, non-2xx, thrown exception)
+    B-->>ES: transport failure — no response body
+    ES->>ES: applyStatus = 'idle', modificationSummary stays null
+    Note over ES: error toast; mode stays 'edit', staged changes intact — same as every other backend call's failure pattern
+  else request completes
+    B-->>ES: CreateUsecasesResponseDto {created, updated, deleted, issues}
+    ES->>ES: modificationSummary = result, applyStatus = 'idle'
+    alt no FATAL/ERROR issues
+      ES->>ES: exitEditMode() — releases lock, mode → 'view'
+      Note over ES: canvas re-fetches/reconciles against committed backend state
+    else FATAL/ERROR issues present
+      Note over ES: mode stays 'edit', staged changes remain intact
+    end
+    ES->>U: render modification summary view (created/updated/deleted + issues)
   end
-  ES->>U: render modification summary view (created/updated/deleted + issues)
 ```
 
-On failure, the session **stays in Edit mode** — staged changes remain
-intact, and the user reviews the failure details in the summary view before
-either retrying Apply or manually Discarding. Nothing is auto-rolled-back.
+On issues-based failure, the session **stays in Edit mode** — staged changes
+remain intact, and the user reviews the failure details in the summary view
+before either retrying Apply or manually Discarding. Nothing is
+auto-rolled-back.
 
 **Summary view lifecycle.** The summary view opens automatically whenever
 `modificationSummary` is non-null (both the success and failure case render
@@ -1100,14 +1199,44 @@ session that no longer exists. `confirmDiscard()` itself also checks
 `pasteSelection` guard on it explicitly rather than relying solely on the
 button being disabled — the project-close interception path (below) calls
 `requestDiscard()` programmatically, not through the disabled button, so it
-needs its own guard too:
+needs its own guard too.
+
+**`confirmDiscard()` also holds `isMutating` for the duration of its own
+backend call, not only the guard above that blocks it from starting
+*during* someone else's mutation.** An earlier draft of this section only
+checked `isMutating` on entry — sufficient to stop Discard from starting
+while an edit is already in flight, but nothing stopped the reverse: a new
+edit starting while `confirmDiscard()`'s own `discardChanges` call is still
+outstanding. That's the same race this document's Apply Changes section
+already closes by running `applyChanges()` under `withMutationLock` — a
+structural edit whose response arrives after `exitEditMode()` has already
+released the lock and returned the session to `'view'` would have
+`applyComponentCollection` merge into a session that no longer exists.
+`confirmDiscard()` gets the identical treatment, just via explicit
+`beginMutation()`/`endMutation()` calls rather than `withMutationLock`
+itself, since it already has its own `mode`-independent guard structure
+above and doesn't need `withMutationLock`'s thrown-error-on-wrong-mode
+behavior — `requestDiscard()`'s project-close entry point is a legitimate,
+expected call site regardless of `mode`, not a caller bug:
 
 ```typescript
-function confirmDiscard(): Promise<void> {
+async function confirmDiscard(): Promise<void> {
   if (get().isMutating) return Promise.resolve(); // an edit is still in flight — see above
-  // ...unchanged below
+  get().beginMutation();
+  try {
+    // ...discardChanges call, below...
+  } finally {
+    get().endMutation();
+  }
 }
 ```
+
+While `confirmDiscard()` holds `isMutating`, the full-canvas mutation
+overlay (REQ-065, above) renders exactly as it does for any other backend
+call — the user sees the same non-interactive canvas state during a Discard
+request as during any structural edit, which was already implied by the
+button's own `disabled` condition but not, until now, by the function's own
+internal behavior.
 
 **`confirmDiscard()` calls `discardChanges` with `changeIds` omitted,
 discarding the entire edit session's changes in one call — it does not
@@ -1121,14 +1250,15 @@ changes will be discarded"). Dependent changes are cascaded server-side
 (`cascadedChangeIds` in the response) — the frontend does not need to
 compute or request that cascade itself.
 
-**Whether this "discard everything" behavior also reverts REQ-053/071's
-immediately-staged CKV/TKV and Keys-assignment changes is unresolved — see
-`kv-key-configuration-design.md`'s Open Items.** Those two sections'
-stated reason for staging immediately (rather than batching into Apply) is
-specifically to survive a Discard; "all changes will be discarded" as
-quoted above gives no indication those changeIds are exempt. This document
-does not assume either answer — it is flagged as an open item, not
-resolved here.
+**Resolved: "discard everything" does revert REQ-053/071's
+immediately-staged CKV/TKV and Keys-assignment changes too — confirmed with
+the backend team.** There is no changeId carve-out for CKV/TKV or
+Keys-assignment mutations; an omitted-`changeIds` Discard reverts every
+staged change in the session, including those two. See
+`kv-key-configuration-design.md`'s CKV/TKV and Keys Assignment sections for
+the corresponding resolution — immediate-staging's benefit is that the
+panel/canvas reflect the change right away, not that the change survives a
+Discard.
 
 **The discard response carries no graph payload, and `EditSessionSlice`
 does not fetch graph data itself.** Unlike Apply Changes, `discardChanges`
@@ -1160,9 +1290,8 @@ transitions *into* `'view'` (initial mount, where `mode` is already
 `'view'`, and the post-discard transition) — the `'view' → 'edit'`
 transition must leave canvas state untouched. This is the same `if (mode
 === 'view')` guard the Mode State section above uses to clear
-`excludedLinks`/`pairLinksById`/`subgraphProvenanceById`/
-`assignedKeyIdsBySubsystemId`/`kvCasesById` — one guard, one place in the
-effect body, covering both that reset and this one.
+`excludedLinks`/`pairLinksById`/`subgraphProvenanceById`/`kvCasesById` — one
+guard, one place in the effect body, covering both that reset and this one.
 
 ```mermaid
 sequenceDiagram
@@ -1176,7 +1305,10 @@ sequenceDiagram
   ES->>U: show confirmation prompt
   U->>ES: confirmDiscard()
   ES->>B: POST /projects/{projectId}/discard-changes {} (no changeIds — discard all)
-  alt success: true
+  alt request fails (network error, timeout, non-2xx, thrown exception)
+    B-->>ES: transport failure — no response body
+    Note over ES: error toast; mode stays 'edit', staged changes intact, lock not released — same treatment as success: false, below
+  else success: true
     B-->>ES: DiscardChangesResponseDto {processedChangeIds, cascadedChangeIds, ...}
     ES->>ES: exitEditMode() — releases lock, mode → 'view'
     Note over GDW: mode → 'view' transition observed (effect dependency)
@@ -1189,6 +1321,16 @@ sequenceDiagram
     Note over ES: error toast (failedChangeIds/message), mode stays 'edit', staged changes intact — retry available
   end
 ```
+
+**A transport-level failure (the request never completing) is treated the
+same as `success: false`, not left undesigned.** Both are a plain "toast +
+no state change" outcome, consistent with every other backend call in this
+feature: the confirmation prompt closes, no `exitEditMode()` call happens,
+`mode` stays `'edit'`, staged changes remain intact, and the user can retry
+Discard. The only difference from `success: false` is the toast's source
+(a generic transport-error message vs. the response's own
+`message`/`failedChangeIds`) — there is no separate state machine branch for
+this case.
 
 If the discard succeeds but the view-mode session's follow-up
 `loadGraphData` call itself fails, that failure surfaces through
@@ -1210,12 +1352,37 @@ confirmation before proceeding, instead of closing silently. The existing
 signature but is unused at today's call site (`use-project-opener.tsx`) —
 this is the mechanism to wire up, not new infrastructure.
 
-**Discard failure (`success: false`):** shown as an error toast, consistent
-with the generic backend-failure pattern used everywhere else in this
-feature (REQ-008/029-style) — `message`/`failedChangeIds` from the response
-populate the toast. The session stays in Edit mode with staged changes
-intact; the user can retry Discard. There is no forced exit from Edit mode
-on a failed discard.
+**`handleProjectClose` must abort — resolve `false`, not its unconditional
+`true` today — whenever the redirected discard does not end in a
+successful `exitEditMode()`.** Two distinct sub-cases both abort the close,
+not only a backend failure:
+
+- **The user cancels the confirmation prompt** (`cancelDiscard()`): the
+  close is abandoned entirely — the project stays open, the tab remains in
+  `mode: 'edit'`, staged changes remain intact, and the user is returned to
+  editing exactly as if they had never tried to close the project.
+- **`confirmDiscard()`'s backend call fails** (`success: false` or a
+  transport failure): same outcome as the button-triggered case earlier in
+  this section — error toast, session stays in Edit mode, staged changes
+  intact — and the close is aborted for the same reason: there is nothing
+  yet to close, since the edit session the user would lose is still live.
+
+Only when `confirmDiscard()` actually succeeds (`exitEditMode()` runs, lock
+released, `mode → 'view'`) does `handleProjectClose` proceed with its
+existing archive/screenshot/close steps and resolve `true`. This is a
+new control-flow dependency `handleProjectClose` did not have before this
+feature — its call into the redirected discard flow must be awaited, and
+its own return value must relay whichever of the three outcomes above
+occurred, rather than resolving `true` unconditionally as it does today.
+
+**Discard failure (`success: false`), and transport-level failure alike:**
+both shown as an error toast, consistent with the generic backend-failure
+pattern used everywhere else in this feature (REQ-008/029-style) —
+`message`/`failedChangeIds` from the response populate the toast for
+`success: false`; a generic transport-error message populates it when the
+request never completed. The session stays in Edit mode with staged changes
+intact either way; the user can retry Discard. There is no forced exit from
+Edit mode on a failed or non-completing discard.
 
 ---
 
@@ -1234,11 +1401,10 @@ open items narrow to what those contracts don't cover:
   still stands, but the per-action staging endpoint it needs to call remains
   genuinely open — flagged for the backend team.
 - **Whether `discardChanges` (omitted `changeIds`) reverts REQ-053/071's
-  immediately-staged CKV/TKV and Keys-assignment changeIds is unconfirmed
-  with the backend team.** See the Discard section above and
-  `kv-key-configuration-design.md`'s Open Items — REQ-071's rationale for
-  staging immediately (surviving a Discard) is only valid if the answer is
-  no.
+  immediately-staged CKV/TKV and Keys-assignment changeIds — resolved, no
+  longer open.** Confirmed with the backend team: yes, it does. See the
+  Discard section above and `kv-key-configuration-design.md`'s CKV/TKV and
+  Keys Assignment sections.
 - **The frontend `SubgraphDto` type is stale against the real schema and
   needs updating — not a backend contract question.**
   `entities/subgraph-definitions/model/subgraph-definition.dto.ts`

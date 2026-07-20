@@ -17,10 +17,11 @@ only available operation is double-clicking a module, which opens a new tab for
 cal/tag data tuning. No structural editing operations are available in View
 mode.
 
-**REQ-002a** In View mode, clicking a module, subgraph, container, or
-data/control link opens the properties panel for that component in a
-read-only view. This is separate from the double-click behavior in REQ-002,
-which opens a dedicated cal/tag tuning tab — the two interactions coexist.
+**REQ-002a** In View mode, clicking a module, subgraph, container, subsystem,
+subgraph proxy node, or data/control link opens the properties panel for that
+component in a read-only view. This is separate from the double-click
+behavior in REQ-002, which opens a dedicated cal/tag tuning tab — the two
+interactions coexist.
 
 **REQ-003** In Edit mode, the canvas exposes: module palette, subgraph palette,
 context menus, inline connection creation, properties panel, Key Configurator
@@ -130,9 +131,11 @@ shown and no change is applied.
 **REQ-017** User can rename a subgraph via the properties panel. The rename is
 confirmed by the backend before the canvas reflects the change.
 
-**REQ-018** Subgraphs are created implicitly — only via REQ-006 (dragging a
+**REQ-018** Subgraphs are created implicitly — via REQ-006 (dragging a
 module onto empty canvas space, which auto-creates a new subgraph, container,
-and module instance). There is no explicit standalone "add subgraph" action.
+and module instance), or via pasting a subgraph (REQ-069/070, which creates a
+brand-new backend subgraph from the copied contents — see the note under
+REQ-069/070). There is no explicit standalone "add subgraph" action.
 
 **REQ-019** Dropping a subgraph onto an existing subgraph, onto any of that
 subgraph's contents (containers or modules), or onto a subgraph proxy node,
@@ -210,8 +213,11 @@ link is removed from the canvas only after the backend confirms the deletion.
 **REQ-031a** User can create a new subsystem or move a subgraph or subsystem
 into an existing subsystem by right-clicking a subgraph or subsystem and
 selecting **"Move to Subsystem"**. The user is then prompted to select an
-existing subsystem or create a new one. The canvas is updated only after the
-backend confirms. On failure, an error toast is shown.
+existing subsystem or create a new one. When the right-clicked node is
+itself a subsystem, that subsystem is excluded from the list of existing
+subsystems offered as a destination — a subsystem cannot be moved into
+itself. The canvas is updated only after the backend confirms. On failure,
+an error toast is shown.
 
 **REQ-031b** User can delete a subsystem via context menu or the **Delete key**.
 Deleting a subsystem cascades to delete all its contents (subgraphs, modules,
@@ -278,8 +284,10 @@ options:
 
 ## 8. KV assignment — existing subgraph (palette-placed)
 
-**REQ-039** When an existing subgraph is placed on the canvas, its supported
-KVs are loaded from the subgraph DTO returned with the subgraph contents. No
+**REQ-039** When an existing subgraph is placed on the canvas (or is already
+on canvas at Edit-mode entry), its supported KVs are loaded from that
+subgraph's own `SubgraphDto.SGKV` field — not from the subgraph-contents
+fetch (`ComponentCollectionDto`), which carries no subgraph-level data. No
 KVs are selected automatically — the user must select the desired KVs
 explicitly from the Key Configurator panel.
 
@@ -321,7 +329,14 @@ not carried in the Apply payload — see REQ-071.
 
 **REQ-046** On Apply success, the backend returns a **modification summary**.
 The UI displays this summary to the user. On failure, the failure details are
-shown within the summary view rather than as a toast notification.
+shown within the summary view rather than as a toast notification. This
+applies when the backend responds at all — `issues` entries with
+`severity: 'FATAL'/'ERROR'` in a completed `200` response. If the request
+itself never completes (network error, timeout, thrown exception), there is
+no response body to summarize, so this case falls back to the tool's
+standard error-toast pattern instead of opening the summary view; the
+session remains in Edit mode with staged changes intact, same as any other
+failed backend call in this tool.
 
 ---
 
@@ -381,6 +396,8 @@ node:
   for newly created subgraphs (REQ-042).
 - **Subsystem selected**: shows the keys assignment interface per REQ-071.
 - **Module selected**: shows the CKV/TKV configuration interface per REQ-053.
+- **Container or edge selected**: the panel shows no content — CKV/TKV, KV,
+  and Keys assignment do not apply to containers or edges.
 
 **REQ-053** The Key Configurator panel for a selected module shows the module's
 CKV/TKV configuration. A CKV (Calibration Key Value) is a named key-value pair
@@ -394,8 +411,13 @@ panel. This is a keys assignment — distinct from KV assignment used for
 subgraphs. Each change (assign or unassign) is staged to the backend
 immediately — same treatment as REQ-053's CKV/TKV — and the panel reflects
 the change only after the backend confirms. This is a deliberate departure
-from subgraph KV assignment's Apply-time batching: staging Keys immediately
-avoids losing the assignment if the session is discarded before Apply.
+from subgraph KV assignment's Apply-time batching: Keys are staged
+immediately so the panel and canvas reflect the assignment right away,
+without waiting for Apply. This does **not** protect the assignment from a
+subsequent Discard — confirmed with the backend team, discarding the session
+discards every staged change, including immediately-staged CKV/TKV and Keys
+assignments (see REQ-061); a Keys assignment on a subsystem created this
+session is discarded along with the subsystem itself.
 
 ---
 
@@ -480,12 +502,18 @@ are unavailable.
 **REQ-061** The user can click the **Discard** button at any time during the
 edit session. Changes made during the session are staged to the backend but not
 yet committed. A confirmation prompt is shown before discarding. On
-confirmation, a discard request is sent to the backend, which atomically
-clears all staged changes; the discard response itself carries no graph
-payload. The tool returns to View mode, and the View-mode session fetches the
-components for the currently selected use cases fresh from the backend and
-renders them. If the user closes the project the same discard flow is
-triggered.
+confirmation, a discard request is sent to the backend. If the backend
+confirms success, it atomically clears all staged changes; the discard
+response itself carries no graph payload. The tool then returns to View
+mode, and the View-mode session fetches the components for the currently
+selected use cases fresh from the backend and renders them. If the discard
+instead fails — the backend reports `success: false`, or the request never
+completes (network error, timeout, thrown exception) — an error toast is
+shown and the session remains in Edit mode with staged changes intact; the
+user may retry Discard. If the user closes the project the same discard flow
+is triggered — if the user cancels the confirmation, or the discard request
+fails, the project-close itself is aborted: the project remains open, the
+tab stays in Edit mode, and staged changes remain intact.
 
 **REQ-062** The **"Start Graph Modification"** button is always visible in View
 mode. It is disabled with an explanatory tooltip when the Discovery Wizard or
@@ -502,6 +530,13 @@ nodes and edges simultaneously. Cascades apply per node type (see REQ-048) —
 if a parent and child are both selected, the child delete is handled as part of
 the parent cascade and is not issued as a separate operation.
 
+**REQ-063a** A batch Delete operation issues one backend call per cascade
+root, independently. If some roots succeed and others fail, the successful
+deletes are reflected on the canvas and a single toast reports partial
+success (e.g., "N of M deletions succeeded"); the failed roots' details are
+written to the log rather than enumerated in the toast. The canvas is never
+rolled back for the roots that did succeed.
+
 **REQ-069** User can copy and paste one or more components at the same
 hierarchy level. When multiple components are selected, all connections between
 the selected components are automatically included in the paste. Pasted
@@ -517,6 +552,15 @@ the copied selection are not carried over.
 > containers, and **subgraphs**. Pasting a subgraph creates a brand-new
 > backend subgraph populated with the copied contents (containers, modules,
 > internal links) — it does not reference or alias the original subgraph.
+>
+> **Paste target validation (clarified):** A paste is subject to the same
+> drop-target validation as drag-and-drop placement (REQ-011 for
+> modules/containers, REQ-019 for subgraphs) — a paste that would land on an
+> invalid target (e.g., a module node, a subgraph proxy node, or a
+> subsystem) is rejected before any backend call, the same way an equivalent
+> drag-and-drop would be. Pasting a subgraph is permitted only on empty
+> canvas space, the same restriction REQ-012/019 place on subgraph-palette
+> drops.
 > The pasted subgraph has the same provenance as any other session-created
 > subgraph (see REQ-006/REQ-018). Subsystems are not a copyable unit — they
 > only appear in these requirements as the *context* pasted into or out of.
@@ -526,12 +570,18 @@ the copied selection are not carried over.
 ## 20. Visual feedback
 
 **REQ-064** Port coloring reflects connection visibility based on the currently
-selected use cases:
+selected use cases, for **module ports only** — subsystem ports (REQ-036/037)
+are out of scope for this requirement:
 - **Black**: all connections to this port belong to selected use cases and are
   present on the canvas.
 - **Grey**: some connections to this port are on the canvas (their use cases
-  are selected) and some are not (their use cases are not selected).
-- **White**: this port has no connections.
+  are selected) and some are not (their use cases are not selected) — this
+  also covers a port whose only connection is a pair-rendered link the user
+  has excluded (REQ-014): the connection still exists in the backend but is
+  not currently rendered, the same underlying condition as an unselected
+  use case's connection.
+- **White**: this port has no connections at all (no backend connection
+  regardless of selection or exclusion).
 
 **REQ-065** All operations that require a backend call display a loading spinner
 on the affected component until the backend response is received. While a
@@ -598,3 +648,13 @@ interactions required for common operations.
   subgraph+container+module creation) is needed so a paste either fully
   succeeds or fully fails, rather than partially applying via sequential
   single-entity calls.
+- **Connection-in-progress vs. concurrent mutation**: REQ-024/038's two-click
+  connection flow keeps `connectionInProgress` entirely inside the
+  Visualizer's own internal state, outside `EditSessionSlice`/`isMutating`
+  (`link-and-port-design.md`). Nothing prevents the user from starting a
+  connection from a port, then deleting the module that owns that port (or
+  any other node) before completing the connection. This is expected to
+  self-resolve — the eventual connection-completion call is rejected
+  server-side (or has no valid target to complete against) and follows the
+  standard toast pattern — but is flagged here as a known interaction gap,
+  not a resolved one.

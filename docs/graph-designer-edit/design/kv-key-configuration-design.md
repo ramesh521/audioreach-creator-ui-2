@@ -190,6 +190,7 @@ properties/selection slice:
 | Subgraph (`newly-created`) | Free-form add — above |
 | Subsystem | Keys assignment — below |
 | Module | CKV/TKV configuration — below |
+| Container or edge | No content — none of the above apply |
 
 **`pre-loaded` subgraphs use the same checklist UI as `palette-placed`
 ones** (REQ-039–040 do not distinguish the two — REQ-039's text says
@@ -217,6 +218,18 @@ reflects only after confirmation" pattern from
 `core-edit-session-design.md`/`node-operations-design.md` instead of the
 "UI-only until Apply" pattern used elsewhere in this document.
 
+**Resolved: `discardChanges` (omitted `changeIds`) does revert CKV/TKV
+changes, confirmed with the backend team.** Staging immediately does not
+make a CKV/TKV entry durable against a subsequent Discard — "immediate"
+here means "reflected on confirmation," not "exempt from discard." This
+matters most for a module created earlier in the same session: if that
+module's own creation is discarded, any CKV/TKV entries staged onto it in
+the meantime are discarded along with it, consistently — there is no
+partial state where the module disappears but its CKV/TKV entries survive
+orphaned. See `core-edit-session-design.md`'s Discard section for the
+general statement of this and the Keys Assignment section below for the
+identical resolution on the subsystem-Keys side.
+
 **This requires new work, not just wiring — the existing panel does not
 yet stage to the backend.** The Key Configurator panel already exists
 (`packages/react-app/src/features/key-configurator/`), used outside edit
@@ -240,6 +253,35 @@ click-to-local-state-then-batch-save-later flow entirely for the edit-mode
 Key Configurator panel. This is real implementation work — building the
 per-action backend calls that don't exist yet — not a reuse of already-working code.
 
+**Correction: the confirmed response must also reconcile into
+`GraphDataSlice`, not stop at the four `features/key-configurator` stores.**
+An earlier draft of this section specified only that each store's
+`saveToBackend()` needed a real implementation, with no further requirement
+on what happens to the response. That's incomplete against
+`core-edit-session-design.md`'s architectural principle (see that
+document's Architecture section): `calibration-keys-store.ts`/
+`module-tag-keys-store.ts`/`subgraph-config-store.ts`/
+`subsystem-config-store.ts` are independent of `GraphDesignerStore`, so a
+CKV/TKV mutation confirmed only within one of those stores is invisible to
+the canvas and to any other open panel reading the same module's data from
+`GraphDataSlice` — the exact failure mode already diagnosed for
+`kvCasesById`/`provenance` elsewhere in this feature, here at the scale of
+an entire store family rather than one field. Concretely, each rewritten
+CKV/TKV action's success path must, in the same step that updates the
+owning `features/key-configurator` store, also write the confirmed value
+onto the affected module's own representation in
+`GraphDataSlice.moduleInstances` (CKV/TKV values are module-scoped, per
+REQ-053's own definition — "a module can have multiple CKV/TKV entries" —
+so this is a direct field update on the one already-known module, the same
+narrow-response treatment `updatePortCount`/renames already use, not a
+`ComponentCollectionDto` reconciliation). Whether the `features/key-configurator`
+stores remain the panel's own rendering source of truth, with `GraphDataSlice`
+receiving a copy, or whether `GraphDataSlice` becomes the sole source and the
+panel reads from it directly, is an implementation-time decision not settled
+here — either way, the constraint is that a confirmed CKV/TKV change must be
+reachable from `GraphDataSlice`, not sealed inside the key-configurator store
+family alone.
+
 ---
 
 ## Keys Assignment — Subsystems
@@ -250,29 +292,24 @@ each assign/unassign action — the same "call backend now, panel reflects
 only after confirmation" pattern REQ-053 uses for CKV/TKV** — not batched
 into Apply Changes. An earlier draft of this design modeled Keys
 assignment as UI-only, staged at Apply, the same as subgraph KV
-assignment; that's been changed specifically to avoid losing an assignment
-if the session is discarded before Apply runs.
+assignment; that's been changed so the panel and canvas reflect the
+assignment immediately rather than waiting for Apply.
 
-**Whether immediate-staging actually achieves that goal is unconfirmed and
-is a genuine open item, not settled by this design.** The stated purpose
-above only holds if a Keys-assignment call's resulting `changeId` is
-*excluded* from what `discardChanges` reverts. But
-`core-edit-session-design.md`'s confirmed Discard contract states, per the
-API's own documentation, "If `changeIds` is not provided or empty, all
-changes will be discarded," and `confirmDiscard()` always omits
-`changeIds` — every staged edit gets a `changeId` per REQ-066, with no
-carve-out described anywhere for CKV/TKV or Keys-assignment changeIds
-specifically. If Keys/CKV-TKV mutations are tracked with a `changeId` the
-same as every other staged edit, "discard everything" as currently
-designed would revert them too, defeating the entire reason this section
-gives for staging immediately rather than batching at Apply. This needs an
-explicit answer from the backend team — either these mutations commit
-outside the changeId-tracked staging system entirely (in which case
-"immediate" really does mean "durable, survives Discard"), or they don't
-(in which case immediate-staging has no discard-survival benefit over
-Apply-time batching, and the rationale above needs revisiting). Tracked in
-[Open Items Inherited](#open-items-inherited), below, and cross-referenced
-from `core-edit-session-design.md`'s own Discard section.
+**Resolved: immediate-staging does not protect a Keys assignment from a
+subsequent Discard — confirmed with the backend team, matching REQ-053's
+identical resolution above.** `core-edit-session-design.md`'s confirmed
+Discard contract states, per the API's own documentation, "If `changeIds`
+is not provided or empty, all changes will be discarded," and
+`confirmDiscard()` always omits `changeIds`; there is no carve-out for
+Keys-assignment or CKV/TKV changeIds. Every staged edit, including an
+immediate-stage Keys assignment, is discarded along with everything else
+in the session. Consequently, "staging immediately avoids losing the
+assignment on Discard" is **not** a benefit this design actually provides
+— the only benefit immediate-staging retains is that the panel/canvas
+reflect the assignment right away rather than waiting for Apply, the same
+as CKV/TKV. A Keys assignment made on a subsystem created earlier in the
+same session is discarded consistently along with that subsystem if the
+session is discarded — there is no orphaned-assignment case.
 
 **There is still no confirmed backend contract for this — the change is
 about the frontend's own staging design, not about the endpoint existing.**
@@ -285,49 +322,54 @@ UI-side model on the assumption a staging endpoint will be added; where/how
 it's called is a genuinely open item (see `core-edit-session-design.md`'s
 Open Items).
 
-**`assignedKeyIds` lives in a session-local map,
-`EditSessionSlice.assignedKeyIdsBySubsystemId`, not as a field directly on
-`Subsystem` — same fix, same reason, as `subgraphProvenanceById`
-(`node-operations-design.md`'s Subgraph Provenance section).** An earlier
-draft placed `assignedKeyIds` directly on the `Subsystem` node object.
-That repeats the exact failure mode `core-edit-session-design.md` already
-diagnosed for `kvCasesById` and fixed for `provenance`: unlike
-containers/subgraphs, `Subsystem` *is* a first-class entity in the
-response, which means it can appear in any of the three collections
-(`addedComponentCollectionDto`/`updatedComponentCollectionDto`/
-`deletedComponentCollectionDto`) on any mutation response — a REQ-031a
-move, a `-with-subsystems` link create, a future port-count change on it —
-and `upsertSubsystem` replaces a subsystem's entry wholesale from the
-backend's `SubsystemDto` regardless of which bucket carried it. A
-frontend-only field on the node object would be silently dropped on the
-next such response, exactly like `kvCasesById`/`provenance` were before
-being moved into their own maps. Keeping `assignedKeyIds` in its own map
-sidesteps this the same way:
+**`filteredKeys` is read and written directly on `GraphDataSlice`'s
+`Subsystem` node — no separate `EditSessionSlice` map.** An earlier draft
+of this section introduced `EditSessionSlice.assignedKeyIdsBySubsystemId`,
+reasoning by analogy to `subgraphProvenanceById`/`kvCasesById`: those two
+need their own map because they are frontend-only concepts the backend has
+no field for at all, so there is nothing to reconcile from on a recompute.
+`filteredKeys` is different — it is a **real backend field**, already
+present on every `SubsystemDto` the moment use cases are selected (the
+same `queryUsecaseComponents`/`getComponentsForSubgraph` load path every
+other entity in this feature loads through), and on a newly-created
+subsystem's `SubsystemDto` the moment `moveToSubsystem`'s `createNew`
+response lands. There is no seed-from-nothing problem to solve here, so the
+map added no value it didn't already have sitting in `GraphDataSlice`:
 
-```typescript
-interface EditSessionSlice {
-  // ...
-  assignedKeyIdsBySubsystemId: Map<string, string[]>;
-}
-```
+- **Read**: the Key Configurator panel's Keys checklist reads
+  `graphData.subsystems[subsystemId].filteredKeys` directly — whatever is
+  currently loaded for the selected subsystem, no separate lookup.
+- **Write, on assign/unassign**: the response below is not a full
+  `SubsystemDto`, so its success handler writes `assignedKeyIds` straight
+  onto that one field —
+  `graphData.subsystems[subsystemId].filteredKeys = assignedKeyIds` — the
+  same single-field, narrow-response update renames/`updatePortCount`
+  already use, just targeting the node directly instead of through an
+  intermediate map.
+- **Write, on every other subsystem-bearing response** (a REQ-031a move, a
+  `-with-subsystems` link create, a future subsystem port-count change):
+  `upsertSubsystem` already replaces the whole `Subsystem` node from that
+  response's `SubsystemDto`, including `filteredKeys` — no separate
+  handling needed, this is the existing reconciliation path unchanged.
 
-Because REQ-071 does not describe a backend-provided candidate list to
-check items off against — unlike KV's `SGKV` — the value stored is a plain
-`Key.id` list, not a `KvCase`-shaped structure.
+Because there is no map, there is nothing to seed at Edit-mode entry and
+nothing to clear on the `'view'` transition — `graphData.subsystems` is
+already fully replaced by the ordinary View-mode `loadGraphData` reload,
+which is a stronger reset than a map-clear would have been.
 
-**Seeded once per subsystem, the same "seed at whichever moment first
-learns of it" pattern as `kvCasesById`/`subgraphProvenanceById`.** A
-subsystem already on canvas when Edit mode is entered (or newly created
-via REQ-031a) is seeded from `SubsystemDto.filteredKeys` at that moment
-(empty if the field is absent/empty); a subsystem created via REQ-031a's
-`createNew` path is seeded empty, since a brand-new subsystem has no
-pre-existing keys. Like `subgraphProvenanceById`, this map is cleared on
-every `'view'` transition (`core-edit-session-design.md`'s Mode State
-section) so no entry survives into the next edit session.
+**One dependency this relies on, not yet confirmed with the backend team:
+every subsystem-bearing mutation response must carry an accurate
+`filteredKeys` on its `SubsystemDto`, not a stale or omitted one.** If, for
+example, `moveToSubsystem`'s response DTO does not bother recomputing
+`filteredKeys` since that endpoint isn't mutating keys, its `upsertSubsystem`
+call would silently overwrite a just-confirmed Keys assignment with a stale
+value. This is a narrower, more concrete question than the map-vs-no-map
+choice above and is tracked in [Open Items Inherited](#open-items-inherited),
+below.
 
 **Assign/unassign call the (TBD) staging endpoint immediately, under
-`withMutationLock`, and update the map only from the confirmed response —
-not optimistically:**
+`withMutationLock`, and update `Subsystem.filteredKeys` only from the
+confirmed response — not optimistically:**
 
 ```typescript
 assignSubsystemKey(subsystemId: string, keyId: string): Promise<{assignedKeyIds: string[]}>
@@ -337,7 +379,7 @@ unassignSubsystemKey(subsystemId: string, keyId: string): Promise<{assignedKeyId
 Following the same convention as `updatePortCount`'s `{updatedPorts}`
 (`link-and-port-design.md`) — the response is the subsystem's complete,
 current assigned-key list, not a delta, so the consumer replaces (not
-appends to) `assignedKeyIdsBySubsystemId.get(subsystemId)` wholesale on
+appends to) `graphData.subsystems[subsystemId].filteredKeys` wholesale on
 success. On failure, standard toast + no-change-applied, same as every
 other backend-calling action in this feature. This is one of the "what
 does *not* go through [the `ComponentCollectionDto`] mechanism" cases
@@ -351,10 +393,9 @@ The app already models keys via `Key {id: number; name: string}`
 (`shared/types/key-configurator-config.types.ts`), sourced project-wide via
 the existing `getAllKeyDefinitions` call used by the CKV/TKV panel. REQ-071
 assignment reuses that same catalog and picker pattern rather than
-introducing free-form text entry — `assignedKeyIdsBySubsystemId` holds
-`Key.id` values (stringified) selected from that list, keeping this
-Keys-assignment surface consistent with every other Key-typed UI in the
-app.
+introducing free-form text entry — `Subsystem.filteredKeys` holds `Key.id`
+values (stringified) selected from that list, keeping this Keys-assignment
+surface consistent with every other Key-typed UI in the app.
 
 ---
 
@@ -413,14 +454,6 @@ Apply payload construction at all.
 
 ## Open Items Inherited
 
-- **Whether CKV/TKV (REQ-053) and Keys-assignment (REQ-071) changeIds are
-  excluded from `discardChanges`'s "discard everything" behavior — TBD
-  with the backend team.** REQ-071's own stated reason for staging
-  immediately rather than batching at Apply is to survive a Discard; that
-  only holds if these mutations' changeIds aren't included in what an
-  omitted-`changeIds` discard call reverts. See the Keys Assignment
-  section above and `core-edit-session-design.md`'s Discard section for
-  detail — this is a new open item, not previously flagged.
 - **API contract for CKV/TKV staging** — TBD with the backend team; the
   Key Configurator panel's existing `saveToBackend()` stubs (REQ-053,
   above) need real per-action endpoints that don't exist yet.
@@ -434,6 +467,16 @@ Apply payload construction at all.
   applies. Subgraph KV assignment, by contrast, is now confirmed via
   `CreateUsecasesRequestDto`/`SubgraphKvSelectionDto` — no longer an open
   item for its own contract.
+- **Whether every subsystem-bearing mutation response reliably carries an
+  accurate `filteredKeys` on its `SubsystemDto`** — unconfirmed with the
+  backend team. The Keys Assignment section above reads/writes
+  `filteredKeys` directly on `GraphDataSlice`'s `Subsystem` node with no
+  intermediate cache, which is only safe if every endpoint that can return
+  a `SubsystemDto` in any bucket (`moveToSubsystem`, a `-with-subsystems`
+  link create, a future subsystem port-count change) keeps that field
+  current rather than omitting or staling it. If any of those endpoints'
+  response DTOs don't recompute `filteredKeys`, its `upsertSubsystem` call
+  would silently overwrite a just-confirmed Keys assignment.
 - **Net-new single-subgraph-by-`systemId` endpoint for REQ-012's
   placement-time `SGKV` fetch** — TBD with the backend team; see
   `core-edit-session-design.md`'s Open Items for detail. `SGKV` itself is

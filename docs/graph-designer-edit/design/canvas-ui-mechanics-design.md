@@ -124,19 +124,25 @@ This document designs only the consuming side:
 // toggle's own implementation is expected to expose. If that toggle has not
 // landed by the time this feature ships, stub this hook to always return
 // 'subsystem' so the palette is never spuriously disabled — do not block
-// on the toggle's own delivery.
-const isRawMode = useSubsystemDisplayMode() === 'raw';
+// on the toggle's own delivery. Note the stub value itself must disable the
+// palette (see isSubsystemMode below), so a 'subsystem' stub is only safe
+// once paired with the corrected condition — see the correction note below.
+const isSubsystemMode = useSubsystemDisplayMode() === 'subsystem';
 const isDuplicatePlacement = placedSubgraphIds.has(item.subgraphId); // REQ-015, node-operations-design.md
 
-const disabled = isRawMode || isDuplicatePlacement;
-const tooltip = isRawMode
-  ? 'Not permitted while subsystems are hidden (raw mode)'
+const disabled = isSubsystemMode || isDuplicatePlacement;
+const tooltip = isSubsystemMode
+  ? 'Not permitted while the canvas is in subsystem mode'
   : isDuplicatePlacement
     ? 'Already present on the canvas'
     : undefined;
 ```
 
-Because the subgraph palette is disabled whenever `isRawMode` is true,
+**Correction: an earlier draft of this snippet checked `isRawMode` (`useSubsystemDisplayMode() === 'raw'`), the literal opposite of REQ-047.** REQ-047 states the subgraph palette is disabled while the canvas is in **subsystem** mode, not raw mode — stated identically by the requirements doc, the LLD's condensed table, and `node-operations-design.md`'s REQ-019 section. The earlier draft's `isRawMode` condition, and its "stub to always return `'subsystem'` so the palette is never spuriously disabled" reasoning, both assumed the wrong polarity: stubbing the hook to `'subsystem'` under the old `isRawMode` check would have left the palette *enabled* by default (since `useSubsystemDisplayMode() === 'raw'` is false for a `'subsystem'` stub) — backwards from the stated fallback intent, which is for the palette to behave as if the (not-yet-built) toggle defaults to a state that does not spuriously disable it. Corrected: the condition is `isSubsystemMode`, and the same `'subsystem'` stub value now correctly falls into the disabled branch — matching this section's *intended* fallback design decision (below), not contradicting it.
+
+**Corrected fallback behavior, given the fix above.** If the raw/subsystem toggle hasn't landed by ship time and the stub always returns `'subsystem'`, the subgraph palette would always be disabled under the corrected condition — the opposite of "never spuriously disabled." Since the toggle is explicitly out of scope and its actual default is undecided by this feature, the stub's default value must instead be `'raw'` (not `'subsystem'`) to preserve the original intent — the palette stays enabled until a real toggle exists to disable it. This is a correction to the stub's assumed default value, not a new design decision: the hook's *shape* (`useSubsystemDisplayMode(): 'raw' | 'subsystem'`) and the principle "don't block on the toggle's own delivery" are unchanged from the earlier draft; only which literal value the stub returns is corrected, to stay consistent with the now-corrected `isSubsystemMode` check above.
+
+Because the subgraph palette is disabled whenever `isSubsystemMode` is true,
 there is never a subgraph-palette drag payload to validate against a
 subsystem drop target while that mode applies — this is why the table
 above marks that cell "not applicable" rather than "rejected": there's no
@@ -400,11 +406,37 @@ function deleteSelection(selection: Selectable[]): Promise<void> {
       !isCoveredByRootCascade(item.sourceNodeId!, roots) &&
       !isCoveredByRootCascade(item.targetNodeId!, roots),
   );
-  return withMutationLock(() =>
-    Promise.all([...roots, ...survivingEdges].map((item) => deleteByType(item))),
-  );
+  const items = [...roots, ...survivingEdges];
+  return withMutationLock(async () => {
+    const results = await Promise.allSettled(items.map((item) => deleteByType(item)));
+    const failures = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+    if (failures.length > 0) {
+      // Each root/edge is deleted independently — successes are already
+      // merged into GraphDataSlice by the time any failure is known, and
+      // are never rolled back. One aggregate toast reports the count; the
+      // per-item failure reasons go to the log, not the toast body (REQ-063a).
+      for (const [i, failure] of failures.entries()) {
+        logger.error('deleteSelection: item failed', {item: items[results.indexOf(failure)], reason: failure.reason});
+      }
+      toast.error(`${items.length - failures.length} of ${items.length} deletions succeeded`);
+    }
+  });
 }
 ```
+
+**Partial failure is expected, not exceptional — REQ-063a.** Each
+root/surviving-edge delete is an independent backend call; `Promise.all`
+(an earlier draft's choice) would reject the whole batch on the first
+failure, discarding visibility into which of the *other* calls had already
+succeeded and been merged by the time the rejection surfaced. `Promise.allSettled`
+lets every independent delete run to completion regardless of any other's
+outcome, matching what actually happens in `GraphDataSlice` — every
+succeeding root's `applyComponentCollection` call has already merged by the
+time the batch resolves, and nothing rolls that back for a sibling's
+failure. The user sees one aggregate toast ("N of M deletions succeeded");
+per-item failure detail (which root, what error) goes to the log, not the
+toast body, consistent with the toast being a count-level summary rather
+than an enumeration.
 
 **The whole batch runs under one `beginMutation`/`endMutation` pair, not
 one per root.** `deleteSelection` is a single user-initiated action, so its
@@ -432,7 +464,9 @@ delete call already cascades to its selected descendants per
 ## Port Coloring
 
 **REQ-064.** Port coloring is a pure derived value, not stored state, based
-on connection visibility relative to the currently-selected use cases:
+on connection visibility relative to the currently-selected use cases —
+**module ports only; subsystem ports are explicitly out of scope**, per
+REQ-064's own text:
 
 | Color | Condition |
 | --- | --- |
@@ -450,9 +484,19 @@ which is populated for every port regardless of which use cases are
 selected. A port is:
 
 - **White** if `totalLinksAtPort === 0`.
-- **Black** if `onCanvasCount === totalLinksAtPort` (every connection this
-  port has belongs to a selected use case).
-- **Grey** if `0 < onCanvasCount < totalLinksAtPort`.
+- **Black** if `totalLinksAtPort > 0 && onCanvasCount === totalLinksAtPort`
+  (every connection this port has belongs to a selected use case).
+- **Grey** if `totalLinksAtPort > 0 && onCanvasCount !== totalLinksAtPort`
+  — this covers not only the "some but not all" case
+  (`0 < onCanvasCount < totalLinksAtPort`) but also `onCanvasCount === 0`
+  with `totalLinksAtPort > 0`: a port whose only backend connection is a
+  pair-rendered link the user has excluded (REQ-014). Excluding removes the
+  link from `graphData.connections` (so `onCanvasCount` drops to `0`) but
+  deliberately does not touch `totalLinksAtPort`, since the link still
+  exists server-side (see below) — so this port has connections the backend
+  knows about that are not currently visible on canvas, the same underlying
+  condition Grey represents for the "some selected, some not" case, not a
+  fourth color of its own.
 
 Computed by the port-handle component (`ui/node-types/port-handles`) from
 existing connection data and the existing use-case-selection state already
@@ -513,13 +557,25 @@ function adjustPortForLink(state: GraphDesignerStore, link: DataLinkDto | Contro
     [link.sourceId, link.sourcePortId],
     [link.destinationId, link.destinationPortId],
   ]) {
-    const module = findModuleByNumericId(state, moduleNumericId); // undefined if this endpoint was itself deleted — nothing to adjust
+    const module = findModuleByNumericId(state, moduleNumericId); // undefined if this endpoint was itself deleted, or is a subsystem rather than a module — see below; either way, nothing to adjust
     if (!module) continue;
     const port = [...module.inputPorts, ...module.outputPorts].find((p) => p.portId === String(portNumericId));
     if (port) port.totalLinksAtPort += delta;
   }
 }
 ```
+
+**A link endpoint that is a subsystem, not a module — REQ-027's A→B hop of
+a cross-subsystem bridge — is deliberately not resolved here, by
+construction, not as a gap.** `findModuleByNumericId` only ever looks up
+`state.graphData.moduleInstances`; for the subsystem→subsystem hop of a
+REQ-027 bridge, both endpoints resolve to `undefined` and are skipped, the
+same code path as an already-deleted endpoint. This is intentional, not an
+oversight: `totalLinksAtPort`/port coloring (REQ-064, above) is a
+module-port concept only — subsystems have their own port *counts*
+(REQ-036/037) but this feature does not extend REQ-064's black/grey/white
+coloring to subsystem ports, so there is no `totalLinksAtPort`-equivalent
+field on a subsystem port for this function to adjust in the first place.
 
 This runs as one more step inside `applyComponentCollection`
 (`core-edit-session-design.md`), alongside the existing
@@ -620,17 +676,43 @@ function pasteSelection(position: XY): Promise<void> {
 **Target container/subgraph resolution.** Once a raw `(x, y)` is chosen by
 either trigger, the paste target is resolved the same way a drag-drop
 target is (see [Shared Drag-and-Drop Validation](#shared-drag-and-drop-validation)
-above): a hit-test against on-canvas node bounding boxes at that point. If
-the point falls inside a container, modules paste into that container; if
-inside a subgraph but outside any container, REQ-007's
-`createModuleWithAutoCreate` (with `existingSubgraphId` set) semantics
-apply; if on empty canvas space, REQ-006's `createModuleWithAutoCreate`
-(both IDs omitted) semantics apply (mirrored below for paste) — see
-`node-operations-design.md`'s [Sequence: Module Drop on Empty
-Canvas](../design/node-operations-design.md#sequence-module-drop-on-empty-canvas)
-for the real two-round-trip flow this now implies. This reuses the exact
-target-classification the drop-validation table already defines — paste
-does not introduce a second hit-testing mechanism.
+above): a hit-test against on-canvas node bounding boxes at that point.
+
+**The hit-tested target is validated against the same drop-target rules as
+drag-and-drop before paste proceeds — REQ-011/019, tightened to also cover
+paste.** An earlier draft of this section only used the hit-test to
+*classify* the target (container / subgraph / empty space) and never
+checked whether the classified target was actually a *valid* one — nothing
+stopped a paste from landing directly on a module node, a subgraph proxy
+node, or a subsystem, targets the drag-and-drop table above explicitly
+rejects for the same payload kinds. The fix: run the hit-tested target
+through the same eligibility check `onDragOver`/`onDrop` use (the table in
+[Shared Drag-and-Drop Validation](#shared-drag-and-drop-validation)),
+keyed by the clipboard's own content kind (a snapshot containing a subgraph
+uses the subgraph-palette row; a snapshot of only modules/containers uses
+the module-palette row) before doing anything else. An ineligible target
+rejects the paste outright — same invalid-target feedback as a rejected
+drag-and-drop, no backend call:
+
+- If the point falls inside a container, modules/containers paste into
+  that container (valid per REQ-004's row).
+- If inside a subgraph but outside any container, REQ-007's
+  `createModuleWithAutoCreate` (with `existingSubgraphId` set) semantics
+  apply (valid per REQ-007's row).
+- If on empty canvas space, REQ-006's `createModuleWithAutoCreate` (both
+  IDs omitted) semantics apply (valid per REQ-006's row; also the *only*
+  eligible target when the clipboard contains a subgraph, mirroring
+  REQ-012/019 — a subgraph paste hit-testing onto a module, container,
+  existing subgraph, proxy node, or subsystem is rejected the same way the
+  equivalent subgraph-palette drop would be).
+- Any other hit-tested target (module node, subgraph proxy node, subsystem
+  node — or, for a subgraph-bearing clipboard, anything other than empty
+  space) is rejected before any backend call, with the same invalid-target
+  visual feedback REQ-011/019 already define for drag-and-drop.
+
+This reuses the exact target-classification *and* eligibility rules the
+drop-validation table already defines — paste does not introduce a second
+hit-testing mechanism or a second validation table.
 
 **Copyable node types: modules, containers, and subgraphs.** Subsystems are
 not a copyable unit — they appear in REQ-070 only as the *context* pasted

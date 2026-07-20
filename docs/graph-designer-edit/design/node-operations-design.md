@@ -192,35 +192,61 @@ responsibility end to end:
 ```typescript
 function removeFromUiCacheOnly(subgraphId: string): Promise<void> {
   set((state) => {
-    // 1. Drop every module this subgraph owns — these were seeded
+    // 1. Identify every connection touching this subgraph *before* any
+    //    module is deleted — both the ones still rendered on canvas
+    //    (graphData.connections) and any already-excluded pair-link
+    //    (excludedLinks, REQ-014) that references this subgraph's modules
+    //    but is no longer present in graphData.connections at all. Both
+    //    scans must run now: belongsToSubgraph resolves each endpoint's
+    //    subgraphId via moduleInstances — running this after step 2 (below)
+    //    deleted those same modules would make every lookup resolve to
+    //    undefined, so belongsToSubgraph would wrongly return false for
+    //    every connection and nothing would ever be pruned. Pair-links
+    //    still on canvas merge into graphData.connections as ordinary
+    //    Connection entries (REQ-013, above) — there is no separate edge
+    //    category to special-case for those; checking each endpoint
+    //    module's own subgraphId covers both ordinary staged links and
+    //    on-canvas pair-links uniformly. An *excluded* pair-link, though,
+    //    was already removed from graphData.connections by excludeLink
+    //    (REQ-014, `node-operations-design.md`'s Exclude Link section) and
+    //    lives only in excludedLinks — the subgraph node it's attached to
+    //    stays visible and deletable even though its excluded link isn't
+    //    rendered, so this scan must check excludedLinks too, or a
+    //    subgraph deleted this way leaves a stale entry behind (see below).
+    const removedLinkIds = new Set<string>();
+    for (const [id, c] of Object.entries(state.graphData.connections)) {
+      if (belongsToSubgraph(c, subgraphId, state.graphData.moduleInstances)) {
+        removedLinkIds.add(id);
+      }
+    }
+    for (const c of state.excludedLinks) {
+      if (belongsToSubgraph(c, subgraphId, state.graphData.moduleInstances)) {
+        removedLinkIds.add(c.connectionId);
+      }
+    }
+    // 2. Drop every module this subgraph owns — these were seeded
     //    directly by REQ-012's placement fetch, never merged via
     //    applyComponentCollection, so nothing else will remove them.
     for (const [id, m] of Object.entries(state.graphData.moduleInstances)) {
       if (m.subgraphId === subgraphId) delete state.graphData.moduleInstances[id];
     }
-    // 2. Drop every connection touching this subgraph. Pair-links merge
-    //    into graphData.connections as ordinary Connection entries
-    //    (REQ-013, above) — there is no separate edge category to
-    //    special-case here; checking each endpoint module's own
-    //    subgraphId covers both ordinary staged links and pair-links
-    //    uniformly.
-    const removedLinkIds = new Set<string>();
-    for (const [id, c] of Object.entries(state.graphData.connections)) {
-      if (belongsToSubgraph(c, subgraphId, state.graphData.moduleInstances)) {
-        removedLinkIds.add(id);
-        delete state.graphData.connections[id];
-      }
+    // 3. Drop the connections identified in step 1, now that the module
+    //    scan no longer needs them intact.
+    for (const linkId of removedLinkIds) {
+      delete state.graphData.connections[linkId];
     }
-    // 3. Prune pairLinksById/excludedLinks for those same link IDs —
+    // 4. Prune pairLinksById/excludedLinks for those same link IDs —
     //    the same cleanup pruneDeletedLinkBookkeeping does for a
     //    backend-confirmed delete (core-edit-session-design.md), but run
     //    directly here since there's no ComponentCollectionDto response
-    //    to drive it from.
+    //    to drive it from. This is what actually removes the excluded
+    //    entries step 1 found in excludedLinks, not just the ones that
+    //    were still rendered.
     for (const linkId of removedLinkIds) {
       state.pairLinksById.delete(linkId);
       state.excludedLinks = state.excludedLinks.filter((l) => l.connectionId !== linkId);
     }
-    // 4. Re-derive containers/subgraphs now that this subgraph's modules
+    // 5. Re-derive containers/subgraphs now that this subgraph's modules
     //    are gone — recomputeContainersAndSubgraphs (core-edit-session-design.md)
     //    naturally produces no entry for it, and its own prune pass drops
     //    subgraphProvenanceById/kvCasesById for the same reason every
@@ -240,6 +266,47 @@ function belongsToSubgraph(
   return fromSubgraph === subgraphId || toSubgraph === subgraphId;
 }
 ```
+
+**Excluding a pair-link removes only the link's on-canvas rendering, not
+the subgraph it's attached to — this is why `excludedLinks` needs its own
+scan, not just `graphData.connections`.** A subgraph node stays fully
+visible and deletable after one of its pair-links is excluded; only that
+link disappears (REQ-014/014a). If the user then deletes the subgraph
+itself via the context menu (still `palette-placed`, so this same
+`removeFromUiCacheOnly` runs), an earlier draft of this function only
+scanned `graphData.connections` — which no longer contains the excluded
+link at all, since `excludeLink` already moved it into `excludedLinks`
+(`node-operations-design.md`'s Exclude Link section: "removing the entry
+from `graphData.connections` outright"). That scan alone can never find an
+already-excluded link, so it was never added to `removedLinkIds`, and step
+4's pruning never ran for it — leaving a stale `Connection` entry in
+`excludedLinks` that references modules no longer on canvas. Left
+unfixed, that stale entry would still feed into `applyChanges()`'s
+`excludedDataLinkSystemIds`/`excludedControlLinkSystemIds` payload
+(`core-edit-session-design.md`'s Apply Changes section), sending an
+excluded-link reference for a subgraph no longer represented in
+`activeSubgraphs` at all. The fix scans both collections in step 1, before
+any module is deleted, exactly as `graphData.connections`' own ordering fix
+above requires — `belongsToSubgraph` needs the subgraph's modules intact to
+resolve either scan correctly.
+
+**Ordering matters here — this is a fix to an earlier draft, not a stylistic
+choice.** An earlier draft of this function deleted modules first, then
+called `belongsToSubgraph` against the now-mutated `moduleInstances` to find
+connections to remove. Because `belongsToSubgraph` resolves both endpoints'
+`subgraphId` by looking them up in `moduleInstances`, and step 1's deletion
+had already removed every module this subgraph owned, every lookup resolved
+to `undefined` — so the connection scan silently matched nothing, for every
+connection touching the subgraph, not just some. The practical effect: no
+connection was ever removed from `graphData.connections` (leaving dangling
+edges referencing module IDs that no longer exist — a rendering hazard, not
+just a bookkeeping gap), and `removedLinkIds` stayed empty, so step 3's
+`pairLinksById`/`excludedLinks` pruning never ran either — a stale excluded
+pair-link for the removed subgraph would still appear in Apply's
+`excludedDataLinkSystemIds`/`excludedControlLinkSystemIds` payload after the
+subgraph is gone from canvas. The fix is purely a reordering: resolve which
+connections belong to the subgraph while `moduleInstances` still has its
+modules, and only delete modules afterward.
 
 No backend call, no `isMutating` lock — this is synchronous local state
 surgery, not a mutation that needs a spinner or serialization against
@@ -756,8 +823,12 @@ renameSubgraph(subgraphId: string, newName: string): Promise<void>
 
 Confirmed by the backend before the canvas reflects the change.
 
-**REQ-018 — implicit creation only.** Subgraphs are created only via
-REQ-006. Already satisfied by the operations above; no new design.
+**REQ-018 — implicit creation only.** Subgraphs are created implicitly via
+REQ-006 (documented above) or via pasting a subgraph
+(`pasteSubgraphFromSnapshot`, `canvas-ui-mechanics-design.md`'s Copy/Paste
+section) — no separate design needed here beyond cross-referencing that
+section; both paths stamp `provenance: 'newly-created'` the same way. There
+is no third, standalone "add subgraph" action beyond these two.
 
 **REQ-019 — invalid drop, tightened.** The original requirement text
 ("dropping a subgraph inside an existing subgraph") left ambiguous whether
@@ -779,7 +850,30 @@ REQ-011.
 **REQ-031a — create/move into subsystem.** Right-click a subgraph or
 subsystem → "Move to Subsystem" → prompt for an existing subsystem or a new
 one. One action covers both cases — the backend either creates-and-moves in
-one call, or just reparents:
+one call, or just reparents.
+
+**Self-nesting guard: when the right-clicked node is itself a subsystem, it
+is excluded from its own destination picker.** Without this, a user could
+select "Move to Subsystem" on Subsystem A and then pick A itself (or, since
+the picker lists every existing subsystem project-wide, one of A's own
+descendants) as the destination, producing a cycle in the containment
+hierarchy that neither the frontend nor any documented backend contract
+guards against. The picker's candidate list is filtered client-side to
+exclude the right-clicked subsystem's own ID before rendering — a plain
+membership check, since the picker already has the full subsystem list
+in hand to populate itself:
+
+```typescript
+const availableSubsystems = allSubsystems.filter((s) => s.id !== rightClickedNodeId);
+```
+
+This only excludes the exact node acted on, not its descendants — a
+subsystem nested two levels inside A is not itself checked against A here.
+Moving a subgraph/subsystem into one of its own descendants is a separate,
+narrower case (the moved node is not the destination, but the destination is
+inside the moved node's own subtree) left to the backend to reject, the same
+"server is the final arbiter" pattern used everywhere else in this feature —
+see [Open Items Inherited](#open-items-inherited).
 
 ```typescript
 moveToSubsystem(
@@ -899,6 +993,13 @@ Standard failure handling: toast, no change applied.
 
 ## Open Items Inherited
 
+- **Whether `moveToSubsystem` rejects moving a node into its own descendant
+  subsystem.** The client-side guard above only excludes the right-clicked
+  subsystem from its own destination picker (direct self-nesting); it does
+  not walk the picker's full candidate list against the moved node's own
+  subtree to exclude descendants too. Whether the backend rejects a
+  descendant-nesting cycle server-side, and if so what error surfaces, is
+  unconfirmed with the backend team.
 - **Subsystem CRUD backend API**: endpoint shapes for `moveToSubsystem`,
   `removeFromSubsystem` (REQ-031e — new, not yet in the API in any form),
   `deleteSubsystem`, rename, and `expandSubsystem` — all TBD with the

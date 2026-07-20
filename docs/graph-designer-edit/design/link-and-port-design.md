@@ -41,6 +41,17 @@ it. Confirmed during design that nothing outside the canvas needs to react
 to a connection being in progress (it doesn't gate the palette, Apply
 button, or any other widget).
 
+**Open item: a connection in progress is not protected against a concurrent
+mutation deleting one of its endpoints.** Because `connectionInProgress`
+lives outside `EditSessionSlice`/`isMutating` by design (above), nothing
+stops the user from right-clicking "Start connection" on a port and then,
+before completing it, deleting the module (or any ancestor container/
+subgraph) that owns that port. This is expected to self-resolve — the
+eventual connection-completion call either has no valid target to complete
+against or is rejected server-side, surfacing through the standard toast
+pattern (REQ-029) — but is not designed around here. See
+[Open Items Inherited](#open-items-inherited).
+
 ```typescript
 // internal to usecase-visualizer's own store — not exported
 interface ConnectionInProgress {
@@ -249,6 +260,7 @@ async function handleEdgeConnected(payload: EdgeConnectPayload): Promise<void> {
     : createDataLink(payload));
   get().applyAddedCollection(addedComponentCollectionDto); // link create only ever populates the added bucket
   if (payload.edgeKind === 'control') {
+    warnIfControlPortOverLimit(payload.sourceNodeId, payload.sourcePortId);
     warnIfControlPortOverLimit(payload.targetNodeId, payload.targetPortId);
   }
 }
@@ -264,15 +276,26 @@ function warnIfControlPortOverLimit(nodeId: string, portId: string): void {
 }
 ```
 
-**Only the connection's *target* port is checked — the source port is not
-re-checked here.** REQ-038's "End connection" is only ever completed at
-the target port the user right-clicked to finish the connection; the
-source port's own limit (if it has one) was already established when the
-user started the connection from it in an *earlier* completed connection,
-and would have been checked at that time as the target of that prior
-action. Checking only the newly-connected endpoint avoids re-warning about
-a source port's pre-existing state on every subsequent connection drawn
-from it.
+**Both endpoints are checked — this corrects an earlier draft that checked
+only the target port.** The earlier draft's rationale was that a source
+port's limit "was already established when the user started the connection
+from it in an *earlier* completed connection, and would have been checked
+at that time as the target of that prior action." That assumption doesn't
+hold in general: a control port can be used as the **source** of "Start
+connection" any number of times without ever once being the **target**
+("End connection") of a different connection — nothing in REQ-024/038
+requires a port's first use to be as a target. In that case, the earlier
+draft's target-only check would never fire for that port no matter how many
+connections it sources, since it's never the newly-connected endpoint from
+the check's own point of view. Checking both endpoints on every successful
+connection closes this gap; a port that's genuinely already been checked as
+a prior connection's target does not get a *materially* redundant warning
+from being re-checked here, since `onCanvasCount` reflects its true,
+current count each time — the check is cheap and idempotent, not something
+that needs suppressing on a "already warned once" basis. If a single
+connection completion pushes both endpoints over their respective limits,
+two separate toasts are shown, one per port — each is accurate and
+independently actionable, not a duplicate of the same fact.
 
 **This reuses `LevelView` port data, the same source REQ-038's eligibility
 check and REQ-033–037's port-count-change UI already read** — no new
@@ -430,6 +453,17 @@ field.
 allowed** (for example, a port with an active connection likely cannot be
 removed). The client makes no attempt to predict this — it sends the
 request and handles rejection via the standard toast + no-change pattern.
+
+**This narrow, non-cascading response shape assumes the backend only ever
+accepts or rejects a decrease outright — it has no field to carry cascaded
+side effects if the backend instead allowed the decrease and severed the
+port's existing links as a consequence, the way module/container delete
+cascades to sever links.** If the real (still-TBD) contract turns out to
+work that way instead of a hard reject, `{updatedPorts}` alone can't convey
+the severed links to the client, and `GraphDataSlice.connections` would go
+stale for exactly the links the decrease removed. This is a contract
+requirement to confirm with the backend team, not just an open shape
+question — see [Open Items Inherited](#open-items-inherited).
 
 **A newly-added port's `totalLinksAtPort` (REQ-064,
 `canvas-ui-mechanics-design.md`) is `0` — no connections exist yet to a
@@ -593,7 +627,13 @@ bridge modules — no separate toggle, no separate rendering path.
 - **API contract for `updatePortCount`** — still TBD with the backend team;
   no port-count-change endpoint exists in the API today, unlike link
   create/delete which are confirmed as `POST /data-links`(`/with-subsystems`)
-  and `POST /control-links`(`/with-subsystems`).
+  and `POST /control-links`(`/with-subsystems`). **Must also confirm whether
+  a decrease can cascade to sever the port's existing links** (see the Port
+  Count Changes section, above) — if so, the response contract needs a
+  cascaded-links field the current `{updatedPorts}` shape doesn't have, and
+  this design's narrow-response reconciliation (no `ComponentCollectionDto`
+  merge) would need revisiting once the backend confirms which behavior
+  applies.
 - **`offloadModuleToDsp` API contract** (REQ-072) — endpoint path, the list
   of "available DSPs" source (where does the target-DSP picker's list come
   from — the use case's known DSP set, presumably, but the DTO is
@@ -603,3 +643,9 @@ bridge modules — no separate toggle, no separate rendering path.
   deletedComponentCollectionDto}` envelope (this document's own pattern,
   consistent with every other structural endpoint), but this specific
   endpoint doesn't exist in the API yet.
+- **Connection-in-progress vs. concurrent mutation** (see Connection
+  Creation Flow, above) — starting a connection from a port and then
+  deleting that port's owning module (or an ancestor) before completing the
+  connection is not designed around; expected to self-resolve via the
+  standard rejection/no-valid-target path, but flagged as a known gap, not
+  a resolved one.
