@@ -6,7 +6,7 @@ Requirements: [../requirements/graph-designer-edit-requirements.md](../requireme
 Covers connection creation and deletion, port count changes, cross-DSP
 bridge connections, the proxy-node connection restriction, and DSP offload.
 All operations here assume the edit session (`core-edit-session-design.md`)
-is active and reuse the `provenance`/`excludedLinkIds` concepts from
+is active and reuse the `provenance`/`excludedLinks` concepts from
 `node-operations-design.md`. Every backend-calling action below is wrapped
 in `core-edit-session-design.md`'s `withMutationLock` (REQ-065), which also
 enforces `mode === 'edit'` — same as every other document in this feature —
@@ -15,6 +15,7 @@ stated once here, not repeated per operation.
 ## Table of Contents
 
 - [Connection Creation Flow](#connection-creation-flow)
+- [Control-Port Connection-Limit Warning](#control-port-connection-limit-warning)
 - [Bridge Connections & Link Deletion](#bridge-connections--link-deletion)
 - [Port Count Changes](#port-count-changes)
 - [Proxy Node Connection Restriction](#proxy-node-connection-restriction)
@@ -50,13 +51,14 @@ interface ConnectionInProgress {
 ```
 
 **Boundary.** The Visualizer owns: the transient state above, the port
-context menu rendering, and **REQ-028's client-side validation** (port type
-compatibility — data↔data, control↔control — and `maxConnections`), all as
+context menu rendering, and **REQ-028's client-side validation** (port
+type compatibility only — data↔data, control↔control; `maxConnections` is
+explicitly not part of this check, see below), all as
 a pure function over the `LevelView` port data it already receives as
 props. **The Visualizer never reads `EditSessionSlice`/`GraphDesignerStore`
 directly** — it only ever calls back through the existing
 `onEdgeConnected` callback prop; the graph-designer widget is the sole
-place that touches `excludedLinkIds`/`pairLinksById`, keeping the
+place that touches `excludedLinks`/`pairLinksById`, keeping the
 Visualizer's isolation boundary intact. (`node-operations-design.md`'s
 sequence diagram for REQ-014 shows this callback abstractly as
 `V->>ES`; that arrow represents "Visualizer invokes `onEdgeConnected`,
@@ -85,24 +87,27 @@ design doc.
 
 **REQ-038 — "End connection" eligibility is precomputed, not a silent
 no-op.** The port context menu computes eligibility (REQ-028's type
-compatibility + `maxConnections` check, plus REQ-056's proxy-node check)
-**before** rendering, and the "End connection" item is only shown in the
-menu at all if the current `connectionInProgress` target port is eligible.
-There is no case where the item renders and clicking it silently does
-nothing — if a port is ineligible, right-clicking it shows a menu with only
-whatever base items apply (e.g. "Start connection" is not offered either,
-since a connection is already in progress), never a dead "End connection".
+compatibility check, plus REQ-056's proxy-node check) **before** rendering,
+and the "End connection" item is only shown in the menu at all if the
+current `connectionInProgress` target port is eligible. There is no case
+where the item renders and clicking it silently does nothing — if a port
+is ineligible, right-clicking it shows a menu with only whatever base
+items apply (e.g. "Start connection" is not offered either, since a
+connection is already in progress), never a dead "End connection".
+**`maxConnections` is not part of this eligibility check for either port
+type** — see below.
 
-**REQ-028's `maxConnections` check uses full-graph connection counts, not
-`LevelView`-scoped ones.** Because REQ-026 permits links between modules in
-*any* two subgraphs, a port's true connection count can include edges not
-present in the currently-rendered `LevelView` (which only shows the active
-hierarchy level). The eligibility check therefore counts connections from
-the full `GraphDataSlice.connections` collection, filtering by the
-candidate port's ID, not from `LevelView`'s own (potentially partial) edge
-list. `LevelView` port data is still the source for the port's *type* and
-`maxConnections` limit — only the current-connection-count numerator must
-come from the full graph state.
+**REQ-028 — no client-side `maxConnections` check, for either port type.**
+An earlier draft of this design eagerly validated `maxConnections`
+client-side (for all ports) before allowing "End connection" to complete.
+That's removed: the backend is the sole arbiter of whether a connection is
+created (REQ-029), for both data and control ports, so nothing here gates
+the API call on connection count. What replaces it, for **control ports
+only**, is a **post-creation warning** — not a pre-creation block — designed
+in [Control-Port Connection-Limit Warning](#control-port-connection-limit-warning),
+below. Client-side validation before the API call is therefore reduced to
+port-type compatibility alone (data↔data, control↔control).
+
 
 **REQ-025 — Escape cancels.** Clears the in-progress state to `null` inside
 the Visualizer only. No callback fires, no API call is made.
@@ -127,7 +132,7 @@ sequenceDiagram
   U->>V: right-click source port → "Start connection"
   V->>V: connectionInProgress = {sourceNodeId, sourcePortId, portType}
   U->>V: right-click destination port → "End connection"
-  V->>V: REQ-028 client validation (type compatibility, maxConnections)
+  V->>V: REQ-028 client validation (type compatibility only)
   alt invalid target
     Note over V: "End connection" not offered / rejected — no callback
   else valid target
@@ -138,8 +143,9 @@ sequenceDiagram
     else genuinely new connection
       O->>B: create-link request (createDataLink or createControlLink, by payload.edgeKind)
       alt backend accepts
-        B-->>O: ComponentCollectionDto (spfModules/dataLinks/controlLinks tagged CREATE — see REQ-027 for the multi-link case)
-        O->>O: applyComponentCollection(collection) — core-edit-session-design.md
+        B-->>O: addedComponentCollectionDto (spfModules/dataLinks/controlLinks — see REQ-027 for the multi-link case; updated/deletedComponentCollectionDto always empty for link create)
+        O->>O: applyAddedCollection(addedComponentCollectionDto) — core-edit-session-design.md
+        O->>O: if payload.edgeKind === 'control', check maxConnections post-creation — see Control-Port Connection-Limit Warning, below
       else backend rejects
         Note over O: error toast, canvas unchanged
       end
@@ -149,26 +155,28 @@ sequenceDiagram
 
 **Reversing an excluded pair-link (REQ-014) is handled inside this same
 `onEdgeConnected` handler, before any backend call.** This is the concrete
-detection logic that `node-operations-design.md`'s Exclude Link section
+matching logic that `node-operations-design.md`'s Exclude Link section
 depends on:
 
 ```typescript
 function handleEdgeConnected(payload: EdgeConnectPayload): Promise<void> {
-  const {sourceNodeId, targetNodeId} = payload;
-  const matchingExcluded = get().excludedLinkIds
-    .map((id) => get().pairLinksById.get(id)) // pair-link data cached from REQ-013's getSubgraphPairs response
-    .find((pairLink) =>
-      isSameSubgraphPair(pairLink, sourceNodeId, targetNodeId),
-    );
+  const matchingExcluded = get().excludedLinks.find((link) =>
+    isSameConnection(link, payload),
+  );
 
   if (matchingExcluded) {
-    // Same subgraph pair as an excluded pair-link — un-exclude and
+    // Exact endpoint match against an excluded link — un-exclude and
     // re-render the existing backend connection. No create-link call:
     // REQ-013 already established this link exists server-side.
     set({
-      excludedLinkIds: get().excludedLinkIds.filter(
-        (id) => id !== matchingExcluded.id,
-      ),
+      excludedLinks: get().excludedLinks.filter((l) => l !== matchingExcluded),
+      graphData: {
+        ...get().graphData,
+        connections: {
+          ...get().graphData.connections,
+          [matchingExcluded.connectionId]: matchingExcluded,
+        },
+      },
     });
     return Promise.resolve();
   }
@@ -181,17 +189,101 @@ function handleEdgeConnected(payload: EdgeConnectPayload): Promise<void> {
 }
 ```
 
-`isSameSubgraphPair` compares the *subgraph* each endpoint belongs to
-(via each node's `subgraphId`) against the pair-link's
-`sourceSubgraphId`/`targetSubgraphId`, not the exact node/port — REQ-013's
-pair data is a subgraph-to-subgraph relationship, not a port-to-port one,
-so any valid reconnection between the same two subgraphs is treated as
-reversing the same exclusion. `pairLinksById` is a lookup populated when
-REQ-013's `getSubgraphPairs` response is received
-(`node-operations-design.md`), keyed by the same link ID used in
-`excludedLinkIds`.
+**`isSameConnection` matches on the *exact* endpoints — module and port,
+not just subgraph** — this is what makes reversal precise when more than
+one excluded pair-link exists between the same two subgraphs. An earlier
+draft compared only each endpoint's *subgraph* (`isSameSubgraphPair`),
+which meant any valid reconnection between the same subgraph pair was
+treated as reversing *some* excluded link, ambiguously — with two
+distinct pair-links excluded between the same subgraphs, redrawing one
+could un-exclude the wrong one. Because `excludedLinks` now stores the
+full `Connection` object (`node-operations-design.md`), not just an ID,
+exact-endpoint matching needs no extra lookup:
+
+```typescript
+function isSameConnection(link: Connection, payload: EdgeConnectPayload): boolean {
+  return (
+    link.fromModuleId === payload.sourceNodeId &&
+    link.fromPortId === payload.sourcePortId &&
+    link.toModuleId === payload.targetNodeId &&
+    link.toPortId === payload.targetPortId
+  );
+}
+```
+
+`pairLinksById` (`node-operations-design.md`) is no longer read by this
+matching logic at all — it's a lookup used elsewhere in this feature only
+to decide whether an on-canvas link is pair-derived for context-menu
+dispatch purposes (`link-and-port-design.md`'s Bridge Connections
+section, below); reversal here only ever needs `excludedLinks` itself.
 
 ---
+
+## Control-Port Connection-Limit Warning
+
+**REQ-028.** `maxConnections` applies only to control ports, and only as a
+**post-creation, non-blocking warning** — never a pre-creation client-side
+block, and never applied to data ports at all. This is a deliberate
+narrowing from an earlier draft (which validated `maxConnections`
+client-side, for all ports, before allowing the connection to complete):
+that approach risked showing a "this exceeds the limit" warning for a
+connection the backend was about to reject anyway for an unrelated reason
+(REQ-029), stacking a confusing informational warning on top of a hard
+failure toast for a connection that never actually got created. Checking
+only after the backend confirms creation guarantees the warning is only
+ever shown for a connection that's real.
+
+**Check happens in `handleEdgeConnected`'s success path, right after
+`applyComponentCollection` merges the new link — not before the API call,
+and not by the Visualizer.** The Visualizer's own REQ-028 validation
+(above) is reduced to port-type compatibility only; it has no
+`maxConnections` awareness at all, consistent with `EdgeConnectPayload`
+carrying no such flag. The consumer widget owns this check, using
+`payload.edgeKind` to scope it to control links only:
+
+```typescript
+async function handleEdgeConnected(payload: EdgeConnectPayload): Promise<void> {
+  // ...reversal check and create-link dispatch, above...
+  const {addedComponentCollectionDto} = await (payload.edgeKind === 'control'
+    ? createControlLink(payload)
+    : createDataLink(payload));
+  get().applyAddedCollection(addedComponentCollectionDto); // link create only ever populates the added bucket
+  if (payload.edgeKind === 'control') {
+    warnIfControlPortOverLimit(payload.targetNodeId, payload.targetPortId);
+  }
+}
+
+function warnIfControlPortOverLimit(nodeId: string, portId: string): void {
+  const port = findPortById(get(), nodeId, portId); // same LevelView port data REQ-038's eligibility check already reads
+  const onCanvasCount = countConnectionsToPort(get().graphData.connections, portId);
+  if (port && onCanvasCount > port.maxConnections) {
+    toast.warning(
+      "This connection exceeds the port's supported connection limit; concurrent connections beyond this limit may not behave as expected",
+    );
+  }
+}
+```
+
+**Only the connection's *target* port is checked — the source port is not
+re-checked here.** REQ-038's "End connection" is only ever completed at
+the target port the user right-clicked to finish the connection; the
+source port's own limit (if it has one) was already established when the
+user started the connection from it in an *earlier* completed connection,
+and would have been checked at that time as the target of that prior
+action. Checking only the newly-connected endpoint avoids re-warning about
+a source port's pre-existing state on every subsequent connection drawn
+from it.
+
+**This reuses `LevelView` port data, the same source REQ-038's eligibility
+check and REQ-033–037's port-count-change UI already read** — no new
+fetch, no new state. `onCanvasCount` deliberately uses
+`GraphDataSlice.connections` (the same selection-scoped count REQ-064's
+port coloring uses), not `totalLinksAtPort` — the warning is about
+concurrent connections *visible in this session's use-case selection*
+exceeding the limit, which is the scope the user can actually see and
+reason about on canvas; a port whose *total* backend connection count
+(across unselected use cases) exceeds the limit but whose on-canvas count
+does not is not this feature's concern to surface.
 
 ## Bridge Connections & Link Deletion
 
@@ -201,18 +293,28 @@ creates the full intermediate set in one response: module→A, A→B, B→module
 `createDataLink`/`createControlLink` (the API exposes one endpoint per
 link kind, mirroring `deleteDataLink`/`deleteControlLink`'s split, above —
 not a single unified `createLink`) return the real, confirmed
-`ComponentCollectionDto` API shape (`spfModules`/`dataLinks`/`controlLinks`,
-every affected entity self-tagged via its own `changeInfo.changeType`) —
+three-collection API shape (`addedComponentCollectionDto`/
+`updatedComponentCollectionDto`/`deletedComponentCollectionDto`, each a
+`ComponentCollectionDto` — `spfModules`/`dataLinks`/`controlLinks`) —
 `core-edit-session-design.md`'s shared reconciler, not a bespoke shape per
-endpoint:
+endpoint. Link creation only ever populates `addedComponentCollectionDto`;
+the other two are always empty for these two endpoints:
 
 ```typescript
-createDataLink(payload: EdgeConnectPayload): Promise<ComponentCollectionDto>
-createControlLink(payload: EdgeConnectPayload): Promise<ComponentCollectionDto>
-// collection.dataLinks/controlLinks (matching payload.edgeKind) contains
-// however many links the backend created for this connection attempt —
-// one for an ordinary link, three for a cross-subsystem bridge (module→A,
-// A→B, B→module), each changeInfo.changeType: 'CREATE'
+createDataLink(payload: EdgeConnectPayload): Promise<{
+  addedComponentCollectionDto: ComponentCollectionDto;
+  updatedComponentCollectionDto: ComponentCollectionDto;
+  deletedComponentCollectionDto: ComponentCollectionDto;
+}>
+createControlLink(payload: EdgeConnectPayload): Promise<{
+  addedComponentCollectionDto: ComponentCollectionDto;
+  updatedComponentCollectionDto: ComponentCollectionDto;
+  deletedComponentCollectionDto: ComponentCollectionDto;
+}>
+// addedComponentCollectionDto.dataLinks/controlLinks (matching payload.edgeKind)
+// contains however many links the backend created for this connection
+// attempt — one for an ordinary link, three for a cross-subsystem bridge
+// (module→A, A→B, B→module)
 ```
 
 **Which variant — plain vs. `-with-subsystems` — is decided once for the
@@ -223,13 +325,14 @@ for the session since that toggle can't change mid-edit),
 `createDataLink`/`createControlLink` here mean "call whichever of the two
 real endpoints for this link kind — plain or `-with-subsystems` — the
 session decided on." A cross-subsystem bridge connection (this REQ) only
-produces `subsystems`-bucket entities when the session is using the
-`-with-subsystems` variant; in the plain-variant session, the same bridge
-is still fully represented via `spfModules`/`dataLinks`/`controlLinks`
-alone (subsystem port changes simply aren't surfaced, consistent with the
-canvas not rendering subsystems in raw mode).
+produces entries in `addedComponentCollectionDto.subsystems` when the
+session is using the `-with-subsystems` variant; in the plain-variant
+session, the same bridge is still fully represented via
+`spfModules`/`dataLinks`/`controlLinks` alone (subsystem port changes
+simply aren't surfaced, consistent with the canvas not rendering
+subsystems in raw mode).
 
-`onEdgeConnected`'s success path is a single `applyComponentCollection`
+`onEdgeConnected`'s success path is a single `applyAddedCollection`
 call regardless of how many links, which kind, or which variant came back
 — no per-link-count, per-kind, or per-variant branching needed beyond the
 one dispatch in `handleEdgeConnected` above, since the reconciler already
@@ -240,8 +343,8 @@ separate endpoints by link kind, not one unified `deleteLink` — the
 consumer widget dispatches on the edge's own `connectionType` field:
 
 ```typescript
-deleteDataLink(dataLinkSystemId: string): Promise<DataLinkDto> // changeInfo.changeType: 'DELETE'
-deleteControlLink(controlLinkSystemId: string): Promise<ControlLinkDto> // changeInfo.changeType: 'DELETE'
+deleteDataLink(dataLinkSystemId: string): Promise<DataLinkDto> // the one deleted link's own DTO — not part of the three-collection change
+deleteControlLink(controlLinkSystemId: string): Promise<ControlLinkDto> // same — a single-link delete, not a cascade
 ```
 
 Each returns the deleted link's own DTO (tagged `changeType: 'DELETE'`,
@@ -252,16 +355,42 @@ response is just that one entity, confirming it's gone. The consumer
 removes the edge from `GraphDataSlice` by the returned `systemId` on
 success; on failure, toast and no change, per the standard pattern.
 
-**Pair-API-origin edges (`origin: 'pair-api'`, `node-operations-design.md`)
-show only "Exclude Link" on their context menu, not "Delete."** These edges
-represent a real, pre-existing backend connection the user did not create
-this session; REQ-014's "Exclude Link" is the only removal action offered
-for them, and it never calls `deleteDataLink`/`deleteControlLink` — it only
-removes the edge from canvas per the exclusion flow above. The generic
-"Delete" menu item (REQ-049) is suppressed for edges carrying
-`origin: 'pair-api'`; it remains available, calling the appropriate delete
-endpoint as normal, for every other edge (ordinary staged links and
-REQ-027's bridge-connection links).
+**Deleting one hop of a REQ-027 multi-hop bridge connection (e.g. only the
+Subsystem A→B segment of module→A→B→module) is a valid mid-session state,
+not something this design detects or blocks.** `deleteDataLink`/
+`deleteControlLink` operate on one link at a time with no awareness that a
+given link is one hop of a bridge set — there is no "delete the whole
+bridge" affordance, and REQ-030 does not distinguish a bridge hop from an
+ordinary link for deletion purposes. The two now-orphaned remaining hops
+render on canvas exactly as staged until Apply. Consistent with this
+feature's "server is the final arbiter" pattern (REQ-029/046), validating
+whether an orphaned partial bridge is acceptable is left entirely to
+`createUsecases` at Apply time (`core-edit-session-design.md`) — a rejected
+Apply surfaces as `issues` entries in the modification summary (REQ-046),
+same as any other backend-rejected state, and the session stays in Edit
+mode for the user to correct it. No client-side detection of this
+half-deleted state is designed here.
+
+**Pair-derived edges (identified via `pairLinksById.has(connectionId)`,
+`node-operations-design.md`) show only "Exclude Link" on their context
+menu, not "Delete."** These edges represent a real, pre-existing backend
+connection the user did not create this session; REQ-014's "Exclude Link"
+is the only removal action offered for them, and it never calls
+`deleteDataLink`/`deleteControlLink` — it only removes the edge from
+canvas per the exclusion flow above. The generic "Delete" menu item
+(REQ-049) is suppressed whenever this check is true; it remains
+available, calling the appropriate delete endpoint as normal, for every
+other edge (ordinary staged links and REQ-027's bridge-connection links).
+**This same check must also gate the Delete-key/batch-delete path, not
+only the context menu** — `canvas-ui-mechanics-design.md`'s `deleteByType`
+routes a pair-derived edge to `excludeLink` instead of `deleteLink` for
+exactly this reason, since that path has no context-menu rendering to rely
+on for the exclusion.
+An earlier draft of this document identified pair-derived edges via a
+`Connection.origin: 'pair-api'` field — that field is removed
+(`node-operations-design.md`'s REQ-013 section); pair-links are ordinary
+`Connection` entries once rendered, so this check is the only way to tell
+them apart for menu purposes.
 
 ---
 
@@ -301,6 +430,21 @@ field.
 allowed** (for example, a port with an active connection likely cannot be
 removed). The client makes no attempt to predict this — it sends the
 request and handles rejection via the standard toast + no-change pattern.
+
+**A newly-added port's `totalLinksAtPort` (REQ-064,
+`canvas-ui-mechanics-design.md`) is `0` — no connections exist yet to a
+port that was just created.** This holds regardless of whether the
+backend response's `Port` entries carry the field explicitly or the
+consumer defaults it: a brand-new port cannot have any pre-existing
+connections by construction, on either the data or control side, so the
+consumer sets `totalLinksAtPort: 0` for any port ID in `updatedPorts`
+that wasn't present in the node's pre-call port list — the same
+increase-vs-decrease diff already computed above (to know which port IDs
+are new vs. surviving) also identifies which entries need this default.
+Surviving ports (both on increase, for the untouched existing ports, and
+on decrease) keep whatever `totalLinksAtPort` they already had — this
+value is unaffected by a port-count change on a *different* port of the
+same node.
 
 ---
 
@@ -387,27 +531,32 @@ this document owns the backend contract and canvas reconciliation, that one
 owns the menu itself). The tool calls a new backend endpoint:
 
 ```typescript
-offloadModuleToDsp(moduleId: string, targetDspId: string): Promise<ComponentCollectionDto>
-// collection.spfModules includes:
-//   - the offloaded module itself, changeType: 'UPDATE' (new containerId, on the target DSP)
-//   - the IPC TX module, changeType: 'CREATE' (first offload) or 'UPDATE' (re-offload)
-//   - the IPC RX module, changeType: 'CREATE' (first offload) or 'UPDATE' (re-offload)
-// collection.dataLinks/controlLinks includes every rerouted link, changeType: 'UPDATE'
+offloadModuleToDsp(moduleId: string, targetDspId: string): Promise<{
+  addedComponentCollectionDto: ComponentCollectionDto;
+  updatedComponentCollectionDto: ComponentCollectionDto;
+  deletedComponentCollectionDto: ComponentCollectionDto;
+}>
+// First offload: addedComponentCollectionDto.spfModules includes the new
+//   IPC TX and IPC RX modules; updatedComponentCollectionDto.spfModules
+//   includes the offloaded module itself (new containerId, on the target DSP)
+// Re-offload: updatedComponentCollectionDto.spfModules includes the
+//   offloaded module AND the existing IPC TX/RX pair (updated in place) —
+//   addedComponentCollectionDto is empty for this case, no new IPC pair inserted
+// Both cases: updatedComponentCollectionDto.dataLinks/controlLinks includes every rerouted link
 ```
 
-**The response shape does not distinguish "first offload" from
-"re-offload" at the type level — each entity's own `changeInfo.changeType`
-already says whether it was created or updated.** Whether the backend
-inserted a brand-new IPC TX/RX pair or updated an existing one from a
-prior offload is a backend-internal decision (REQ-072's "first offload"
-vs. "re-offload" cases) that the UI does not need to branch on:
-`applyComponentCollection` (`core-edit-session-design.md`) upserts every
-module by its own `systemId` regardless of whether that entity's
-`changeType` is `CREATE` or `UPDATE` — so the offloaded module's reassigned
-container, the IPC TX/RX pair (new or revisited), and every rerouted link
-all merge in one `applyComponentCollection` call with no special-cased
-upsert logic. This mirrors REQ-027's "backend returns everything, UI
-reconciles in one shot" pattern.
+**Whether the IPC TX/RX pair is brand-new or revisited is now conveyed by
+*which bucket* it lands in, not a field on the entity.** Whether the
+backend inserted a brand-new IPC TX/RX pair (`addedComponentCollectionDto`)
+or updated an existing one from a prior offload
+(`updatedComponentCollectionDto`) is a backend-internal decision (REQ-072's
+"first offload" vs. "re-offload" cases) that the UI does not need to branch
+on: `applyComponentCollection` (`core-edit-session-design.md`) upserts
+every module in the added and updated buckets alike — so the offloaded
+module's reassigned container, the IPC TX/RX pair (new or revisited), and
+every rerouted link all merge in one `applyComponentCollection` call with
+no special-cased upsert logic. This mirrors REQ-027's "backend returns
+everything, UI reconciles in one shot" pattern.
 
 ```mermaid
 sequenceDiagram
@@ -420,8 +569,8 @@ sequenceDiagram
   CM->>O: offloadModuleToDsp(moduleId, targetDspId)
   O->>B: request
   alt backend accepts
-    B-->>O: ComponentCollectionDto (offloaded module, IPC pair, rerouted links — each self-tagged CREATE/UPDATE)
-    O->>O: applyComponentCollection(collection) — core-edit-session-design.md
+    B-->>O: {addedComponentCollectionDto, updatedComponentCollectionDto, deletedComponentCollectionDto} (offloaded module, IPC pair, rerouted links — bucketed by first-offload vs. re-offload, above)
+    O->>O: applyComponentCollection({addedComponentCollectionDto, updatedComponentCollectionDto, deletedComponentCollectionDto}) — core-edit-session-design.md
   else backend rejects
     Note over O: error toast, canvas unchanged
   end
@@ -449,6 +598,8 @@ bridge modules — no separate toggle, no separate rendering path.
   of "available DSPs" source (where does the target-DSP picker's list come
   from — the use case's known DSP set, presumably, but the DTO is
   unspecified) — all TBD with the backend team. The response *shape* is
-  confirmed as `ComponentCollectionDto` (this document's own pattern,
+  confirmed as the three-collection
+  `{addedComponentCollectionDto, updatedComponentCollectionDto,
+  deletedComponentCollectionDto}` envelope (this document's own pattern,
   consistent with every other structural endpoint), but this specific
   endpoint doesn't exist in the API yet.

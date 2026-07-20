@@ -120,6 +120,113 @@ interface EditSessionSlice {
 }
 ```
 
+**`enterEditMode()` itself stays synchronous — `kvCasesById` for
+pre-loaded subgraphs is seeded earlier, at use-case selection, not as
+part of entering Edit mode.** An earlier draft of this design had
+`enterEditMode()` fetch this data itself, but the same information is
+needed the instant a use case's components render in **View** mode too
+(nothing about `SGKV` is edit-mode-specific), so it belongs alongside the
+existing `loadGraphData(selectedUsecases)` call
+(`widgets/graph-designer/ui/graph-designer.tsx`'s "Effect A") rather than
+gated behind clicking "Start Graph Modification." That effect gains a
+call to `getAllSubgraphs(projectId)` (`entities/subgraph-definitions`,
+the same endpoint the subgraph palette already calls, currently
+lazy-loaded only when the palette opens — this is a second, independent
+call site for the same endpoint) alongside the existing `loadGraphData`
+call, matching each result against the subgraph IDs `loadGraphData`'s own
+response resolves (`SubgraphDto.systemId === SpfModuleDto.subgraphId` —
+confirmed the join key; `SubgraphDto.id` is a separate field, not this
+one), and seeding `kvCasesById` from each match's `SGKV` per REQ-039 (all
+cases unselected). By the time `enterEditMode()` runs, `kvCasesById` is
+already populated for every subgraph on canvas; entering Edit mode does
+no fetching of its own for this. See
+[Response Reconciliation](#response-reconciliation--component-collections)
+below for the shared mechanism this feeds, and
+`kv-key-configuration-design.md`'s KV Assignment sections for the other
+two seeding points (palette placement, auto-create) — each seeds
+`kvCasesById` at a different moment, but this is the one that runs before
+Edit mode exists at all.
+
+Use-case selection is itself a View-mode-only action — REQ-003's list of
+what's active in Edit mode has no use-case selector, and REQ-045's Apply
+payload is fixed to whichever use cases were selected when Edit mode was
+entered — so this fetch never needs to coexist with live, in-session
+`kvCasesById` mutations from REQ-040/041/043; by the time Edit mode
+exists, selection (and this seeding) is frozen until Apply or Discard
+returns the session to View mode.
+
+**Effect A's fetch fully replaces `kvCasesById`'s pre-loaded entries on
+every run, rather than adding to whatever was already there.** Each time
+`selectedUsecases` changes, `getAllSubgraphs(projectId)` is re-fetched
+and `kvCasesById` is cleared and reseeded for exactly the subgraph IDs
+the new `loadGraphData` response resolves — not merged into the map's
+existing contents. This matters because re-selecting a different set of
+use cases can put an entirely different set of subgraphs on canvas; a
+naive additive seed would leave stale entries for subgraphs no longer
+selected sitting in the map indefinitely (the same kind of leak
+`recomputeContainersAndSubgraphs`'s pruning pass exists to prevent
+elsewhere, except that pruning pass only runs during Edit-mode
+reconciliation and never touches this View-mode path). Concretely: Effect
+A's body, on every run where `mode === 'view'`, does
+`kvCasesById.clear()` before the loop that seeds each newly-resolved
+subgraph — so the map's contents always exactly match whichever
+subgraphs the *current* selection put on canvas, with nothing left over
+from a previous selection.
+
+**Every other session-local `EditSessionSlice` map is cleared on the same
+`'view'` transition, not only `kvCasesById`.** `excludedLinks`,
+`pairLinksById`, `subgraphProvenanceById`, and
+`assignedKeyIdsBySubsystemId` (`kv-key-configuration-design.md`'s Keys
+Assignment section) are all plain session bookkeeping with no source of
+truth to recompute from once the session that populated them ends —
+unlike `kvCasesById`, none of them get a fresh reseed from
+`getAllSubgraphs`/placement fetches on the next Edit session, so simply
+not clearing them would leave them holding entries from a *previous* edit
+session (one already Applied or Discarded) once a new one starts. Effect
+A's body, on every run where `mode === 'view'` (the same guard as
+REQ-061's own reset, below), clears all five maps together as one step,
+immediately before `kvCasesById`'s clear-and-reseed loop:
+
+```typescript
+if (mode === 'view') {
+  get().excludedLinks = [];
+  get().pairLinksById.clear();
+  get().subgraphProvenanceById.clear();
+  get().assignedKeyIdsBySubsystemId.clear();
+  get().kvCasesById.clear();
+  // ...existing reseed loop for kvCasesById, using the freshly-cleared maps above
+}
+```
+
+This runs on every transition *into* `'view'` — initial mount, post-Apply,
+and post-Discard alike — so a subgraph excluded or provenance-stamped in
+one edit session can never leak into the next. It does not run on the
+`'view' → 'edit'` transition, for the same reason the existing reset guard
+below does not: entering Edit mode must not wipe state a session in
+progress needs.
+
+**If the `getAllSubgraphs` fetch fails, the whole `loadGraphData` for
+that selection fails — there is no partial-success state where the
+canvas renders with `kvCasesById` unseeded.** An earlier version of this
+design left this open (toast-and-proceed vs. block rendering). It's
+resolved as the latter: Effect A treats the two fetches
+(`loadGraphData`/`getAllSubgraphs`) as one unit for failure purposes, not
+two independent failure domains — if either fails, the effect reports
+failure through `GraphDataSlice`'s existing `graphDataError`/
+`graphDataStatus` state (the same error path REQ-061's Discard section
+already relies on) and does not render the canvas for that selection.
+This is a deliberate departure from REQ-013's `getSubgraphPairs`
+placement fetch (`node-operations-design.md`), which explicitly *does*
+tolerate independent partial failure (subgraph renders, pairs just don't)
+— the difference is that a placement's pair-fetch failure only costs the
+user some missing auto-rendered connections, while an unseeded
+`kvCasesById` would leave the Key Configurator panel silently broken for
+any pre-loaded subgraph the user later selects in Edit mode, with no
+visible indication why. Failing the whole load surfaces the problem
+immediately, consistent with `loadGraphData`'s own existing all-or-nothing
+failure behavior, rather than introducing a new partial-success case this
+feature doesn't otherwise have.
+
 **REQ-060, 062 — exclusive-mode locking.** The Discovery Wizard and
 Diff/Merge view are separate features (Diff/Merge doesn't exist in code yet;
 Discovery Wizard is currently a stub) that can independently modify graph
@@ -146,7 +253,13 @@ type ExclusiveGraphMode = 'none' | 'graph-edit' | 'discovery-wizard' | 'diff-mer
 interface GlobalStore {
   // ...existing slices...
   activeExclusiveModeByProject: Record<string, ExclusiveGraphMode>;
-  /** Returns false if a different mode already holds the lock for this project. */
+  /** Returns false if the lock for this project is already held by *any*
+   *  mode — including a second attempt to acquire the *same* mode again.
+   *  Each of Graph Edit, Discovery Wizard, and Diff/Merge is a
+   *  single-instance-per-project feature: a second Graph Designer tab on a
+   *  project that already has an active edit session must not be able to
+   *  open its own independent EditSessionSlice and mutate the same backend
+   *  graph out from under the first. */
   setActiveExclusiveMode: (projectId: string, mode: ExclusiveGraphMode) => boolean;
   /** Only clears the lock if `mode` is the value currently held for this
    *  project — guards against a stale unmount releasing a lock a newer
@@ -156,17 +269,35 @@ interface GlobalStore {
 ```
 
 `enterEditMode()` calls `setActiveExclusiveMode(projectId, 'graph-edit')`;
-if it returns `false`, edit mode does not start. This is surfaced as a
-disabled "Start Graph Modification" button with an explanatory tooltip
-(REQ-062), not a runtime error — the button's `disabled` state is a plain
-selector read, scoped to the tab's own `projectId`:
+if it returns `false`, edit mode does not start — this covers both a
+different mode holding the lock (Discovery Wizard/Diff-Merge already
+active) and `'graph-edit'` itself already holding it (a second Graph
+Designer tab on the same project trying to enter Edit mode concurrently).
+This is surfaced as a disabled "Start Graph Modification" button with an
+explanatory tooltip (REQ-062), not a runtime error — the button's
+`disabled` state is a plain selector read, scoped to the tab's own
+`projectId`:
 
 ```typescript
 const activeExclusiveMode = useGlobalStore(
   (s) => s.activeExclusiveModeByProject[projectId] ?? 'none',
 );
-const disabled = activeExclusiveMode !== 'none' && activeExclusiveMode !== 'graph-edit';
+const disabled = activeExclusiveMode !== 'none';
 ```
+
+**Every one of the three modes is single-instance-per-project, including
+against itself.** An earlier draft of this section only disabled the
+button for a *different* mode (`activeExclusiveMode !== 'graph-edit'`),
+which left a gap: a second Graph Designer tab on the same project would
+see `activeExclusiveMode === 'graph-edit'` and read its own "Start Graph
+Modification" button as enabled, since the check explicitly excluded that
+value from disabling. That's wrong — Graph Edit, Discovery Wizard, and
+Diff/Merge are each expected to run at most one instance per project, full
+stop, so `setActiveExclusiveMode` must reject re-acquisition of the same
+mode too, and the button's `disabled` condition simplifies to "any lock
+held at all" rather than "a lock held by something else." The same
+tightened check applies symmetrically to Discovery Wizard's and
+Diff/Merge's own acquisition points, below.
 
 Because this is a Zustand selector, any component reading it re-renders the
 instant that project's lock changes — no events or polling needed.
@@ -179,8 +310,10 @@ not exist in code at all yet. Until either is built as a real mounted
 feature, REQ-060's enforcement point for *this* pass is the menu entry
 itself: its `onClick`/`disabled` state must read
 `activeExclusiveModeByProject[projectId]` the same selector shown above,
-and show the explanatory tooltip (REQ-060) whenever a `'graph-edit'` lock is
-held for that project, instead of opening anything. When Discovery
+and show the explanatory tooltip (REQ-060) whenever *any* lock is held for
+that project — including `'discovery-wizard'` itself, now that
+re-acquiring the same mode is also rejected (above) — instead of opening
+anything. When Discovery
 Wizard/Diff/Merge are later built as real features with their own mount
 lifecycle, they switch to the `useEffect` acquire/release pattern below
 instead of the menu-level disable — this is a placeholder enforcement point,
@@ -387,19 +520,28 @@ its full blast radius so the UI can reconcile in one response cycle, as the
 requirements repeatedly demand (REQ-005/006/007/008-009/020/031a/031b/032/069-070/072).
 
 **This is the real backend contract, confirmed against the current API
-spec — not an invented shape.** Every structural endpoint already in the
-API (`queryUsecaseComponents`, `getComponentsForSubgraph`,
-`createDataLink`/`createControlLink`) returns the same
-`ComponentCollectionDto`, and the load path already consuming it today
+spec — not an invented shape.** Every mutating structural endpoint in this
+feature (module/container/subgraph/subsystem add/delete/move/expand, DSP
+offload, link create) returns **three** separate `ComponentCollectionDto`
+objects in one response — `addedComponentCollectionDto`,
+`updatedComponentCollectionDto`, `deletedComponentCollectionDto` — one per
+change kind, confirmed with the backend team as their current contract.
+This supersedes an earlier draft of this design, which assumed a single
+`ComponentCollectionDto` with each entity self-tagging its own
+`changeInfo.changeType`; that assumption is now known to be wrong — the
+backend buckets by collection instead. The read-only query endpoints
+(`queryUsecaseComponents`, `getComponentsForSubgraph`) are unaffected by
+this change and still return one plain `ComponentCollectionDto` each (see
+below for why). The load path already consuming that read-only shape today
 (`GraphDataSlice`'s existing `loadGraphData`,
 `packages/react-app/src/features/graph-designer/model/graph-data-slice.ts`)
-is the model every cascading action in this feature reuses — this section
-generalizes that existing pattern into one shared reconciler, rather than
-introducing a new one:
+remains the model this section's grouping logic (containers/subgraphs
+derived from `spfModules`) reuses — only the mutation-response envelope
+changes, not that underlying grouping logic:
 
 ```typescript
 interface ChangeInfoDto {
-  changeType: 'NONE' | 'CREATE' | 'UPDATE' | 'DELETE';
+  changeType: 'NONE' | 'CREATE' | 'UPDATE' | 'DELETE'; // no longer read by the reconciler for mutation responses — see below
   changeId?: string;   // present only when changeType !== 'NONE'
   changeStatus?: 'STAGED' | 'UNSTAGED'; // present only when changeType !== 'NONE'
 }
@@ -410,137 +552,260 @@ interface ComponentCollectionDto {
   controlLinks: ControlLinkDto[];
   subsystems?: SubsystemDto[]; // present only on the -with-subsystems endpoint variant, below
 }
-// SpfModuleDto, DataLinkDto, ControlLinkDto, SubsystemDto each carry their
-// own `changeInfo: ChangeInfoDto` — the change type is per-entity, not a
-// top-level added/updated/deleted split.
+// Every mutating endpoint's response is three of these, not one:
+//   { addedComponentCollectionDto: ComponentCollectionDto;
+//     updatedComponentCollectionDto: ComponentCollectionDto;
+//     deletedComponentCollectionDto: ComponentCollectionDto }
+// There is no shared name for this triple in the API — every endpoint
+// signature in this feature spells out the three fields inline.
 ```
 
-**There is no `added`/`updated`/`deleted` bucketing at the collection
-level — each entity self-declares its own `changeInfo.changeType`,
-module-centric.** Containers and subgraphs are not returned as separate
-arrays at all; they're derived by grouping `spfModules` by
-`containerId`/`subgraphId`, exactly as `loadGraphData` already does today
-(see its `containers`/`subgraphs` derivation loops). The reconciler below
-generalizes that same grouping logic so every cascading action shares it,
-instead of each action re-deriving containers/subgraphs from its own
-response by hand.
+**Bucket membership is now the sole signal for CREATE/UPDATE/DELETE — an
+entity's own `changeInfo.changeType` must not be read by the reconciler for
+a mutation response.** An earlier draft of this design had each entity
+self-declare its own `changeInfo.changeType` inside one combined
+collection, module-centric, with no bucketing at the collection level at
+all. That's been replaced by the backend team's actual contract: which of
+the three collections an entity appears in **is** its change type, and
+`changeInfo.changeType` on an entity inside a mutation response can no
+longer be trusted as a reconciliation signal. Containers and subgraphs are
+still not returned as separate arrays at all; they're derived by grouping
+each bucket's `spfModules` by `containerId`/`subgraphId`, exactly as
+`loadGraphData` already does today (see its `containers`/`subgraphs`
+derivation loops). The reconciler below generalizes that same grouping
+logic so every cascading action shares it, instead of each action
+re-deriving containers/subgraphs from its own response by hand.
 
-**Mutation responses are delta-only — `changeType: 'NONE'` never appears
-outside read-only query responses.** A create/delete/expand/move/offload
-response's `spfModules`/`dataLinks`/`controlLinks` arrays contain only
-entities that actually changed (`CREATE`/`UPDATE`/`DELETE`); the reconciler
-never has to skip a `NONE`-tagged entity out of a mutation response. `NONE`
-only shows up on the read-only query endpoints
-(`queryUsecaseComponents`/`getComponentsForSubgraph`), where it means
-"unchanged, included for context" — those endpoints' full-snapshot
-responses go through `loadGraphData`'s existing replace-everything logic,
-not this incremental reconciler.
+**`changeType: 'NONE'` still only ever appears on the read-only query
+endpoints' full-snapshot responses — unaffected by this change.** The
+three-collection split applies only to mutation/cascade responses; the
+read-only query endpoints (`queryUsecaseComponents`/`getComponentsForSubgraph`)
+are untouched by this change and keep returning one plain
+`ComponentCollectionDto` per call, every entity tagged
+`changeType: 'NONE'` ("unchanged, included for context"), merged via
+`loadGraphData`'s existing replace-everything logic, not this incremental
+reconciler. A mutation response's three collections never contain a
+`NONE`-tagged entity — every entity in any of the three buckets, by
+definition, changed.
 
 ```typescript
-function applyComponentCollection(collection: ComponentCollectionDto): void {
+function applyComponentCollection(collections: {
+  addedComponentCollectionDto: ComponentCollectionDto;
+  updatedComponentCollectionDto: ComponentCollectionDto;
+  deletedComponentCollectionDto: ComponentCollectionDto;
+}): void {
   set((state) => {
-    for (const m of collection.spfModules) upsertOrDeleteModule(state, m);
-    for (const l of collection.dataLinks) upsertOrDeleteLink(state, l, 'data');
-    for (const l of collection.controlLinks) upsertOrDeleteLink(state, l, 'control');
-    for (const ss of collection.subsystems ?? []) upsertOrDeleteSubsystem(state, ss);
+    for (const m of collections.addedComponentCollectionDto.spfModules) upsertModule(state, m);
+    for (const m of collections.updatedComponentCollectionDto.spfModules) upsertModule(state, m);
+    for (const m of collections.deletedComponentCollectionDto.spfModules) removeModule(state, m);
+    for (const l of [...collections.addedComponentCollectionDto.dataLinks, ...collections.updatedComponentCollectionDto.dataLinks]) upsertLink(state, l, 'data');
+    for (const l of collections.deletedComponentCollectionDto.dataLinks) removeLink(state, l, 'data');
+    for (const l of [...collections.addedComponentCollectionDto.controlLinks, ...collections.updatedComponentCollectionDto.controlLinks]) upsertLink(state, l, 'control');
+    for (const l of collections.deletedComponentCollectionDto.controlLinks) removeLink(state, l, 'control');
+    for (const ss of [...(collections.addedComponentCollectionDto.subsystems ?? []), ...(collections.updatedComponentCollectionDto.subsystems ?? [])]) upsertSubsystem(state, ss);
+    for (const ss of collections.deletedComponentCollectionDto.subsystems ?? []) removeSubsystem(state, ss);
     recomputeContainersAndSubgraphs(state); // re-derive by grouping state.moduleInstances, same logic loadGraphData already uses
   });
 }
 
-function upsertOrDeleteModule(state: GraphDataState, m: SpfModuleDto): void {
-  if (m.changeInfo.changeType === 'DELETE') {
-    delete state.graphData.moduleInstances[m.systemId];
-    return;
-  }
+function upsertModule(state: GraphDataState, m: SpfModuleDto): void {
   state.graphData.moduleInstances[m.systemId] = toModuleInstance(m); // same mapping loadGraphData already does
+}
+
+function removeModule(state: GraphDataState, m: SpfModuleDto): void {
+  delete state.graphData.moduleInstances[m.systemId];
+}
+
+/** Populates only the added bucket, the other two empty — for call sites
+ *  that are purely additive (module/link create, paste). */
+function applyAddedCollection(collection: ComponentCollectionDto): void {
+  const empty: ComponentCollectionDto = {spfModules: [], dataLinks: [], controlLinks: []};
+  applyComponentCollection({
+    addedComponentCollectionDto: collection,
+    updatedComponentCollectionDto: empty,
+    deletedComponentCollectionDto: empty,
+  });
+}
+
+/** Populates only the deleted bucket, the other two empty — for call sites
+ *  that are purely a cascading delete (module/container/subgraph/subsystem
+ *  delete). */
+function applyDeletedCollection(collection: ComponentCollectionDto): void {
+  const empty: ComponentCollectionDto = {spfModules: [], dataLinks: [], controlLinks: []};
+  applyComponentCollection({
+    addedComponentCollectionDto: empty,
+    updatedComponentCollectionDto: empty,
+    deletedComponentCollectionDto: collection,
+  });
 }
 ```
 
 **Containers/subgraphs are never deleted directly — they disappear when
 their last module does.** Because they're derived, not stored as their own
-entities with their own `changeType`, a container/subgraph delete
-(REQ-020, REQ-016b/c) is expressed purely through its modules: every
-`SpfModuleDto` the container/subgraph contained comes back with
-`changeType: 'DELETE'`, and `recomputeContainersAndSubgraphs` (re-run after
-every `applyComponentCollection` call, same as `loadGraphData` already
-does on full load) simply produces no entry for a container/subgraph ID
-that no surviving module references anymore. No separate
+entities, a container/subgraph delete (REQ-020, REQ-016b/c) is expressed
+purely through its modules: every `SpfModuleDto` the container/subgraph
+contained appears in `deletedComponentCollectionDto.spfModules`, and
+`recomputeContainersAndSubgraphs` (re-run after every
+`applyComponentCollection` call, same as `loadGraphData` already does on
+full load) simply produces no entry for a container/subgraph ID that no
+surviving module references anymore. No separate
 `deletedContainerIds`/`deletedSubgraphIds` bucket is needed or returned by
 the backend — module-level deletes are sufficient to derive the
 container/subgraph-level effect.
 
-**`recomputeContainersAndSubgraphs` also prunes the session-local maps
-keyed by subgraph/link ID — this is not automatic just because those maps
-live in the same store.** `EditSessionSlice.subgraphProvenanceById` is
-*read* by the derivation (to stamp `provenance` onto each subgraph it
-produces), but reading isn't pruning: nothing removes an entry once its
-subgraph stops being derivable, so a cascade-deleted subgraph (module
-delete emptying its last container, container delete, subsystem delete,
-etc.) would otherwise leave that entry orphaned in the map forever — a
-slow leak, and stale data if a future subgraph ever happened to reuse the
-same ID. The fix is one pass over the *freshly-derived* subgraph set,
-inside the same function that already computes it, not a separate
-per-action cleanup step. `state` below is the whole composed
-`GraphDesignerStore` passed to Zustand's `set` callback, not only
-`GraphDataSlice`'s own fields — `subgraphProvenanceById` lives on
-`EditSessionSlice`, but both slices are fields on the same store object,
-so there is no cross-slice boundary to cross at the type level, only a
-documentation convention of which slice "owns" which field:
+**`recomputeContainersAndSubgraphs` also prunes the session-local map
+keyed by subgraph ID — this is not automatic just because it lives in the
+same store.** `EditSessionSlice` holds `kvCasesById`, sibling to
+`subgraphProvenanceById` and populated by the same call sites, consulted
+on *every* recompute, not only the call that first populated it — because
+a subgraph's derived `Subgraph` object is rebuilt from scratch on every
+`recomputeContainersAndSubgraphs` pass (`deriveFromModules`, below), any
+frontend-only field that isn't tracked in a session-local map (rather than
+placed directly on the derived object) is silently lost the next time
+*any* edit anywhere on the canvas triggers a recompute, not only an edit
+touching that specific subgraph — this was the actual root cause of
+`kvCases` going stale in an earlier draft of this design, now fixed by
+moving it into its own map, the same treatment `provenance` already has:
+
+```typescript
+interface EditSessionSlice {
+  // ...
+  subgraphProvenanceById: Map<string, SubgraphProvenance>;
+  /** Mutable session state for KV assignment (REQ-040/041/043,
+   *  kv-key-configuration-design.md) — toggled/added/removed directly by
+   *  the Key Configurator panel, not derived from anything and not
+   *  reseeded from any backend KV data after its initial seed. This is
+   *  the *only* place KV selection state lives; no raw backend KV list is
+   *  cached anywhere once this is seeded. Seeded once per subgraph ID, at
+   *  whichever of these moments first learns of it: use-case-selection
+   *  time for a pre-loaded subgraph (before Edit mode is even entered —
+   *  below), REQ-012's placement fetch, or REQ-006/007's auto-create
+   *  (seeded empty per REQ-042, no fetch). */
+  kvCasesById: Map<string, KvCase[]>;
+}
+```
+
+**Pre-loaded subgraphs are seeded at use-case selection, not inside
+`enterEditMode()` — this data isn't edit-mode-specific.** `SpfModuleDto`
+never carries a subgraph's supported-KV list, and the existing
+edit-mode-entry load path only loads `ComponentCollectionDto`
+(`spfModules`/`dataLinks`/`controlLinks`), which carries nothing
+subgraph-level. But `SGKV` is available the instant a use case's
+components are loaded in **View** mode — nothing about it requires Edit
+mode to exist first — so the fetch belongs alongside the existing
+`loadGraphData(selectedUsecases)` effect
+(`widgets/graph-designer/ui/graph-designer.tsx`'s "Effect A"), not gated
+behind "Start Graph Modification": that effect gains a call to
+`getAllSubgraphs(projectId)` (`entities/subgraph-definitions`, the same
+endpoint the subgraph palette already calls, currently lazy-loaded only
+when the palette opens — this is a second, independent call site for the
+same endpoint), filtered to the subgraph IDs `loadGraphData`'s own
+response resolves, matching `SubgraphDto.systemId ===
+SpfModuleDto.subgraphId`. Each match seeds `kvCasesById` per REQ-039 (all
+cases unselected). By the time the user clicks "Start Graph Modification"
+and `enterEditMode()` runs, this is already done — entering Edit mode
+does no fetching of its own. See the Mode State section above for the
+full mechanism, including why every run clears and fully reseeds
+`kvCasesById` rather than adding to it, and why a fetch failure here
+fails the whole `loadGraphData` for that selection rather than rendering
+with an unseeded map.
+
+`state` below is the whole composed `GraphDesignerStore` passed to
+Zustand's `set` callback, not only `GraphDataSlice`'s own fields —
+`kvCasesById` lives on `EditSessionSlice`, but both slices are fields on
+the same store object, so there is no cross-slice boundary to cross at
+the type level, only a documentation convention of which slice "owns"
+which field:
 
 ```typescript
 function recomputeContainersAndSubgraphs(state: GraphDesignerStore): void {
   const {containers, subgraphs} = deriveFromModules(state.graphData.moduleInstances); // existing grouping logic
+
+  for (const [subgraphId, subgraph] of Object.entries(subgraphs)) {
+    subgraph.provenance = state.subgraphProvenanceById.get(subgraphId);
+  }
+
   state.graphData.containers = containers;
   state.graphData.subgraphs = subgraphs;
 
-  // Prune subgraphProvenanceById: drop any entry whose subgraph no longer derives.
+  // Prune every session-local map keyed by subgraph ID: drop any entry
+  // whose subgraph no longer derives (cascade-deleted, emptied container/
+  // subgraph, etc.) — same pass, both maps, not two separate cleanup steps.
   for (const subgraphId of state.subgraphProvenanceById.keys()) {
     if (!(subgraphId in subgraphs)) state.subgraphProvenanceById.delete(subgraphId);
   }
-}
-```
-
-**`pairLinksById`/`excludedLinkIds` are pruned by `applyComponentCollection`
-itself, not by the subgraph-derivation pass — the response already names
-exactly which links died, no diffing needed.** Every deleted link arrives
-in the same `ComponentCollectionDto` as `changeInfo.changeType: 'DELETE'`
-(a cascade-deleted subgraph's pair-rendered connections included — the
-backend tags them the same way it tags any other severed link), so pruning
-these two maps is a direct lookup against the collection's own
-`dataLinks`/`controlLinks`, not something that needs the before/after
-subgraph-set comparison the provenance map requires:
-
-```typescript
-function applyComponentCollection(collection: ComponentCollectionDto): void {
-  set((state) => {
-    for (const m of collection.spfModules) upsertOrDeleteModule(state, m);
-    for (const l of collection.dataLinks) upsertOrDeleteLink(state, l, 'data');
-    for (const l of collection.controlLinks) upsertOrDeleteLink(state, l, 'control');
-    for (const ss of collection.subsystems ?? []) upsertOrDeleteSubsystem(state, ss);
-    recomputeContainersAndSubgraphs(state); // also prunes subgraphProvenanceById, above
-    pruneDeletedLinkBookkeeping(state, collection); // pairLinksById/excludedLinkIds
-    decrementSurvivingPortCounts(state, [...collection.dataLinks, ...collection.controlLinks]); // totalLinksAtPort — REQ-064, canvas-ui-mechanics-design.md
-  });
-}
-
-function pruneDeletedLinkBookkeeping(state: GraphDesignerStore, collection: ComponentCollectionDto): void {
-  const deletedLinkIds = [...collection.dataLinks, ...collection.controlLinks]
-    .filter((l) => l.changeInfo.changeType === 'DELETE')
-    .map((l) => l.systemId);
-  for (const linkId of deletedLinkIds) {
-    state.pairLinksById.delete(linkId);
-    state.excludedLinkIds = state.excludedLinkIds.filter((id) => id !== linkId);
+  for (const subgraphId of state.kvCasesById.keys()) {
+    if (!(subgraphId in subgraphs)) state.kvCasesById.delete(subgraphId);
   }
 }
 ```
 
-**`decrementSurvivingPortCounts` is designed in full in
+**MDF-ness is computed, not fetched or cached — see
+`kv-key-configuration-design.md`'s MDF Exclusion section.** An earlier
+draft of this design assumed MDF-ness came from `SubgraphDto.subgraphType`
+and cached that field in a `subgraphMetaById` map. That assumption is
+wrong on two counts: the confirmed `subgraphType` enum (`Stream`,
+`Device`, `Stream_Device`, `Stream_PP`, `Device_PP`) has no `MDF` value at
+all, and MDF-ness is a UI-derived classification the backend has no
+concept of — a subgraph is MDF if and only if it contains exactly the two
+IPC bridge modules (`moduleId` `0x7001184`/`0x7001185`) and nothing else.
+Because this is computed directly from `state.graphData.moduleInstances`
+— the same data `deriveFromModules` above already groups — there is
+nothing to cache and no `subgraphMetaById` map is needed anywhere in this
+feature; `subgraphType` itself has no other consumer in this design.
+
+**`pairLinksById`/`excludedLinks` are pruned by `applyComponentCollection`
+itself, not by the subgraph-derivation pass — the response already names
+exactly which links died, no diffing needed.** Every deleted link arrives
+in `deletedComponentCollectionDto` (a cascade-deleted subgraph's
+pair-rendered connections included — the backend buckets them there the
+same way it buckets any other severed link), so pruning these two maps is a
+direct lookup against that one collection's own `dataLinks`/`controlLinks`,
+not something that needs the before/after subgraph-set comparison the
+provenance map requires:
+
+```typescript
+function applyComponentCollection(collections: {
+  addedComponentCollectionDto: ComponentCollectionDto;
+  updatedComponentCollectionDto: ComponentCollectionDto;
+  deletedComponentCollectionDto: ComponentCollectionDto;
+}): void {
+  set((state) => {
+    for (const m of collections.addedComponentCollectionDto.spfModules) upsertModule(state, m);
+    for (const m of collections.updatedComponentCollectionDto.spfModules) upsertModule(state, m);
+    for (const m of collections.deletedComponentCollectionDto.spfModules) removeModule(state, m);
+    for (const l of [...collections.addedComponentCollectionDto.dataLinks, ...collections.updatedComponentCollectionDto.dataLinks]) upsertLink(state, l, 'data');
+    for (const l of collections.deletedComponentCollectionDto.dataLinks) removeLink(state, l, 'data');
+    for (const l of [...collections.addedComponentCollectionDto.controlLinks, ...collections.updatedComponentCollectionDto.controlLinks]) upsertLink(state, l, 'control');
+    for (const l of collections.deletedComponentCollectionDto.controlLinks) removeLink(state, l, 'control');
+    for (const ss of [...(collections.addedComponentCollectionDto.subsystems ?? []), ...(collections.updatedComponentCollectionDto.subsystems ?? [])]) upsertSubsystem(state, ss);
+    for (const ss of collections.deletedComponentCollectionDto.subsystems ?? []) removeSubsystem(state, ss);
+    recomputeContainersAndSubgraphs(state); // also prunes subgraphProvenanceById, above
+    pruneDeletedLinkBookkeeping(state, collections.deletedComponentCollectionDto); // pairLinksById/excludedLinks
+    adjustSurvivingPortCounts(
+      state,
+      [...collections.addedComponentCollectionDto.dataLinks, ...collections.addedComponentCollectionDto.controlLinks],
+      [...collections.deletedComponentCollectionDto.dataLinks, ...collections.deletedComponentCollectionDto.controlLinks],
+    ); // totalLinksAtPort — REQ-064, canvas-ui-mechanics-design.md
+  });
+}
+
+function pruneDeletedLinkBookkeeping(state: GraphDesignerStore, deleted: ComponentCollectionDto): void {
+  const deletedLinkIds = [...deleted.dataLinks, ...deleted.controlLinks].map((l) => l.systemId);
+  for (const linkId of deletedLinkIds) {
+    state.pairLinksById.delete(linkId);
+    state.excludedLinks = state.excludedLinks.filter((l) => l.connectionId !== linkId);
+  }
+}
+```
+
+**`adjustSurvivingPortCounts` is designed in full in
 `canvas-ui-mechanics-design.md`'s Port Coloring section (REQ-064) — it is
 called from here because it must run in the same
-`applyComponentCollection` pass as everything else above, on every
-cascading delete, not only module delete.** Deleting a module, container,
-or subsystem all sever links whose surviving endpoint's `totalLinksAtPort`
-would otherwise go stale; that section covers why this can't come from
+`applyComponentCollection` pass as everything else above, on every link
+create *and* every cascading delete, not only module delete.** Deleting a
+module, container, or subsystem all sever links whose surviving endpoint's
+`totalLinksAtPort` would otherwise go stale; that section covers why this can't come from
 the backend response (the response never includes the surviving sibling
 module, only the deleted entities) and why a plain decrement is
 same-selection-scope-safe.
@@ -553,11 +818,11 @@ regardless of which action triggered the cascade, with no per-action
 cleanup logic duplicated across `node-operations-design.md`/
 `link-and-port-design.md`.
 
-**Subsystem deletes/promotions ride on `SubsystemDto.changeInfo` directly**,
-since subsystems (unlike containers/subgraphs) *are* returned as
-first-class entities with their own `changeType` — a subsystem expand
-(REQ-032) returns the expanded subsystem with `changeType: 'DELETE'` and
-every promoted child module with `changeType: 'UPDATE'` (new
+**Subsystem deletes/promotions ride on bucket membership directly, the same
+as modules/links**, since subsystems (unlike containers/subgraphs) *are*
+returned as first-class entities — a subsystem expand (REQ-032) returns the
+expanded subsystem in `deletedComponentCollectionDto.subsystems` and every
+promoted child module in `updatedComponentCollectionDto.spfModules` (new
 `containerId`/`subgraphId` reflecting the promoted level), which is enough
 for the reconciler to remove the subsystem and re-parent its former
 contents in one pass — no separate `promotedNodeIds` field needed.
@@ -595,32 +860,25 @@ to handle a session that mixes the two.
 **Caller-owned fields are stamped before the collection is applied, not by
 the reconciler.** `applyComponentCollection` is intentionally a generic,
 dumb per-entity upsert/delete with no knowledge of frontend-only
-bookkeeping fields — `provenance` on a `Subgraph` (`node-operations-design.md`)
-is the main example, since the backend never returns it and subgraphs
-aren't even a first-class entity in the response to attach a field to
-directly. Because subgraphs are derived from grouped modules,
-`provenance` is tracked in a small session-local map keyed by
-`subgraphId`, populated by each call site *before* calling
-`applyComponentCollection`, and consulted by `recomputeContainersAndSubgraphs`
-when it builds each subgraph entry:
+bookkeeping fields — `provenance`/`kvCasesById` on a `Subgraph`
+(`node-operations-design.md`, above) are the main example, since the
+backend never returns either and subgraphs aren't even a first-class
+entity in the response to attach a field to directly. Because subgraphs
+are derived from grouped modules, both are tracked in session-local maps
+keyed by `subgraphId`, populated by each call site *before* calling
+`applyComponentCollection`, and consulted by
+`recomputeContainersAndSubgraphs` when it builds each subgraph entry:
 
 ```typescript
-interface EditSessionSlice {
-  // ...
-  subgraphProvenanceById: Map<string, SubgraphProvenance>;
-}
-
 async function createModuleWithAutoCreate(moduleDefId: string, position: XY): Promise<void> {
   const module = await api.addSpfModule({moduleSystemId, procSystemId}); // subgraphSystemId/containerSystemId omitted — auto-create
-  const [subgraphs] = await api.querySubgraphs([module.subgraphId]); // subgraphType/SGKV — not derivable from the module alone
-  await api.queryContainers([module.containerId]); // confirms the container exists; nothing on ContainerDto isn't already synthesized from the module
   get().subgraphProvenanceById.set(String(module.subgraphId), 'newly-created'); // caller-owned, stamped before merge
-  get().applyComponentCollection({spfModules: [module], dataLinks: [], controlLinks: []});
-  // recomputeContainersAndSubgraphs (inside applyComponentCollection above) synthesizes
-  // the Subgraph/Container entries from the module alone; overlay subgraphType/SGKV
-  // from the queried SubgraphDto onto that synthesized entry as a second step —
-  // see node-operations-design.md's Sequence: Module Drop on Empty Canvas for the
-  // full flow, including the partial-state failure mode this two-round-trip shape introduces
+  get().kvCasesById.set(String(module.subgraphId), []); // REQ-042 — no supported-KV list for a newly-created subgraph
+  get().applyAddedCollection({spfModules: [module], dataLinks: [], controlLinks: []}); // pure-create — added bucket only
+  // recomputeContainersAndSubgraphs (inside applyComponentCollection above)
+  // synthesizes the Subgraph/Container entries from the module alone — see
+  // node-operations-design.md's Module Operations section for the full
+  // REQ-006/007 flow, now a single call with no follow-up queries
 }
 ```
 
@@ -629,28 +887,33 @@ mutate one already-known entity's own field — renames (REQ-010/017/031c/057),
 `updatePortCount` (REQ-033–037, returns `{updatedPorts}`), and CKV/TKV
 edits (REQ-053) — keep their existing narrow response shapes. There is no
 collection to reconcile when the caller already knows exactly which single
-entity/field changed, and forcing those through `ComponentCollectionDto`
+entity/field changed, and forcing those through the three-collection shape
 would only add indirection. The line: if a response can affect more than
 one entity, or an entity the client didn't already have the ID for, it
-uses `ComponentCollectionDto`; otherwise it returns just what changed.
+uses the added/updated/deleted triple; otherwise it returns just what
+changed.
 
 **Read-only placement fetches are also excluded.** `getSubgraphContents`
 and `getSubgraphPairs` (REQ-012/013, `node-operations-design.md`) are not
 staged backend mutations — the requirements doc explicitly calls placement
 session-local, not staged — so they are merged into `GraphDataSlice`
 directly by REQ-012/013's own placement logic, which also has to seed
-`kvCases` (`kv-key-configuration-design.md`) and stamp
-`provenance: 'palette-placed'`: session-local concerns specific to that
-flow, not a fit for the generic reconciler.
+`kvCasesById` (`kv-key-configuration-design.md`) via its own separate
+single-subgraph `SGKV` fetch and stamp `provenance: 'palette-placed'`:
+session-local concerns specific to that flow, not a fit for the generic
+reconciler. Being read-only query endpoints, they are also unaffected by
+the added/updated/deleted split above — they return one plain
+`ComponentCollectionDto`, `changeType: 'NONE'`-tagged, same as
+`queryUsecaseComponents`/`getComponentsForSubgraph`.
 
-**Batch operations apply multiple independent collections, not one merged
+**Batch operations apply multiple independent triples, not one merged
 call.** `deleteSelection`'s batch delete (`canvas-ui-mechanics-design.md`)
 issues one backend call per cascade root via `Promise.all`; each root's
-response is a complete, self-contained `ComponentCollectionDto` applied via
-its own `applyComponentCollection` call as it resolves. This is correct
-without any extra merging step — Zustand's `set` calls compose sequentially
-regardless of order, and each root's collection only ever touches entities
-that root's own cascade is responsible for.
+response is a complete, self-contained added/updated/deleted triple
+applied via its own `applyComponentCollection` call as it resolves. This is
+correct without any extra merging step — Zustand's `set` calls compose
+sequentially regardless of order, and each root's triple only ever touches
+entities that root's own cascade is responsible for.
 
 ---
 
@@ -701,27 +964,38 @@ cross-store concern:
 
 - `selectedUsecaseSystemIds` — the selected use cases (`UsecaseSelectionSlice`)
 - `excludedDataLinkSystemIds`/`excludedControlLinkSystemIds` — split from
-  `EditSessionSlice.excludedLinkIds` (designed in `node-operations-design.md`)
+  `EditSessionSlice.excludedLinks` (designed in `node-operations-design.md`)
   by each excluded link's own `connectionType`, since the request has two
   separate arrays rather than one combined list
-- `activeSubgraphs` — one `SubgraphKvSelectionDto` per subgraph on canvas,
-  built from that subgraph's **SGKV selection** (REQ-039–043,
-  `kv-key-configuration-design.md`) — `systemId` is the subgraph's own ID,
-  `valueSystemIds` is the selected KV cases in the shape that section's
-  SGKV model produces
+- `activeSubgraphs` — **one `SubgraphKvSelectionDto` per subgraph on
+  canvas, with no omissions.** Built from that subgraph's `kvCasesById`
+  entry (REQ-039–043, `kv-key-configuration-design.md`) —  `systemId` is
+  the subgraph's own ID, `valueSystemIds` is the selected KV cases in the
+  shape that section's SGKV model produces. A subgraph with nothing
+  selected — whether because the user simply hasn't checked any case, or
+  because it's MDF and the Key Configurator panel never renders KV
+  options for it at all (REQ-054) — still gets an entry, with
+  `valueSystemIds: []`; it is never omitted from `activeSubgraphs`. Since
+  `kvCasesById` is seeded for every subgraph on canvas regardless of
+  provenance or MDF-ness (`kv-key-configuration-design.md`'s three
+  seeding paths), `activeSubgraphs.length` always equals the number of
+  subgraphs on canvas — one map, iterated once, no conditional skipping.
 
 A single `applyStatus` flag is sufficient — Apply is one request, not many
 concurrent per-operation calls like the rest of the feature.
 
-**Subsystem Keys assignment (REQ-071) has no confirmed home in this
-request or anywhere else in the API.** `SubsystemDto.filteredKeys` is a
-read-only query field (populated on `queryComponentsInSubsystem`, etc.);
-no mutation endpoint accepts a keys-assignment payload, and
-`CreateUsecasesRequestDto` above has no field for it. This remains an open
-item — see [Open Items Inherited](#open-items-inherited) — rather than a
-resolved contract; `kv-key-configuration-design.md`'s `assignedKeyIds`
-design still stands as the UI-side model, but nothing today confirms where
-it's sent on Apply.
+**Subsystem Keys assignment (REQ-071) is no longer part of this request at
+all.** An earlier version of this design carried it in the Apply payload,
+UI-only until Apply, the same as subgraph KV assignment. It has since been
+changed to stage immediately at assignment time (same treatment as
+REQ-053's CKV/TKV) — see `kv-key-configuration-design.md`'s Keys Assignment
+section — specifically to avoid losing an assignment if the session is
+discarded before Apply runs. `CreateUsecasesRequestDto` above has no field
+for it, and none is needed: by the time Apply runs, any Keys assignment is
+already committed. **The backend endpoint for staging a Keys
+assignment does not exist yet** — this remains an open item (see
+[Open Items Inherited](#open-items-inherited)), but it is now an open item
+about a real-time staging endpoint, not about an Apply-payload field.
 
 **Apply is blocked while any other operation is in flight, not only while a
 previous Apply is in flight.** Because edits are already strictly serial
@@ -814,6 +1088,27 @@ interface EditSessionSlice {
 because the project-close trigger needs to reach it from outside the
 Discard button's own component.
 
+**Discard is blocked while any mutation is in flight, the same as Apply.**
+The Discard button's `disabled` condition is `isMutating` (identical in
+spirit to Apply's `applyStatus === 'in-flight' || isMutating` check, above)
+— if a structural edit's backend call is still outstanding when the user
+clicks Discard, that edit's eventual response would otherwise arrive after
+`confirmDiscard()` has already released the lock and returned the session to
+`'view'`, and `applyComponentCollection` would merge cascade results into a
+session that no longer exists. `confirmDiscard()` itself also checks
+`isMutating` and no-ops if true, for the same reason `deleteSelection`/
+`pasteSelection` guard on it explicitly rather than relying solely on the
+button being disabled — the project-close interception path (below) calls
+`requestDiscard()` programmatically, not through the disabled button, so it
+needs its own guard too:
+
+```typescript
+function confirmDiscard(): Promise<void> {
+  if (get().isMutating) return Promise.resolve(); // an edit is still in flight — see above
+  // ...unchanged below
+}
+```
+
 **`confirmDiscard()` calls `discardChanges` with `changeIds` omitted,
 discarding the entire edit session's changes in one call — it does not
 track individual `changeId`s to pass.** REQ-066's `changeId` per staged
@@ -825,6 +1120,15 @@ own documented behavior ("If changeIds is not provided or empty, all
 changes will be discarded"). Dependent changes are cascaded server-side
 (`cascadedChangeIds` in the response) — the frontend does not need to
 compute or request that cascade itself.
+
+**Whether this "discard everything" behavior also reverts REQ-053/071's
+immediately-staged CKV/TKV and Keys-assignment changes is unresolved — see
+`kv-key-configuration-design.md`'s Open Items.** Those two sections'
+stated reason for staging immediately (rather than batching into Apply) is
+specifically to survive a Discard; "all changes will be discarded" as
+quoted above gives no indication those changeIds are exempt. This document
+does not assume either answer — it is flagged as an open item, not
+resolved here.
 
 **The discard response carries no graph payload, and `EditSessionSlice`
 does not fetch graph data itself.** Unlike Apply Changes, `discardChanges`
@@ -854,7 +1158,11 @@ edit mode starts, which is not what REQ-061 asks for. Wrap the entire
 existing body in `if (mode === 'view') { ... }` so it only runs on
 transitions *into* `'view'` (initial mount, where `mode` is already
 `'view'`, and the post-discard transition) — the `'view' → 'edit'`
-transition must leave canvas state untouched.
+transition must leave canvas state untouched. This is the same `if (mode
+=== 'view')` guard the Mode State section above uses to clear
+`excludedLinks`/`pairLinksById`/`subgraphProvenanceById`/
+`assignedKeyIdsBySubsystemId`/`kvCasesById` — one guard, one place in the
+effect body, covering both that reset and this one.
 
 ```mermaid
 sequenceDiagram
@@ -917,12 +1225,46 @@ on a failed discard.
 are both now confirmed, real API contracts (above) — this document's
 open items narrow to what those contracts don't cover:
 
-- **Subsystem Keys assignment (REQ-071) has no confirmed backend home.**
-  Neither `CreateUsecasesRequestDto` nor any other endpoint in the current
-  API accepts a keys-assignment payload; `SubsystemDto.filteredKeys` is
-  read-only. `kv-key-configuration-design.md`'s `assignedKeyIds` UI model
-  still stands, but where/how it reaches the backend on Apply remains
+- **Subsystem Keys assignment (REQ-071) has no confirmed backend endpoint
+  to stage to.** The design is now immediate-stage (same pattern as
+  REQ-053's CKV/TKV, not Apply-time batching), so `CreateUsecasesRequestDto`
+  correctly has no field for it — but no endpoint in the current API
+  accepts a real-time keys-assignment call either; `SubsystemDto.filteredKeys`
+  is read-only. `kv-key-configuration-design.md`'s `assignedKeyIds` UI model
+  still stands, but the per-action staging endpoint it needs to call remains
   genuinely open — flagged for the backend team.
+- **Whether `discardChanges` (omitted `changeIds`) reverts REQ-053/071's
+  immediately-staged CKV/TKV and Keys-assignment changeIds is unconfirmed
+  with the backend team.** See the Discard section above and
+  `kv-key-configuration-design.md`'s Open Items — REQ-071's rationale for
+  staging immediately (surviving a Discard) is only valid if the answer is
+  no.
+- **The frontend `SubgraphDto` type is stale against the real schema and
+  needs updating — not a backend contract question.**
+  `entities/subgraph-definitions/model/subgraph-definition.dto.ts`
+  currently declares only `description`/`name`/`subgraphId`/
+  `subgraphType`; the real schema is `changeInfo`, `systemId`, `id`,
+  `name`, `relatedEndPointLinks`, `scenarioType` (`Audio`/`Voice`),
+  `deviceType` (`Stream`/`Device`/`Stream_Device`/`Stream_PP`/
+  `Device_PP` — this is the field the stale type calls `subgraphType`;
+  there is no `subgraphType` field, and no `MDF` value anywhere in this
+  DTO, consistent with MDF being UI-derived rather than backend-reported,
+  above), `subGraphSharedType`, and `SGKV: KeyValuePairsInfo[]`. This is
+  a real prerequisite code change (updating the type and
+  `subgraph-list-slice.ts`'s `toSubgraphDefinition` mapper, which
+  currently drops every field outside the stale four), not merely a docs
+  fix — flagged here as an implementation dependency for whichever plan
+  picks up the pre-loaded-subgraph fetch (above).
+- **A net-new single-subgraph-by-ID endpoint is needed for REQ-012's
+  placement flow, not yet in the API.** Palette placement fetches one
+  specific subgraph's `SGKV` by its `systemId` at drop time
+  (`kv-key-configuration-design.md`) — `getAllSubgraphs(projectId)`
+  returns every subgraph in the project, which is the right shape for the
+  use-case-selection-time fetch above but the wrong shape (and wrong
+  trigger point) for a single on-demand placement lookup. This endpoint
+  doesn't exist in the frontend API layer today and is TBD with the
+  backend team, same treatment as this document's other unconfirmed
+  cascading-delete endpoints.
 - **Batch/multi-entity creation for paste** — designed in
   `canvas-ui-mechanics-design.md`; the paste flow's own atomicity concern,
   unrelated to `createUsecases`, still has no confirmed endpoint.

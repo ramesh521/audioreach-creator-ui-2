@@ -186,8 +186,16 @@ Subsystem B→module. The UI must render all connections returned in the backend
 response after the operation completes.
 
 **REQ-028** Client-side port validation runs before the API call: port type
-compatibility (data-to-data, control-to-control) and `maxConnections` limit are
-enforced eagerly.
+compatibility (data-to-data, control-to-control) is enforced eagerly for all
+ports. No client-side `maxConnections` check gates the API call for either
+port type — the backend is the sole arbiter of whether a connection is
+created (REQ-029). **For control ports only**, once the backend confirms the
+connection was created, the tool checks whether the port's connection count
+now exceeds its `maxConnections` limit and, if so, shows a non-blocking
+warning ("This connection exceeds the port's supported connection limit;
+concurrent connections beyond this limit may not behave as expected") — the
+connection is not undone or blocked; this is purely informational. Data
+ports are never subject to this check.
 
 **REQ-029** Server-side validation is the final arbiter. If the server rejects
 a link, no change is applied to the canvas and an error toast is shown.
@@ -214,8 +222,18 @@ the deletion. On failure, an error toast is shown.
 is confirmed by the backend before the canvas reflects the change.
 
 **REQ-031d** User can update a subsystem by adding subgraphs or subsystems into
-it, or removing subgraphs or subsystems from it. Each change is confirmed by
-the backend before the canvas reflects the update.
+it (REQ-031a), or removing subgraphs or subsystems from it (REQ-031e). Removing
+a subgraph or subsystem re-parents it one level up; the subsystem itself is
+**not** deleted, even if this empties it of all contents — confirmed with the
+backend team. Each change is confirmed by the backend before the canvas
+reflects the update.
+
+**REQ-031e** User can remove a subgraph or subsystem from its parent subsystem
+via a **"Remove from Subsystem"** context-menu action — the symmetric
+counterpart to REQ-031a's "Move to Subsystem." The backend re-parents the
+moved node one level up. The now-possibly-empty subsystem is **not** deleted
+by this action. The canvas is updated only after the backend confirms. On
+failure, an error toast is shown.
 
 **REQ-032** User can **expand** a subsystem. Expanding a subsystem deletes the
 subsystem container and moves all its components (subgraphs, modules,
@@ -297,8 +315,9 @@ awaiting backend confirmation — see `core-edit-session-design.md`'s
 
 **REQ-045** Apply sends the following to the backend routing endpoint: the
 selected use cases, any excluded data/control links from the current session
-(REQ-014), the selected KV assignments for all subgraphs on canvas, and the
-assigned Keys for all subsystems on canvas (REQ-071).
+(REQ-014), and the selected KV assignments for all subgraphs on canvas.
+Subsystem Keys assignment (REQ-071) is staged immediately at assignment time,
+not carried in the Apply payload — see REQ-071.
 
 **REQ-046** On Apply success, the backend returns a **modification summary**.
 The UI displays this summary to the user. On failure, the failure details are
@@ -372,8 +391,11 @@ reflects the change only after the backend confirms.
 
 **REQ-071** User can assign Keys to a subsystem from the Key Configurator
 panel. This is a keys assignment — distinct from KV assignment used for
-subgraphs. Assignments are stored in the UI only and are not sent to the
-backend until Apply Changes is triggered.
+subgraphs. Each change (assign or unassign) is staged to the backend
+immediately — same treatment as REQ-053's CKV/TKV — and the panel reflects
+the change only after the backend confirms. This is a deliberate departure
+from subgraph KV assignment's Apply-time batching: staging Keys immediately
+avoids losing the assignment if the session is discarded before Apply.
 
 ---
 
@@ -406,9 +428,11 @@ available DSPs. The tool calls a new backend API for this operation:
   DSP, rather than inserting an additional pair or deleting and recreating
   one. There is no dedicated "un-offload" action — offloading back to the
   original DSP is the same action, targeting that DSP.
-- In both cases, the backend returns a component collection describing
-  everything added/changed (new or updated IPC modules, new/rerouted links,
-  new container assignment), and the UI updates in the same response cycle.
+- In both cases, the backend returns three component collections — added,
+  updated, and deleted — in one response, describing everything
+  added/changed (new or updated IPC modules, new/rerouted links, new
+  container assignment), and the UI reconciles all three in the same
+  response cycle.
 - This follows the same backend-driven intermediate-insertion pattern as
   REQ-027/055. The IPC TX/RX modules are subject to REQ-055's
   Expanded/Virtual display-mode preference, the same as other cross-DSP
@@ -541,8 +565,9 @@ interactions required for common operations.
 ## Open items (TBD with backend team)
 
 - **API contracts still unconfirmed**: module/container/subgraph/subsystem
-  add/delete/rename/move/expand (Section 2–4, 6), port count changes
-  (REQ-033–037), CKV/TKV staging (REQ-053), DSP offload (REQ-072), and
+  add/delete/rename/move/expand/remove-from-subsystem (Section 2–4, 6,
+  REQ-031e), port count changes (REQ-033–037), CKV/TKV staging (REQ-053),
+  Subsystem Keys staging (REQ-071 — see below), DSP offload (REQ-072), and
   `SubgraphPairDto`'s field shape (REQ-013 — the endpoint path is
   confirmed, but the DTO is currently an empty placeholder in the API
   spec). See each design doc's own "Open Items Inherited" for detail.
@@ -559,7 +584,8 @@ interactions required for common operations.
   per REQ-067 and is not designed here regardless of contract status.
 - **Subsystem Keys assignment (REQ-071) has no backend contract at all** —
   not merely an unconfirmed path/DTO on an otherwise-real endpoint; no
-  endpoint in the current API accepts this payload. See
+  endpoint in the current API accepts this payload, immediate-stage or
+  otherwise. See
   `kv-key-configuration-design.md`/`core-edit-session-design.md`'s Open
   Items.
 - **Position persistence**: mechanism for persisting layout overrides (REQ-059)

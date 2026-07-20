@@ -1,7 +1,7 @@
 # Graph Designer Edit — Canvas UI Mechanics Design
 
 Requirements: [../requirements/graph-designer-edit-requirements.md](../requirements/graph-designer-edit-requirements.md)
-(REQ-011, 015, 019, 047–051, 058–059, 063–064, 069–070, 072;
+(REQ-011, 015, 019, 031e, 047–051, 058–059, 063–064, 069–070, 072;
 REQ-068 explicitly out of scope — see below)
 
 Covers the shared drag-and-drop validation mechanism, palettes, context
@@ -164,7 +164,7 @@ branches on node type, using the `provenance` field from
 
 | Node type | Delete behavior |
 | --- | --- |
-| Palette-placed subgraph | UI-cache-only removal, no backend call |
+| Palette-placed subgraph | UI-cache-only removal, no backend call — `removeFromUiCacheOnly` (`node-operations-design.md`'s Subgraph Provenance section) |
 | Pre-loaded subgraph | Staged backend delete (`deleteSubgraph`) |
 | Newly-created subgraph | Staged backend delete (`deleteSubgraph`) — same action as pre-loaded; the backend cascades to containers/modules/links either way (`node-operations-design.md`) |
 | Module | Staged backend delete (`deleteModuleInstance`) |
@@ -175,7 +175,16 @@ action already designed in `node-operations-design.md`/`link-and-port-design.md`
 applies to the selected node's type.
 
 **REQ-049 — edge delete.** Right-click an edge → Delete → calls `deleteLink`
-(`link-and-port-design.md`).
+(`link-and-port-design.md`). **Except for a pair-derived edge**
+(`pairLinksById.has(connectionId)`, `node-operations-design.md`'s Bridge
+Connections section) — that edge's context menu shows "Exclude Link"
+instead of "Delete" in the first place (`link-and-port-design.md`), so
+REQ-049's Delete path never applies to it via the menu. The Delete
+key/batch-delete path below reaches the same edge type through
+`deleteSelection`/`deleteByType`, which has no context-menu rendering to
+rely on for this exclusion — see the `pairLinksById` check inside
+`deleteByType`, below, which routes a pair-derived edge to `excludeLink`
+instead of `deleteLink` so this rule holds regardless of entry point.
 
 **REQ-050 — Delete key parity.** The Delete key must trigger the *same*
 underlying dispatch as the context menu's Delete option, for whatever is
@@ -214,6 +223,18 @@ section. Selecting a target DSP calls that action directly — there is no
 separate confirmation step beyond the picker itself, consistent with how
 "Move to Subsystem" (REQ-031a, `node-operations-design.md`) also prompts
 for a target and then acts immediately on selection.
+
+**REQ-031e — "Remove from Subsystem" menu item.** Right-clicking a
+subgraph or subsystem node whose current parent is itself a subsystem adds
+a context-menu entry beyond Delete: "Remove from Subsystem" — shown only
+when that parent-is-a-subsystem condition holds, symmetric to REQ-031a's
+"Move to Subsystem" (which is available on any subgraph/subsystem
+regardless of current parent). Selecting it calls `removeFromSubsystem`
+directly, with no intermediate picker — there is only one destination
+("one level up"), unlike "Move to Subsystem," which must first ask which
+subsystem. This document owns the menu item; the backend contract and
+canvas reconciliation are designed in `node-operations-design.md`'s
+Subsystem Operations section.
 
 ---
 
@@ -276,11 +297,16 @@ as a separate operation.**
 This means `deleteSelection` (from [Context Menus](#context-menus) above)
 cannot loop and call one delete-per-item naively — that would double-delete
 in cases like a container and its own module both being selected. It needs
-a pre-pass that also drops any selected edge whose endpoint node is itself
-being deleted as part of another node's cascade (an edge is not its own
-"ancestor" case, but deleting its endpoint node already implies deleting
-it — issuing a separate `deleteLink` for it afterward would race against,
-or duplicate, that cascade):
+a pre-pass that also drops any selected edge whose endpoint node is covered
+by another selected node's cascade (an edge is not its own "ancestor" case,
+but deleting a node that contains — or *is* — its endpoint already implies
+deleting the edge too — issuing a separate `deleteLink` for it afterward
+would race against, or duplicate, that cascade). **This coverage check must
+walk the endpoint's actual containment chain, not just compare against the
+raw set of individually-selected node IDs** — a container and an edge whose
+endpoint module lives inside that container (but was never itself
+separately selected) is exactly the case a literal-membership check misses,
+below:
 
 ```typescript
 // A normalized view over whatever node/edge the selection contains —
@@ -309,6 +335,16 @@ function isAncestorOf(candidateAncestor: Selectable, item: Selectable): boolean 
   return false;
 }
 
+// True if `nodeId` is itself one of `roots`, or a descendant of any of
+// them — walks the *actual* node graph via getNodeById, not just the raw
+// selection array, because an edge's endpoint can be a node that was never
+// separately selected (e.g. a module inside a selected container).
+function isCoveredByRootCascade(nodeId: string, roots: Selectable[]): boolean {
+  if (roots.some((r) => r.id === nodeId)) return true;
+  const node = getNodeById(nodeId);
+  return node ? roots.some((r) => isAncestorOf(r, node)) : false;
+}
+
 function deleteByType(item: Selectable): Promise<void> {
   // Literal dispatch over the REQ-048 table — no new logic beyond routing
   // to the action each node/edge type already has designed elsewhere:
@@ -324,7 +360,18 @@ function deleteByType(item: Selectable): Promise<void> {
     case 'subsystem':
       return deleteSubsystem(item.id); // node-operations-design.md
     case 'edge':
-      return deleteLink(item.id); // link-and-port-design.md
+      // Pair-derived edges (link-and-port-design.md's Bridge Connections
+      // section) must never reach deleteDataLink/deleteControlLink — that
+      // rule is stated there for the context-menu path, but the Delete
+      // key/batch-delete path funnels through this same function and would
+      // otherwise violate it silently. Route to the same Exclude Link
+      // action the context menu offers instead: no backend call, the
+      // connection stays intact server-side, only its on-canvas rendering
+      // is removed (REQ-014/014a) — exactly what the context menu's only
+      // available action for this edge type already does.
+      return get().pairLinksById.has(item.id)
+        ? Promise.resolve(get().excludeLink(item.id)) // node-operations-design.md
+        : deleteLink(item.id); // link-and-port-design.md
   }
 }
 
@@ -335,15 +382,23 @@ function deleteSelection(selection: Selectable[]): Promise<void> {
   const roots = selectedNodes.filter(
     (item) => !selectedNodes.some((other) => isAncestorOf(other, item)),
   );
-  // A selected edge is dropped if either endpoint is itself a selected node
-  // — that node's own delete cascade already removes the edge, so issuing
-  // a separate deleteLink for it would duplicate that cascade.
-  const selectedNodeIds = new Set(selectedNodes.map((n) => n.id));
+  // A selected edge is dropped if either endpoint is covered by a root's
+  // own cascade — not merely if the endpoint was itself individually
+  // selected. Checking only literal selection membership (an earlier draft
+  // of this function compared against `selectedNodeIds`, the raw selected
+  // node IDs) misses the case where a container and an edge are both
+  // selected but the edge's actual endpoint module — inside that
+  // container, and itself never separately selected — is not in that set:
+  // the edge would wrongly be classified "surviving" and get its own
+  // deleteLink call racing the container's own cascade delete inside the
+  // same Promise.all below (deleteSelection's internal concurrency is not
+  // covered by the app-wide "one mutation at a time" serialization, since
+  // the whole batch is one locked operation — see core-edit-session-design.md).
   const survivingEdges = selection.filter(
     (item) =>
       item.kind === 'edge' &&
-      !selectedNodeIds.has(item.sourceNodeId) &&
-      !selectedNodeIds.has(item.targetNodeId),
+      !isCoveredByRootCascade(item.sourceNodeId!, roots) &&
+      !isCoveredByRootCascade(item.targetNodeId!, roots),
   );
   return withMutationLock(() =>
     Promise.all([...roots, ...survivingEdges].map((item) => deleteByType(item))),
@@ -423,35 +478,45 @@ Every place that constructs a `Port` from a `DataPortDto` — the initial
 module upsert — must copy this field across, exactly as the other four
 fields already are.
 
-**On module delete, `totalLinksAtPort` on the deleted links' *surviving*
-endpoints must be decremented client-side — the backend response does not
-carry this correction.** `deleteModuleInstance`'s response
-(`ComponentCollectionDto`) only contains the deleted module(s) and the
-deleted links connected to them, each tagged `changeType: 'DELETE'`
-(`node-operations-design.md`'s cascading-delete sequence) — it never
-includes the *other* endpoint of a deleted link, i.e. the still-alive
-sibling module whose port just lost a connection. Confirmed
-same-selection-scope: `totalLinksAtPort` counts only links within the
-currently-selected use cases, the same scope `GraphDataSlice.connections`
-already lives in — so a plain decrement-by-one per severed connection is
-correct with no cross-scope adjustment needed, unlike a naive assumption
-that it might count links from unselected use cases too.
+**`totalLinksAtPort` must be adjusted client-side on both link creation and
+link deletion — the backend response never carries the correction for
+either direction.** `createDataLink`/`createControlLink`'s response
+(`link-and-port-design.md`) carries the new link itself in
+`addedComponentCollectionDto`, but never the two endpoint modules whose
+ports just gained a connection (unless one of those modules happened to be
+created in the very same response, e.g. REQ-027's bridge modules) — same
+shape asymmetry as delete, just the opposite direction.
+`deleteModuleInstance`/`deleteContainer`/`deleteSubsystem`'s response
+similarly carries the deleted link(s) in `deletedComponentCollectionDto`
+but never the *surviving* sibling endpoint whose port just lost a
+connection. Confirmed same-selection-scope in both cases: `totalLinksAtPort`
+counts only links within the currently-selected use cases, the same scope
+`GraphDataSlice.connections` already lives in — so a plain
+increment/decrement-by-one per created/severed connection is correct with
+no cross-scope adjustment needed, unlike a naive assumption that it might
+count links from unselected use cases too.
 
 ```typescript
-function decrementSurvivingPortCounts(state: GraphDesignerStore, deletedLinks: Array<DataLinkDto | ControlLinkDto>): void {
-  for (const link of deletedLinks) {
-    if (link.changeInfo.changeType !== 'DELETE') continue;
-    // sourceId/destinationId are numeric backend IDs — resolve to the
-    // module's own systemId the same way loadGraphData's numericIdToSystemId map already does
-    for (const [moduleNumericId, portNumericId] of [
-      [link.sourceId, link.sourcePortId],
-      [link.destinationId, link.destinationPortId],
-    ]) {
-      const module = findModuleByNumericId(state, moduleNumericId); // undefined if this endpoint was itself deleted — nothing to decrement
-      if (!module) continue;
-      const port = [...module.inputPorts, ...module.outputPorts].find((p) => p.portId === String(portNumericId));
-      if (port) port.totalLinksAtPort -= 1;
-    }
+function adjustSurvivingPortCounts(
+  state: GraphDesignerStore,
+  addedLinks: Array<DataLinkDto | ControlLinkDto>,
+  deletedLinks: Array<DataLinkDto | ControlLinkDto>,
+): void {
+  for (const link of addedLinks) adjustPortForLink(state, link, +1);
+  for (const link of deletedLinks) adjustPortForLink(state, link, -1);
+}
+
+function adjustPortForLink(state: GraphDesignerStore, link: DataLinkDto | ControlLinkDto, delta: number): void {
+  // sourceId/destinationId are numeric backend IDs — resolve to the
+  // module's own systemId the same way loadGraphData's numericIdToSystemId map already does
+  for (const [moduleNumericId, portNumericId] of [
+    [link.sourceId, link.sourcePortId],
+    [link.destinationId, link.destinationPortId],
+  ]) {
+    const module = findModuleByNumericId(state, moduleNumericId); // undefined if this endpoint was itself deleted — nothing to adjust
+    if (!module) continue;
+    const port = [...module.inputPorts, ...module.outputPorts].find((p) => p.portId === String(portNumericId));
+    if (port) port.totalLinksAtPort += delta;
   }
 }
 ```
@@ -459,16 +524,56 @@ function decrementSurvivingPortCounts(state: GraphDesignerStore, deletedLinks: A
 This runs as one more step inside `applyComponentCollection`
 (`core-edit-session-design.md`), alongside the existing
 `recomputeContainersAndSubgraphs`/`pruneDeletedLinkBookkeeping` calls —
-same reconciler, same single-pass-over-the-response pattern, not a
-delete-module-specific special case. **A link endpoint that was itself
-deleted in the same cascade is silently skipped**, not an error: if the
-whole container/subgraph emptied out, every module in it — including both
-endpoints of some severed links — is gone, and there is no surviving port
-to decrement for those. `findModuleByNumericId` looks the endpoint up
-*after* `upsertOrDeleteModule` has already removed every `DELETE`-tagged
-module from `moduleInstances`, so a deleted endpoint naturally returns
-`undefined` here without needing a separate check against the deleted-IDs
-list.
+same reconciler, same single-pass-over-the-response pattern, covering
+every added/deleted link in the feature (ordinary create, ordinary
+delete, and any cascading delete that severs links), not a
+delete-module-specific or create-specific special case. Because this
+function runs *after* the module upserts have already merged every
+module in the same response, an added link whose endpoint module is
+itself newly-created in the same response (e.g. REQ-006's auto-create, or
+REQ-027's bridge modules) is found correctly — the module already exists
+in `moduleInstances` by the time this runs, with its new port(s) already
+defaulted to `totalLinksAtPort: 0` (`updatePortCount`'s section,
+`link-and-port-design.md`) where applicable, so the increment lands on a
+real port rather than being silently skipped. **A link endpoint that was
+itself deleted in the same cascade is silently skipped**, not an error: if
+the whole container/subgraph emptied out, every module in it — including
+both endpoints of some severed links — is gone, and there is no surviving
+port to adjust for those. `findModuleByNumericId` looks the endpoint up
+*after* the module upserts have already removed every deleted module from
+`moduleInstances`, so a deleted endpoint naturally returns `undefined`
+here without needing a separate check against the deleted-IDs list.
+
+**Links present only in `updatedComponentCollectionDto` (REQ-072's
+rerouted links) are deliberately not handled by this function, and are
+flagged as a follow-up gap, not silently ignored.** DSP offload reroutes a
+module's existing links through a new IPC TX/RX pair — the link's *old*
+endpoint loses the connection and the IPC module's port gains it, but the
+response (`link-and-port-design.md`'s `offloadModuleToDsp`) only carries
+the link's *new*, post-reroute `sourceId`/`destinationId`; nothing in the
+confirmed response shape carries the pre-reroute endpoint needed to
+decrement it. Closing this requires either a backend contract addition
+(the old endpoint included alongside the new one) or a client-side
+before/after diff against the link's previously-stored endpoints — neither
+is designed here. Until resolved, a port on the offloaded module's
+original DSP that loses a rerouted link keeps a stale (too-high)
+`totalLinksAtPort`, and the new IPC module's port — freshly created in the
+same response — is unaffected since new ports default to `0` regardless
+(`updatePortCount`'s section, `link-and-port-design.md`). Tracked in [Open
+Items Inherited](#open-items-inherited), below.
+
+**REQ-014's exclusion/reversal flow does not go through this function —
+excluding or un-excluding a pair-link never touches `totalLinksAtPort`.**
+`excludeLink`/the reversal branch in `handleEdgeConnected`
+(`node-operations-design.md`/`link-and-port-design.md`) only move a
+`Connection` object between `graphData.connections` and `excludedLinks` —
+no backend call, and critically, no change to the link's *existence*
+server-side. `totalLinksAtPort` reflects the backend's true connection
+count, which is unaffected by whether the link happens to be rendered on
+canvas — REQ-013 already established the link exists server-side
+regardless of exclusion, so its contribution to both endpoints'
+`totalLinksAtPort` must stay exactly as loaded, neither incremented nor
+decremented by exclusion or reversal.
 
 ---
 
@@ -559,16 +664,21 @@ interface ClipboardBuffer {
   pasteSubgraphFromSnapshot(
     snapshot: {containers: Container[]; modules: ModuleInstance[]; links: Connection[]},
     position: XY,
-  ): Promise<ComponentCollectionDto>
-  // collection.spfModules = every pasted module, changeType: 'CREATE',
-  //   each carrying its new subgraphId/containerId — subgraph/container
-  //   are derived from these, same as REQ-006 (core-edit-session-design.md)
-  // collection.dataLinks/controlLinks = the recreated internal connections, changeType: 'CREATE'
+  ): Promise<{
+    addedComponentCollectionDto: ComponentCollectionDto;
+    updatedComponentCollectionDto: ComponentCollectionDto;
+    deletedComponentCollectionDto: ComponentCollectionDto;
+  }>
+  // addedComponentCollectionDto.spfModules = every pasted module, each
+  //   carrying its new subgraphId/containerId — subgraph/container are
+  //   derived from these, same as REQ-006 (core-edit-session-design.md)
+  // addedComponentCollectionDto.dataLinks/controlLinks = the recreated internal connections
+  // updated/deletedComponentCollectionDto are always empty — paste is pure-create
   ```
 
   Parallel to REQ-006's `createModuleWithAutoCreate`, but accepting a full
   snapshot instead of a single module, and merged the same way — via
-  `applyComponentCollection` (`core-edit-session-design.md`), which derives
+  `applyAddedCollection` (`core-edit-session-design.md`), which derives
   the new subgraph/containers purely from the pasted modules' own fields.
   The caller stamps `provenance: 'newly-created'`
   (`node-operations-design.md`) into `EditSessionSlice.subgraphProvenanceById`
@@ -592,7 +702,7 @@ sequenceDiagram
   U->>CB: Paste (at viewport center or cursor, possibly a different hierarchy level)
   alt snapshot contains a subgraph
     CB->>B: pasteSubgraphFromSnapshot(snapshot, position)
-    B-->>CB: ComponentCollectionDto (pasted modules/links, each changeType: 'CREATE'; provenance stamped 'newly-created' before merge)
+    B-->>CB: addedComponentCollectionDto (pasted modules/links; provenance stamped 'newly-created' before merge)
   else modules/containers only
     loop each node in snapshot
       CB->>B: existing add-module/add-container action
@@ -625,3 +735,10 @@ it flags the need for a batch/multi-entity creation contract (see
 - **API contracts** for `pasteSubgraphFromSnapshot` and the subsystem/
   raw-mode toggle's exposed state shape (assumed to exist, not designed
   here) — both undefined as of this writing.
+- **`totalLinksAtPort` correction for rerouted (`UPDATE`-tagged) links is
+  unresolved** — see the Port Coloring section's `adjustSurvivingPortCounts`
+  note, above. REQ-072's DSP offload reroutes existing links, and neither
+  a backend contract addition (old endpoint included in the response) nor
+  a client-side before/after diff is designed here; until resolved, a port
+  that loses a rerouted link keeps a stale `totalLinksAtPort` count.
+
