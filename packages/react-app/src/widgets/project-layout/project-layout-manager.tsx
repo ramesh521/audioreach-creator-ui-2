@@ -903,8 +903,10 @@ export class TabLayoutService {
   /**
    * Create project Maintab from JSON config file.
    * Project Maintab may have a list of PanelTabs
-   * @param projectId project ID used to register the project group
-   * @param projectFilePath project.filepath — used as the key for ConfigFileManager disk persistence only.
+   * @param projectId project ID used to register the project group;
+   * this is the ConfigFileManager key
+   * @param projectFilePath project.filepath — only used for already-open
+   * project group lookup/display metadata
    * @param tabTitle Main tab title
    * @param groupTitle Project group display title
    * @param flexLayoutConfig layout config in JSON format
@@ -1247,7 +1249,7 @@ export class TabLayoutService {
                 .getState()
                 .saveLayoutConfig(mainTab.id, layoutStr);
               ConfigFileManager.instance.setProjectConfigData(
-                projectFilePath,
+                projectId,
                 'layout.flexLayout',
                 JSON.parse(layoutStr),
               );

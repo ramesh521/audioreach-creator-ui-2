@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+import type {ReactNode} from 'react';
+
 import type {LucideIconOrElement} from '@qualcomm-ui/react-core/lucide';
 
 /**
@@ -21,6 +23,11 @@ export interface SideNavItem {
   id: string;
   /** Display label for the item */
   label: string;
+  /**
+   * If set, clicking the item opens a Popover with this content instead of
+   * firing an action
+   */
+  popoverContent?: ReactNode;
   /** Keyboard shortcut display (e.g., "Ctrl+S") */
   shortcut?: string;
   /** Optional custom tooltip text (defaults to label if not provided) */

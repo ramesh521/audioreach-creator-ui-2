@@ -14,6 +14,7 @@ import {
   Package,
   Redo,
   Search,
+  SlidersHorizontal,
   Type,
   Undo,
   Upload,
@@ -47,6 +48,8 @@ import {
 } from '../lib/graph-search';
 import {buildLevelViewFromGraphData} from '../lib/level-view-adapter';
 import {layoutLevelView} from '../lib/level-view-layout';
+
+import {DisplayOptionsPopover} from './display-options-popover';
 
 interface GraphDesignerProps {
   projectGroupId: string;
@@ -440,8 +443,17 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
         id: 'discovery-wizard',
         label: 'Discovery Wizard',
       },
+      // View group
+      {
+        group: 'View',
+        icon: SlidersHorizontal,
+        id: 'display-options',
+        label: 'Display Options',
+        popoverContent: <DisplayOptionsPopover projectId={projectGroupId} />,
+        tooltip: 'Display Options',
+      },
     ],
-    [hasSelection, canUndoRedo],
+    [hasSelection, canUndoRedo, projectGroupId],
   );
 
   const sideNavHandlers = useMemo(

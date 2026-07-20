@@ -92,7 +92,7 @@ export function useProjectOpener({
 
     // Use saved layout if available (restores user's panel positions), otherwise use default
     const savedLayout = ConfigFileManager.instance.getProjectConfigData(
-      project.filepath,
+      project.id,
       'layout.flexLayout',
     );
     const isValidFlexLayout = (v: unknown): v is IJsonModel =>

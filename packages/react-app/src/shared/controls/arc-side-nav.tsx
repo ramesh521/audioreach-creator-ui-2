@@ -6,6 +6,7 @@
 import {useMemo, useState} from 'react';
 
 import {createTreeCollection} from '@qualcomm-ui/core/tree';
+import {Popover} from '@qualcomm-ui/react/popover';
 import {SideNav} from '@qualcomm-ui/react/side-nav';
 import {Tooltip} from '@qualcomm-ui/react/tooltip';
 
@@ -92,6 +93,40 @@ export function ArcSideNav() {
     }
   };
 
+  // Shared leaf markup for both the popover-trigger and plain-action cases —
+  // only the button's event bindings and whether the shortcut is shown differ.
+  const renderLeafInner = (
+    node: SideNavItem,
+    buttonProps: React.ComponentProps<'button'>,
+    showShortcut: boolean,
+  ) =>
+    open ? (
+      <SideNav.LeafNode render={<button {...buttonProps} type="button" />}>
+        <SideNav.NodeIndicator />
+        {node.icon ? <SideNav.NodeIcon icon={node.icon} /> : null}
+        <SideNav.NodeText>{node.label}</SideNav.NodeText>
+        {showShortcut && node.shortcut && (
+          <span className="ml-auto text-xs">{node.shortcut}</span>
+        )}
+      </SideNav.LeafNode>
+    ) : (
+      <Tooltip
+        positioning={{placement: 'right'}}
+        trigger={
+          <span>
+            <SideNav.LeafNode
+              render={<button {...buttonProps} type="button" />}
+            >
+              <SideNav.NodeIndicator />
+              {node.icon ? <SideNav.NodeIcon icon={node.icon} /> : null}
+            </SideNav.LeafNode>
+          </span>
+        }
+      >
+        {node.tooltip || node.label}
+      </Tooltip>
+    );
+
   return (
     <SideNav.Root
       collection={collection}
@@ -173,49 +208,23 @@ export function ArcSideNav() {
                     )
                   }
                   renderLeaf={({node}) =>
-                    open ? (
-                      <SideNav.LeafNode
-                        render={
-                          <button
-                            onClick={() => handleNodeClick(node)}
-                            type="button"
-                          />
-                        }
-                      >
-                        <SideNav.NodeIndicator />
-                        {node.icon ? (
-                          <SideNav.NodeIcon icon={node.icon} />
-                        ) : null}
-                        <SideNav.NodeText>{node.label}</SideNav.NodeText>
-                        {node.shortcut && (
-                          <span className="ml-auto text-xs">
-                            {node.shortcut}
-                          </span>
-                        )}
-                      </SideNav.LeafNode>
-                    ) : (
-                      <Tooltip
+                    node.popoverContent ? (
+                      <Popover
+                        lazyMount
                         positioning={{placement: 'right'}}
-                        trigger={
-                          <span>
-                            <SideNav.LeafNode
-                              render={
-                                <button
-                                  onClick={() => handleNodeClick(node)}
-                                  type="button"
-                                />
-                              }
-                            >
-                              <SideNav.NodeIndicator />
-                              {node.icon ? (
-                                <SideNav.NodeIcon icon={node.icon} />
-                              ) : null}
-                            </SideNav.LeafNode>
-                          </span>
+                        trigger={(triggerProps) =>
+                          renderLeafInner(node, triggerProps, false)
                         }
+                        unmountOnExit
                       >
-                        {node.tooltip || node.label}
-                      </Tooltip>
+                        {node.popoverContent}
+                      </Popover>
+                    ) : (
+                      renderLeafInner(
+                        node,
+                        {onClick: () => handleNodeClick(node)},
+                        true,
+                      )
                     )
                   }
                 />

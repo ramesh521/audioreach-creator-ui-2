@@ -12,9 +12,11 @@ export interface VisualizationPreferences {
   showContainerIds: boolean;
   showControlLinks: boolean;
   showDanglingLinks: boolean;
+  showMdfModules: boolean;
   showModuleInstanceIds: boolean;
   showSubgraphIds: boolean;
   simplifySubsystems: boolean;
+  viewMode: 'compact' | 'detailed';
 }
 
 /**
@@ -28,9 +30,10 @@ export interface DisplayPreferences {
  * User preferences for usecase settings
  */
 export interface UsecasePreferences {
-  mode: 'default' | 'usecases-only' | 'subsystems-only';
   namePreference: 'alias' | 'keyvalues' | 'values';
   selectedUsecases: string[];
+  workflowLevel: 'subsystem-level' | 'usecase-level';
+  workflowType: 'usecase-workflow' | 'system-workflow';
 }
 
 /**
@@ -51,9 +54,11 @@ export const DEFAULT_VISUALIZATION_PREFERENCES: VisualizationPreferences = {
   showContainerIds: false,
   showControlLinks: true,
   showDanglingLinks: true,
+  showMdfModules: false,
   showModuleInstanceIds: false,
   showSubgraphIds: false,
   simplifySubsystems: false,
+  viewMode: 'compact',
 };
 
 /**
@@ -67,9 +72,10 @@ export const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferences = {
  * Default usecase preferences
  */
 export const DEFAULT_USECASE_PREFERENCES: UsecasePreferences = {
-  mode: 'default',
   namePreference: 'alias',
   selectedUsecases: [],
+  workflowLevel: 'usecase-level',
+  workflowType: 'usecase-workflow',
 };
 
 /**
