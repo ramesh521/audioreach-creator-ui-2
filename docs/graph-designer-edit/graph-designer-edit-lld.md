@@ -1,4 +1,4 @@
-# LLD: Graph Designer — Edit Feature
+# LLD: Usecase Designer — Edit Feature
 
 | | |
 | --- | --- |
@@ -28,7 +28,7 @@ structure from the canvas itself.
 This feature adds a **structural editing mode** to the same canvas. From the
 user's perspective:
 
-1. The user clicks **"Start Graph Modification"** to enter **Edit mode**.
+1. The user clicks **"Start Usecase Modification"** to enter **Edit mode**.
 2. While in Edit mode, the user can drag modules/subgraphs from palettes onto
    the canvas, draw or delete connections, resize port counts, group
    subgraphs into subsystems, configure calibration/tag keys and KV
@@ -66,9 +66,9 @@ for it. Impacts on existing architecture:
   still lands in `GraphDataSlice`.
 - **New cross-project exclusive-lock map** on the existing cross-cutting
   `shared/store/global-store.ts` (`activeExclusiveModeByProject`), keyed by
-  `projectId`, shared by three features: Graph Edit (built here), Discovery
+  `projectId`, shared by three features: Usecase Edit (built here), Discovery
   Wizard (stub today), and Diff/Merge (doesn't exist yet). This is a
-  deliberate FSD-compliant decoupling point — Graph Edit does not import
+  deliberate FSD-compliant decoupling point — Usecase Edit does not import
   either of the other two features.
 - **New response-reconciliation contract.** Every mutating structural
   endpoint in this feature returns three `ComponentCollectionDto` buckets
@@ -197,10 +197,10 @@ specifications. (If Figma/mockups are produced separately, link them here.)
 - **View mode** (default): canvas shows the last-selected use cases (or the
   first available, on first open). Only interactions: double-click a module
   → opens cal/tag tuning tab; click a module/subgraph/container/link → opens
-  the properties panel **read-only**. "Start Graph Modification" button is
+  the properties panel **read-only**. "Start Usecase Modification" button is
   visible, enabled unless another exclusive-mode session (Discovery
   Wizard/Diff-Merge) is active for this project.
-- **Edit mode**: entered via "Start Graph Modification". Module palette,
+- **Edit mode**: entered via "Start Usecase Modification". Module palette,
   subgraph palette, context menus, inline connection creation, editable
   properties panel, and Key Configurator panel all become active. "Apply
   Changes" and "Discard" buttons appear.
@@ -244,7 +244,7 @@ sequenceDiagram
   participant B as Backend
 
   U->>V: select use cases, browse graph (read-only)
-  U->>V: click "Start Graph Modification"
+  U->>V: click "Start Usecase Modification"
   V->>B: acquire exclusive lock for projectId
   alt lock unavailable (Discovery Wizard/Diff-Merge active)
     Note over V: button stays disabled, tooltip shown
@@ -373,16 +373,16 @@ plumbing).
 ### 6.2 Exclusive locking (cross-project)
 
 Lives in `shared/store/global-store.ts` (cross-cutting, not owned by any one
-feature, since FSD forbids Graph Edit from importing Discovery
+feature, since FSD forbids Usecase Edit from importing Discovery
 Wizard/Diff-Merge directly):
 
 ```typescript
-type ExclusiveGraphMode = 'none' | 'graph-edit' | 'discovery-wizard' | 'diff-merge';
+type ExclusiveUsecaseMode = 'none' | 'usecase-edit' | 'discovery-wizard' | 'diff-merge';
 
 interface GlobalStore {
-  activeExclusiveModeByProject: Record<string, ExclusiveGraphMode>;
-  setActiveExclusiveMode: (projectId: string, mode: ExclusiveGraphMode) => boolean;
-  releaseExclusiveMode: (projectId: string, mode: ExclusiveGraphMode) => void;
+  activeExclusiveModeByProject: Record<string, ExclusiveUsecaseMode>;
+  setActiveExclusiveMode: (projectId: string, mode: ExclusiveUsecaseMode) => boolean;
+  releaseExclusiveMode: (projectId: string, mode: ExclusiveUsecaseMode) => void;
 }
 ```
 
@@ -390,7 +390,7 @@ interface GlobalStore {
   projects) — a lock on Project A must never block Project B.
 - Each of the three modes is single-instance-per-project, **including
   against itself** — a second Graph Designer tab on the same project cannot
-  acquire a second `'graph-edit'` lock.
+  acquire a second `'usecase-edit'` lock.
 - Lock is tied to **component lifetime**, not tab focus — FlexLayout keeps
   inactive tabs mounted (hidden via CSS), so switching focus away does not
   release the lock; only unmount (tab close) does.
@@ -480,7 +480,7 @@ the patched requirements.
 ```mermaid
 stateDiagram-v2
   [*] --> View
-  View --> Edit: Start Graph Modification (lock acquired)
+  View --> Edit: Start Usecase Modification (lock acquired)
   Edit --> View: Apply Changes success (no FATAL/ERROR issues)
   Edit --> Edit: Apply Changes failure (issues present) — stays in Edit
   Edit --> View: Discard confirmed
@@ -883,7 +883,7 @@ into concrete test cases during implementation planning.
   - Apply/Discard against both success and `FATAL`/`ERROR`/`WARNING`
     issue-bearing responses.
 - **End-to-end tests**
-  - Full user flow: select use cases → Start Graph Modification → drag
+  - Full user flow: select use cases → Start Usecase Modification → drag
     module to empty canvas → connect it → assign KV → Apply Changes → verify
     modification summary and post-Apply View-mode canvas state.
   - Discard mid-session, including the project-close interception path.

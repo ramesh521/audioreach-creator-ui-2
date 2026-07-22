@@ -1,4 +1,4 @@
-# Graph Designer Edit — Link and Port Operations Design
+# Usecase Designer Edit — Link and Port Operations Design
 
 Requirements: [../requirements/graph-designer-edit-requirements.md](../requirements/graph-designer-edit-requirements.md)
 (REQ-024–030, 033–038, 055–057, 072)

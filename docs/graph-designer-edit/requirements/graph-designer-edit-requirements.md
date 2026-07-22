@@ -1,15 +1,15 @@
-# Graph Designer — Edit Feature: Requirements
+# Usecase Designer — Edit Feature: Requirements
 
 ## 1. Canvas modes
 
 **REQ-001** The canvas operates in two modes: **View** and **Edit**. Edit mode
-is entered via a **"Start Graph Modification"** button. Edit mode is exited via
+is entered via a **"Start Usecase Modification"** button. Edit mode is exited via
 the **"Apply Changes"** button (commits staged edits) or the **"Discard"**
 button (abandons the session).
 
 **REQ-001a** In View mode, the canvas renders use cases from the last
 selection. If no prior selection is available, the first use case in the list
-is shown. The Graph Visualizer and Log View panels are shown alongside the
+is shown. The Usecase Visualizer and Log View panels are shown alongside the
 canvas.
 
 **REQ-002** In View mode, the canvas renders already-created use cases. The
@@ -353,7 +353,7 @@ as disabled in subsystem mode with a tooltip explaining the restriction.
 > writing, the toggle is not yet implemented in code (no consuming
 > state/UI/canvas-filtering logic exists; the closest analogs are two
 > unwired preference fields, `visualization.simplifySubsystems` and
-> `usecases.mode`). Building that toggle is **out of scope** for Graph
+> `usecases.mode`). Building that toggle is **out of scope** for Usecase
 > Designer Edit — this feature only consumes whatever state it exposes once
 > built elsewhere.
 
@@ -515,7 +515,7 @@ is triggered — if the user cancels the confirmation, or the discard request
 fails, the project-close itself is aborted: the project remains open, the
 tab stays in Edit mode, and staged changes remain intact.
 
-**REQ-062** The **"Start Graph Modification"** button is always visible in View
+**REQ-062** The **"Start Usecase Modification"** button is always visible in View
 mode. It is disabled with an explanatory tooltip when the Discovery Wizard or
 Diff/Merge view is active.
 

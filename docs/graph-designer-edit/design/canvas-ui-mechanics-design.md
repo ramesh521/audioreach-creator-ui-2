@@ -1,4 +1,4 @@
-# Graph Designer Edit — Canvas UI Mechanics Design
+# Usecase Designer Edit — Canvas UI Mechanics Design
 
 Requirements: [../requirements/graph-designer-edit-requirements.md](../requirements/graph-designer-edit-requirements.md)
 (REQ-011, 015, 019, 031e, 047–051, 058–059, 063–064, 069–070, 072;

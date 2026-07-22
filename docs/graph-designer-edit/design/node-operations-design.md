@@ -1,4 +1,4 @@
-# Graph Designer Edit — Node Operations Design
+# Usecase Designer Edit — Node Operations Design
 
 Requirements: [../requirements/graph-designer-edit-requirements.md](../requirements/graph-designer-edit-requirements.md)
 (REQ-004–023, 031a–032)

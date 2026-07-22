@@ -1,4 +1,4 @@
-# Graph Designer Edit — Core Edit Session Design
+# Usecase Designer Edit — Core Edit Session Design
 
 Requirements: [../requirements/graph-designer-edit-requirements.md](../requirements/graph-designer-edit-requirements.md)
 (REQ-001, 001a, 002, 002a, 003, 044–046, 060–062, 065; REQ-066/067 explicitly out of scope — see below)
@@ -138,7 +138,7 @@ on initial load), the canvas renders the last-selected use cases from
 example, first open), it falls back to the first use case in the list
 returned by the use-case list load. This is a read at mount/mode-transition
 time, not new state — `UsecaseSelectionSlice` already persists the last
-selection. The Graph Visualizer and Log View panels render alongside the
+selection. The Usecase Visualizer and Log View panels render alongside the
 canvas in View mode exactly as they do today; this feature does not change
 their visibility.
 
@@ -163,7 +163,7 @@ needed the instant a use case's components render in **View** mode too
 (nothing about `SGKV` is edit-mode-specific), so it belongs alongside the
 existing `loadGraphData(selectedUsecases)` call
 (`widgets/graph-designer/ui/graph-designer.tsx`'s "Effect A") rather than
-gated behind clicking "Start Graph Modification." That effect gains a
+gated behind clicking "Start Usecase Modification." That effect gains a
 call to `getAllSubgraphs(projectId)` (`entities/subgraph-definitions`,
 the same endpoint the subgraph palette already calls, currently
 lazy-loaded only when the palette opens — this is a second, independent
@@ -267,7 +267,7 @@ feature doesn't otherwise have.
 **REQ-060, 062 — exclusive-mode locking.** The Discovery Wizard and
 Diff/Merge view are separate features (Diff/Merge doesn't exist in code yet;
 Discovery Wizard is currently a stub) that can independently modify graph
-structure, so at most one of {Graph Edit, Discovery Wizard, Diff/Merge} may
+structure, so at most one of {Usecase Edit, Discovery Wizard, Diff/Merge} may
 be active at a time **for a given project**. Because FSD forbids one
 feature from importing another directly, the lock lives one layer down, in
 the existing cross-cutting `shared/store/global-store.ts`.
@@ -279,38 +279,38 @@ per-project `projectStoreRegistry`/`tabStoreRegistry` instances), and each
 Graph Designer edit session is itself per-project
 (`createGraphDesignerStore(tabId, projectId)`). REQ-060/062 only require
 blocking conflicts *within the same project's* graph — entering Edit mode
-on Project A must not disable "Start Graph Modification" or block Discovery
+on Project A must not disable "Start Usecase Modification" or block Discovery
 Wizard/Diff-Merge on an unrelated Project B that happens to also be open. A
 single app-global flag would produce exactly that cross-project blocking
 bug, so the lock is a per-project map:
 
 ```typescript
-type ExclusiveGraphMode = 'none' | 'graph-edit' | 'discovery-wizard' | 'diff-merge';
+type ExclusiveUsecaseMode = 'none' | 'usecase-edit' | 'discovery-wizard' | 'diff-merge';
 
 interface GlobalStore {
   // ...existing slices...
-  activeExclusiveModeByProject: Record<string, ExclusiveGraphMode>;
+  activeExclusiveModeByProject: Record<string, ExclusiveUsecaseMode>;
   /** Returns false if the lock for this project is already held by *any*
    *  mode — including a second attempt to acquire the *same* mode again.
-   *  Each of Graph Edit, Discovery Wizard, and Diff/Merge is a
+   *  Each of Usecase Edit, Discovery Wizard, and Diff/Merge is a
    *  single-instance-per-project feature: a second Graph Designer tab on a
    *  project that already has an active edit session must not be able to
    *  open its own independent EditSessionSlice and mutate the same backend
    *  graph out from under the first. */
-  setActiveExclusiveMode: (projectId: string, mode: ExclusiveGraphMode) => boolean;
+  setActiveExclusiveMode: (projectId: string, mode: ExclusiveUsecaseMode) => boolean;
   /** Only clears the lock if `mode` is the value currently held for this
    *  project — guards against a stale unmount releasing a lock a newer
    *  instance acquired. */
-  releaseExclusiveMode: (projectId: string, mode: ExclusiveGraphMode) => void;
+  releaseExclusiveMode: (projectId: string, mode: ExclusiveUsecaseMode) => void;
 }
 ```
 
-`enterEditMode()` calls `setActiveExclusiveMode(projectId, 'graph-edit')`;
+`enterEditMode()` calls `setActiveExclusiveMode(projectId, 'usecase-edit')`;
 if it returns `false`, edit mode does not start — this covers both a
 different mode holding the lock (Discovery Wizard/Diff-Merge already
-active) and `'graph-edit'` itself already holding it (a second Graph
+active) and `'usecase-edit'` itself already holding it (a second Graph
 Designer tab on the same project trying to enter Edit mode concurrently).
-This is surfaced as a disabled "Start Graph Modification" button with an
+This is surfaced as a disabled "Start Usecase Modification" button with an
 explanatory tooltip (REQ-062), not a runtime error — the button's
 `disabled` state is a plain selector read, scoped to the tab's own
 `projectId`:
@@ -324,11 +324,11 @@ const disabled = activeExclusiveMode !== 'none';
 
 **Every one of the three modes is single-instance-per-project, including
 against itself.** An earlier draft of this section only disabled the
-button for a *different* mode (`activeExclusiveMode !== 'graph-edit'`),
+button for a *different* mode (`activeExclusiveMode !== 'usecase-edit'`),
 which left a gap: a second Graph Designer tab on the same project would
-see `activeExclusiveMode === 'graph-edit'` and read its own "Start Graph
+see `activeExclusiveMode === 'usecase-edit'` and read its own "Start Usecase
 Modification" button as enabled, since the check explicitly excluded that
-value from disabling. That's wrong — Graph Edit, Discovery Wizard, and
+value from disabling. That's wrong — Usecase Edit, Discovery Wizard, and
 Diff/Merge are each expected to run at most one instance per project, full
 stop, so `setActiveExclusiveMode` must reject re-acquisition of the same
 mode too, and the button's `disabled` condition simplifies to "any lock
@@ -364,7 +364,7 @@ lifecycle, using whichever `projectId` their own tab is scoped to:
 useEffect(() => {
   const acquired = setActiveExclusiveMode(projectId, 'diff-merge');
   if (!acquired) {
-    // show "already in use by Graph Modification" and bail
+    // show "already in use by Usecase Modification" and bail
   }
   return () => releaseExclusiveMode(projectId, 'diff-merge');
 }, [projectId]);
@@ -378,10 +378,10 @@ unmounts a tab's component tree on explicit tab close
 per-switch factory re-invocation exists in this codebase). Consequently:
 
 - Switching focus away from an open Diff/Merge tab **does not** release the
-  lock — "Start Graph Modification" stays disabled, because the Diff/Merge
+  lock — "Start Usecase Modification" stays disabled, because the Diff/Merge
   session is still alive in the background and could still be resumed.
 - Closing the Diff/Merge tab unmounts it, the `useEffect` cleanup fires,
-  the lock releases, and "Start Graph Modification" enables immediately
+  the lock releases, and "Start Usecase Modification" enables immediately
   (reactive, no polling).
 
 This is a deliberate choice, not an artifact of the mechanism: REQ-060's
@@ -398,14 +398,14 @@ sequenceDiagram
 
   DM->>G: setActiveExclusiveMode(projectId, 'diff-merge')
   G-->>DM: true (acquired)
-  Note over GD: "Start Graph Modification" reads activeExclusiveModeByProject[projectId] → disabled
+  Note over GD: "Start Usecase Modification" reads activeExclusiveModeByProject[projectId] → disabled
   U->>GD: switches tab focus to Graph Designer (Diff/Merge stays mounted, hidden)
   Note over GD: still disabled — lock unchanged
   U->>DM: closes Diff/Merge tab
   DM->>DM: unmount → useEffect cleanup fires
   DM->>G: releaseExclusiveMode(projectId, 'diff-merge')
   G-->>GD: activeExclusiveModeByProject[projectId] → 'none' (selector re-render)
-  Note over GD: "Start Graph Modification" now enabled
+  Note over GD: "Start Usecase Modification" now enabled
 ```
 
 **Re-opening a project that's already open never acquires a second lock.**
@@ -420,7 +420,7 @@ depends on, not something introduced here.
 the app without running React unmount cleanup — not just the acquiring
 component's `useEffect` cleanup.** A lock stuck in
 `activeExclusiveModeByProject` with no live component to release it would
-leave "Start Graph Modification"/the Discovery Wizard menu entry disabled
+leave "Start Usecase Modification"/the Discovery Wizard menu entry disabled
 for that project until the app restarts. The `useEffect` cleanup (above) is
 the release point for every *confirmed* close — including the
 discard-confirmation flow below, since `confirmDiscard()`'s `exitEditMode()`
@@ -773,14 +773,14 @@ components are loaded in **View** mode — nothing about it requires Edit
 mode to exist first — so the fetch belongs alongside the existing
 `loadGraphData(selectedUsecases)` effect
 (`widgets/graph-designer/ui/graph-designer.tsx`'s "Effect A"), not gated
-behind "Start Graph Modification": that effect gains a call to
+behind "Start Usecase Modification": that effect gains a call to
 `getAllSubgraphs(projectId)` (`entities/subgraph-definitions`, the same
 endpoint the subgraph palette already calls, currently lazy-loaded only
 when the palette opens — this is a second, independent call site for the
 same endpoint), filtered to the subgraph IDs `loadGraphData`'s own
 response resolves, matching `SubgraphDto.systemId ===
 SpfModuleDto.subgraphId`. Each match seeds `kvCasesById` per REQ-039 (all
-cases unselected). By the time the user clicks "Start Graph Modification"
+cases unselected). By the time the user clicks "Start Usecase Modification"
 and `enterEditMode()` runs, this is already done — entering Edit mode
 does no fetching of its own. See the Mode State section above for the
 full mechanism, including why every run clears and fully reseeds
@@ -1282,7 +1282,7 @@ whenever `selectedUsecases` changes. Discard does not change
 Effect A's body unconditionally clears search, level-view, collapse,
 position-override, and viewport state before calling `loadGraphData` — if
 `mode` is added to the dependency array naively, that reset also fires on
-the `'view' → 'edit'` transition (clicking "Start Graph Modification"),
+the `'view' → 'edit'` transition (clicking "Start Usecase Modification"),
 wiping REQ-059 position overrides and viewport/search state the instant
 edit mode starts, which is not what REQ-061 asks for. Wrap the entire
 existing body in `if (mode === 'view') { ... }` so it only runs on

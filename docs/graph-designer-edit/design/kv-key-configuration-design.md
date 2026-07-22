@@ -1,4 +1,4 @@
-# Graph Designer Edit — KV & Key Configuration Design
+# Usecase Designer Edit — KV & Key Configuration Design
 
 Requirements: [../requirements/graph-designer-edit-requirements.md](../requirements/graph-designer-edit-requirements.md)
 (REQ-039–043, 052–054, 071)
