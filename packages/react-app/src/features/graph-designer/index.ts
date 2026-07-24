@@ -17,14 +17,18 @@ import {evictSubgraphListFilterCache} from './model/subgraph-list-slice';
 tabStoreRegistry.registerFactory(
   'graph-designer',
   (tabId: string, projectId: string) => {
+    const store = createGraphDesignerStore(tabId, projectId);
     tabStoreRegistry.registerCleanup(tabId, () => {
       evictModuleListFilterCache(projectId);
       evictSubgraphListFilterCache(projectId);
+      // Release this tab's exclusive edit lock on close — the one release
+      // path `beforeunload` (releaseAllUsecaseEditLocks) cannot cover, since
+      // that only fires on app quit/reload, not a single tab closing.
+      if (store.getState().mode === 'edit') {
+        store.getState().exitEditMode();
+      }
     });
-    return createGraphDesignerStore(
-      tabId,
-      projectId,
-    ) as unknown as TabStoreInstance;
+    return store as unknown as TabStoreInstance;
   },
 );
 

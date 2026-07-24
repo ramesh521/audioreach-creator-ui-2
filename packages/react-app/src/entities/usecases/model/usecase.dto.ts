@@ -26,7 +26,7 @@ export interface KeyValueInfo {
   valueInfo: ValueInfo;
 }
 
-export interface FilteredKV {
+export interface KeyValuePairsInfo {
   keyValueCollection: KeyValueInfo[];
   systemId: string;
 }

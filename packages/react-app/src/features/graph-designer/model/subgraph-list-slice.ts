@@ -9,6 +9,7 @@ import {
   getAllSubgraphs,
   type SubgraphDto,
 } from '~entities/subgraph-definitions';
+import type {KeyValuePairsInfo} from '~entities/usecases';
 import {logger} from '~shared/lib/logger';
 import type {SliceStatus} from '~shared/store/global-store.types';
 
@@ -18,10 +19,11 @@ import type {SliceStatus} from '~shared/store/global-store.types';
 
 export interface SubgraphDefinition {
   category: string;
-  description: string;
+  SGKV: KeyValuePairsInfo[];
   subgraphId: string;
   subgraphName: string;
-  subgraphType: string;
+  subGraphSharedType: string;
+  subgraphType: SubgraphDto['deviceType'];
 }
 
 export interface SubgraphListSlice {
@@ -53,10 +55,11 @@ export function evictSubgraphListFilterCache(projectId: string): void {
 function toSubgraphDefinition(dto: SubgraphDto): SubgraphDefinition {
   return {
     category: '',
-    description: dto.description ?? '',
+    SGKV: dto.SGKV,
     subgraphId: String(dto.subgraphId),
     subgraphName: dto.name,
-    subgraphType: dto.subgraphType,
+    subGraphSharedType: dto.subGraphSharedType,
+    subgraphType: dto.deviceType,
   };
 }
 

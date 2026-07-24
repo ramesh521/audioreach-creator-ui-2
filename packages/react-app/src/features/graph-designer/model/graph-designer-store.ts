@@ -35,6 +35,10 @@ import {
   type ValidationResultSlice,
 } from '~shared/store/tab-store-slices/validation-result-slice';
 
+import {
+  createEditSessionSlice,
+  type EditSessionSlice,
+} from './edit-session-slice';
 import {createGraphDataSlice, type GraphDataSlice} from './graph-data-slice';
 import {createKeyConfigSlice, type KeyConfigSlice} from './key-config-slice';
 import {createModuleListSlice, type ModuleListSlice} from './module-list-slice';
@@ -57,7 +61,8 @@ export type GraphDesignerStore = UsecaseSelectionSlice &
   PropertiesViewSlice &
   PanelLayoutSlice &
   PanelTabRegistrySlice &
-  SearchSlice;
+  SearchSlice &
+  EditSessionSlice;
 
 // ── Factory ─────────────────────────────────────────────────────────────────
 
@@ -81,6 +86,7 @@ export function createGraphDesignerStore(
     ...createPanelLayoutSlice(set),
     ...createPanelTabRegistrySlice(set),
     ...createSearchSlice(set),
+    ...createEditSessionSlice(set, projectId),
 
     // Seed usecase selection from global store on creation.
     selectedUsecases: initialSelectedUsecases,

@@ -83,3 +83,29 @@ export interface ProjectGroupSlice {
   registerProjectGroup: (projectId: string, filePath: string) => void;
   removeProjectGroup: (projectId: string) => void;
 }
+
+export type ExclusiveUsecaseMode =
+  | 'diff-merge'
+  | 'discovery-wizard'
+  | 'none'
+  | 'usecase-edit';
+
+export interface ExclusiveLockSlice {
+  activeExclusiveModeByProject: Record<string, ExclusiveUsecaseMode>;
+  /** Releases `mode`'s lock for every project currently holding it — used
+   *  to tear down a mode's locks app-wide (e.g. on app quit) without the
+   *  caller needing to know the shape of `activeExclusiveModeByProject`. */
+  releaseAllOfMode: (mode: ExclusiveUsecaseMode) => void;
+  /** Returns `false` if the lock for this project is already held by *any*
+   *  mode — including a second attempt to acquire the *same* mode again.
+   *  Each of Usecase Edit, Discovery Wizard, and Diff/Merge is a
+   *  single-instance-per-project feature. */
+  releaseExclusiveMode: (projectId: string, mode: ExclusiveUsecaseMode) => void;
+  /** Only clears the lock if `mode` is the value currently held for this
+   *  project — guards against a stale unmount releasing a lock a newer
+   *  instance acquired. */
+  setActiveExclusiveMode: (
+    projectId: string,
+    mode: ExclusiveUsecaseMode,
+  ) => boolean;
+}

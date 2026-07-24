@@ -4,7 +4,7 @@ export {
   getUsecaseComponents,
 } from './api/usecases-api';
 export type {
-  FilteredKV,
+  KeyValuePairsInfo,
   KeyValueInfo,
   RelatedEndPointLink,
   UsecaseDto,

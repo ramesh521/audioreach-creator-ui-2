@@ -23,6 +23,8 @@ import {useKeyConfiguratorView} from '~widgets/key-configurator-panel';
 import ProjectLayoutManager from '~widgets/project-layout/project-layout-manager';
 import ArcStartPage from '~widgets/start-page/ui/arc-start-page';
 
+import {releaseAllUsecaseEditLocks} from '../lib/release-usecase-edit-locks';
+
 const EditorShellContent: React.FC = () => {
   const {keyboardShortcuts} = useSideNavContext();
   const [theme] = useTheme();
@@ -241,6 +243,8 @@ export const EditorShell: React.FC = () => {
   // Save configuration on app exit
   useEffect(() => {
     const handleBeforeUnload = () => {
+      releaseAllUsecaseEditLocks();
+
       // beforeunload is synchronous, so we can't reliably await async operations
       // Just trigger the save without waiting
       ConfigFileManager.instance.save().catch((error) => {

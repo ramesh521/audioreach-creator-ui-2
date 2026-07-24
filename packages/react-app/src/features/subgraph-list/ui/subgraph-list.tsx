@@ -197,24 +197,20 @@ export function SubgraphList(): ReactElement {
         <>
           <ul className="flex flex-col gap-1">
             {filteredSubgraphs.map((subgraph) => (
-              <Tooltip
+              <li
                 key={subgraph.subgraphId}
-                trigger={
-                  <li className="flex cursor-default items-center gap-3">
-                    <Cuboid className="h-4 w-4 shrink-0" />
-                    <div className="flex flex-col gap-0">
-                      <span className="text-[11px] font-semibold">
-                        {subgraph.subgraphName}
-                      </span>
-                      <span className="text-neutral-secondary text-[10px]">
-                        {subgraph.subgraphType.toUpperCase()}
-                      </span>
-                    </div>
-                  </li>
-                }
+                className="flex cursor-default items-center gap-3"
               >
-                {subgraph.description || 'No description available'}
-              </Tooltip>
+                <Cuboid className="h-4 w-4 shrink-0" />
+                <div className="flex flex-col gap-0">
+                  <span className="text-[11px] font-semibold">
+                    {subgraph.subgraphName}
+                  </span>
+                  <span className="text-neutral-secondary text-[10px]">
+                    {subgraph.subgraphType.toUpperCase()}
+                  </span>
+                </div>
+              </li>
             ))}
           </ul>
 

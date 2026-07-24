@@ -19,6 +19,22 @@ this foundation exists as real code.
 
 **Tech Stack:** TypeScript, React, Zustand, Electron (desktop app), Jest/Vitest (per existing test conventions in `packages/react-app`).
 
+**Note on task numbering and "sibling chapter" references:** this plan was
+drafted as several chapter-local task ranges (entity/type prerequisites,
+exclusive lock, `EditSessionSlice` core, session-local maps, response
+reconciliation) and then consolidated into this single linear file. Some
+chapter-local task numbers were dropped as redundant during consolidation,
+so the numbering below is intentionally non-contiguous (gaps at 5, 15–17,
+22–23, 27–29, 35–39 are expected, not missing tasks). Any remaining
+reference below to a "sibling chapter," "parallel chapter," or an external
+`chapters/*.md` file refers to a task range **within this same document**,
+not a separate file — e.g. "the sibling chapter, tasks 10–17" means Tasks
+10–14 below. Execute tasks in ascending numeric order; every dependency a
+task lists on a "sibling chapter" is already satisfied by an earlier task
+number in this file. Task 42 was added after review to close a gap the
+original handoff scope missed: `core-edit-session-design.md`'s
+`beforeunload` lock-release wiring in `editor-shell.tsx`.
+
 ---
 ### Task 1: Response-reconciliation DTOs — `ChangeInfoDto`'s sibling types
 
@@ -356,8 +372,8 @@ Expected: This will surface every existing consumer of the now-removed
 `SubgraphDto.subgraphType`/`description` fields as a compile error — this
 is expected and by design (the doc calls this "a real prerequisite code
 change," not a docs-only fix). Do not fix those errors in this task; note
-each file/line surfaced and hand it to Task 4 and Task 5, whose scope
-covers `subgraph-list-slice.ts`'s mapper. If `tsc` surfaces errors outside
+each file/line surfaced and hand it to Task 4, whose scope covers
+`subgraph-list-slice.ts`'s mapper. If `tsc` surfaces errors outside
 `subgraph-list-slice.ts` (e.g. `subgraph-list.tsx`, `subgraph-list-types.ts`),
 flag them to the session assembling the full plan — they are consumers
 this chapter's stated scope (mapper-only) does not cover, and belong to
@@ -1101,8 +1117,8 @@ are not part of this file. `withMutationLock` is covered separately in Task
 12, not here.
 
 This task depends on `createExclusiveLockSlice`/`ExclusiveUsecaseMode` being
-composed into `useGlobalStore` (`docs/graph-designer-edit/plans/chapters/01-02-exclusive-lock.md`,
-Tasks 6–9) — `enterEditMode()`/`exitEditMode()` call
+composed into `useGlobalStore` (Tasks 6–9 above) —
+`enterEditMode()`/`exitEditMode()` call
 `useGlobalStore.getState().setActiveExclusiveMode`/`releaseExclusiveMode`
 directly, the same real per-project lock, not a mock. This test file imports
 a slice factory (`createEditSessionSlice`) that does not exist yet — it will
@@ -1846,16 +1862,14 @@ pairLinksById: Map<string, SubgraphPairDto>;
 excludedLinks: Connection[];
 ```
 
-**This task assumes `edit-session-slice.ts` already exists, created by the
-parallel sibling chapter** ("`EditSessionSlice` core state & mode machine",
-`foundation-plan-handoff.md`'s Batch 2, tasks 10–17) — that chapter declares
-`EditSessionSlice`'s `mode`/`enterEditMode`/`exitEditMode`/`isMutating`/
-`beginMutation`/`endMutation`/`usesSubsystemVariant` members and the
-`createEditSessionSlice` factory. This task and that one both add members to
-the same interface/factory; neither waits for the other, and whichever lands
-second in the real repo simply adds its members alongside the other's. The
-snippets below are additive diffs against that interface/factory, not a
-full-file listing.
+**This task assumes `edit-session-slice.ts` already exists, created by
+Tasks 10–14 above** ("`EditSessionSlice` core state & mode machine") —
+those tasks declare `EditSessionSlice`'s `mode`/`enterEditMode`/
+`exitEditMode`/`isMutating`/`beginMutation`/`endMutation`/
+`usesSubsystemVariant` members and the `createEditSessionSlice` factory.
+This task adds further members to the same interface/factory, additive
+to what Tasks 10–14 already placed there. The snippets below are
+additive diffs against that interface/factory, not a full-file listing.
 
 **Why the three referenced types (`SubgraphProvenance`/`KvCase`/
 `SubgraphPairDto`) are defined here, in full, rather than imported from a
@@ -1890,9 +1904,9 @@ failing test, so it is verified by `tsc` instead of `jest`.
 
 Add near the top of
 `packages/react-app/src/features/graph-designer/model/edit-session-slice.ts`,
-alongside the sibling chapter's own type declarations (import lines merge
-with whatever that chapter already added — add only the two shown here if
-they are not already present):
+alongside the type declarations Tasks 10–14 already added (import lines
+merge with what's already there — add only the two shown here if they are
+not already present):
 
 ```typescript
 import type {KeyValueInfo} from '~entities/usecases';
@@ -1938,9 +1952,9 @@ export interface SubgraphPairDto {
 - [ ] **Step 2: Add the four field declarations to `EditSessionSlice`**
 
 Insert these four members into the `EditSessionSlice` interface, in
-alphabetical order among whatever members the sibling chapter's tasks (10–17)
-already placed there (this repo's ESLint `sortKeys` rule enforces alphabetical
-interface members):
+alphabetical order among the members Tasks 10–14 already placed there
+(this repo's ESLint `sortKeys` rule enforces alphabetical interface
+members):
 
 ```typescript
   excludedLinks: Connection[];
@@ -1952,9 +1966,10 @@ interface members):
 - [ ] **Step 3: Verify the project still typechecks**
 
 Run: `cd packages/react-app && pnpm typecheck`
-Expected: PASS (no errors) — once merged with the sibling chapter's own
-`EditSessionSlice` members, the four new fields are additive and don't yet
-have any consumer requiring them to be populated with real data.
+Expected: PASS (no errors) — added alongside the `EditSessionSlice`
+members Tasks 10–14 already declared, the four new fields are additive
+and don't yet have any consumer requiring them to be populated with real
+data.
 
 - [ ] **Step 4: Commit**
 
@@ -2001,14 +2016,11 @@ onto a `get()` result (`graph-data-slice.ts`'s `clearGraphData`, for example),
 and giving the widget wiring (Task 21) one call instead of four inline
 statements to invoke and dependency-array.
 
-This task assumes `createEditSessionSlice`'s signature is
-`(set, get, projectId)` — mirroring `createModuleListSlice`/
-`createSubgraphListSlice`/`createGraphDataSlice`'s own `(set, get,
-projectId)` shape, since `enterEditMode()` needs `projectId` to call
-`setActiveExclusiveMode` (core-edit-session-design.md's Mode State section).
-If the sibling chapter's actual signature differs, adjust this test's
-`makeStore()` call accordingly — the assertions themselves don't depend on
-the exact signature.
+`createEditSessionSlice`'s signature is `(set, projectId)`, per Task 11 —
+it never reads `get()` internally (`enterEditMode`/`exitEditMode` read
+`useGlobalStore.getState()` directly, not the parent store's `get()`), so
+unlike `createModuleListSlice`/`createSubgraphListSlice`/
+`createGraphDataSlice` it does not take a `get` parameter.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2026,8 +2038,8 @@ import {createEditSessionSlice} from '~features/graph-designer/model/edit-sessio
 import type {EditSessionSlice} from '~features/graph-designer/model/edit-session-slice';
 
 function makeStore() {
-  return createStore<EditSessionSlice>((set, get) =>
-    createEditSessionSlice(set, get, 'proj-1'),
+  return createStore<EditSessionSlice>((set) =>
+    createEditSessionSlice(set, 'proj-1'),
   );
 }
 
@@ -2284,13 +2296,8 @@ placement fetches and belong to `kv-key-configuration-design.md`'s and
 this chapter's brief.
 
 **This task depends on `mode` being a readable field on the composed
-`GraphDesignerStore`**, added by the parallel sibling chapter
-(`foundation-plan-handoff.md`'s Batch 2, tasks 10–17) and composed into
-`GraphDesignerStore` there. If that composition hasn't landed yet when this
-task runs, `pnpm typecheck` in Step 3 below will fail on the new `s.mode`/
-`s.resetSessionLocalMaps` selectors alone — expected until both chapters are
-merged, per this chapter's brief ("being built in a PARALLEL sibling chapter
-you do not need to wait for").
+`GraphDesignerStore`**, added by Tasks 10–14 and composed into
+`GraphDesignerStore` there — execute those tasks first.
 
 - [ ] **Step 1: Add the `mode` and `resetSessionLocalMaps` selectors**
 
@@ -2409,11 +2416,9 @@ untouched).
 
 **Spec:** `docs/graph-designer-edit/design/core-edit-session-design.md`'s
 "Response Reconciliation — Component Collections" section (LLD §6.3). This
-chapter is split across two plan files for size; this file (part 1)
-implements the leaf-level bucket appliers — `applyAddedCollection`,
+task implements the leaf-level bucket appliers — `applyAddedCollection`,
 `applyDeletedCollection`, and the six per-entity `upsert*`/`remove*` helpers
-they're built from. The sibling file
-(`03-01b-reconciliation-orchestrator.md`, tasks 30–34) implements the
+they're built from. Tasks 30–34 implement the
 top-level `applyComponentCollection` orchestrator, `recomputeContainersAndSubgraphs`,
 `pruneDeletedLinkBookkeeping`, and `adjustSurvivingPortCounts`/
 `adjustPortForLink` — none of that is touched here.
@@ -2421,7 +2426,7 @@ top-level `applyComponentCollection` orchestrator, `recomputeContainersAndSubgra
 **`ComponentCollectionDto`/`ChangeInfoDto` already exist — this task imports
 them, it does not redeclare them.** Both are already declared in
 `packages/react-app/src/entities/usecases/model/usecase-component.dto.ts`
-(confirmed by reading `01-01-entities.md`'s Task 1, which added this file's
+(confirmed by reading Task 1, which added this file's
 *other* DTOs alongside them, and by reading the file itself):
 
 ```typescript
@@ -2461,7 +2466,7 @@ below (and `resolveEndpointSystemId` in Task 25) need the module's own
 numeric primary key to resolve a link's numeric `sourceId`/`destinationId`
 back to a `moduleInstanceId` later. That field does not exist on the real
 `ModuleInstance` interface today — it is added by this chapter's sibling
-file, `03-01b-reconciliation-orchestrator.md`'s **Task 30** (mirroring
+file, **Task 30** (mirroring
 `Subsystem.id`, which already exists). Both files are one chapter split only
 for size, not two independent chapters — **apply Task 30 first** if
 executing in strict task-number order; this task's `tsc` step will fail with
@@ -2816,7 +2821,7 @@ Both actions build a fresh `moduleInstances` record (via the spread inside
 via `set()` — this store has no Immer middleware, so mutating
 `graphData.moduleInstances` in place would silently fail to trigger
 re-renders in components subscribed via reference-equality selectors, the
-same reasoning `03-01b-reconciliation-orchestrator.md`'s Task 33 documents
+same reasoning Task 33 documents
 for port-count adjustment.
 
 - [ ] **Step 4: Run the test to verify it passes**
@@ -2829,7 +2834,7 @@ Expected: PASS, all three new tests green, and every pre-existing
 
 Run: `cd packages/react-app && pnpm typecheck`
 Expected: PASS — **conditional on `ModuleInstance.id` already existing**
-(`03-01b-reconciliation-orchestrator.md`'s Task 30, see this task's Spec
+(Task 30, see this task's Spec
 note above). If that task has not landed yet, this step fails with `Object
 literal may only specify known properties, and 'id' does not exist in type
 'ModuleInstance'` inside `toModuleInstance` — apply Task 30 first.
@@ -2888,7 +2893,7 @@ only searches `moduleInstances` (sufficient for its own narrower job,
 below needs the module-*or*-subsystem generality `loadGraphData` has, so it
 uses its own resolver, `resolveEndpointSystemId`, searching `moduleInstances`
 by `ModuleInstance.id` (Task 24's cross-chapter dependency on
-`03-01b-reconciliation-orchestrator.md`'s Task 30, still in effect here) and
+Task 30, still in effect here) and
 falling back to `subsystems` by `Subsystem.id` (already present on the real
 type today — no new field needed for the subsystem half of this lookup).
 
@@ -2899,7 +2904,7 @@ the reconciliation signal, and `diffState` is a Diff/Merge-only concept.
 - [ ] **Step 1: Write the failing test**
 
 Hoist this fixture builder to file scope alongside `makeSpfModuleDto`
-(Task 24) — note for whoever executes `03-01b-reconciliation-orchestrator.md`'s
+(Task 24) — note for whoever executes
 Task 32: if that task's own `makeDataLinkDto` lands in the same working tree,
 reuse this one instead of redefining it (same field set) — but keep *this*
 version's `connectionType` value, not that task's draft `'DataConnection'`,
@@ -3677,7 +3682,7 @@ incremental reconciler (Task 33's `findModuleByNumericId`) has no full
 `spfModules` array to rebuild it from; it only has whatever arrived in one
 response's three buckets, plus whatever `moduleInstances` already holds from
 before. **This is a real prerequisite gap this chapter must close, the same
-kind of gap Task 2 of `01-01-entities.md` closed for `totalLinksAtPort`:**
+kind of gap Task 2 of Tasks 1–4 closed for `totalLinksAtPort`:**
 `ModuleInstance` (`graph-data-slice.ts`) has no field carrying the DTO's own
 numeric `id` at all today — confirmed by reading the interface and its one
 construction site (`loadGraphData`'s module-mapping loop) — so there is
@@ -3689,7 +3694,7 @@ treatment, not a new pattern.
 
 This is a type-only change plus its one construction-site update — verified
 by `tsc` plus the existing `graph-data-slice.test.ts` suite, not a new test
-file (same shape as `01-01-entities.md`'s Task 2, which this task directly
+file (same shape as Task 2, which this task directly
 mirrors).
 
 - [ ] **Step 1: Add `id` to the `ModuleInstance` interface**
@@ -4058,7 +4063,7 @@ before/after subgraph-set comparison the provenance map requires." Explicit
 chapter scope: this task implements **only** this link-bookkeeping pruning —
 `subgraphProvenanceById`/`kvCasesById` pruning is a different design doc's
 chapter and is not touched here. `pairLinksById`/`excludedLinks` are declared
-on `EditSessionSlice` by `02-02-session-maps.md`'s Task 18
+on `EditSessionSlice` by Task 18
 (`pairLinksById: Map<string, SubgraphPairDto>`, `excludedLinks: Connection[]`).
 
 **This task broadens `createGraphDataSlice`'s generic constraint.** Today it
@@ -4069,7 +4074,7 @@ needs `get().pairLinksById`/`get().excludedLinks`, so the constraint becomes
 kind of cross-slice read `loadGraphData` already established the pattern
 for, just against a second sibling slice. `EditSessionSlice` is imported
 type-only from `./edit-session-slice`; that file already imports `type
-{Connection}` from this file (`02-02-session-maps.md`'s Task 18), so this is
+{Connection}` from this file (Task 18), so this is
 a type-only circular import between the two files — safe, since `import
 type` is fully erased at compile time and creates no runtime circular
 dependency.
@@ -4253,7 +4258,7 @@ Add to `createGraphDataSlice`'s returned object, in alphabetical order:
 
 A fresh `Map` is built (via `new Map(pairLinksById)` then targeted
 `.delete()` calls) rather than mutating the existing one in place, matching
-`02-02-session-maps.md`'s Task 19 convention for this same field
+Task 19 convention for this same field
 (`resetSessionLocalMaps`) of always producing a new instance for `set()`
 rather than relying on in-place mutation of a value React/Zustand consumers
 may hold a stale reference to.
@@ -4267,7 +4272,7 @@ Expected: PASS, both new tests green.
 
 Run: `cd packages/react-app && pnpm typecheck`
 Expected: PASS once composed with `EditSessionSlice`'s own fields
-(`02-02-session-maps.md`'s Task 18/19) — `createGraphDataSlice`'s call site
+(Task 18/19) — `createGraphDataSlice`'s call site
 in `graph-designer-store.ts` already passes the fully-composed `set`/`get`
 typed to the whole `GraphDesignerStore`, so broadening the constraint here
 requires no change at the call site itself.
@@ -4733,40 +4738,37 @@ subsystem merge, `recomputeContainersAndSubgraphs` from Task 31,
 `pruneDeletedLinkBookkeeping` from Task 32, `adjustSurvivingPortCounts` from
 Task 33) into the one function every mutating action in this feature calls.
 
-**Integration contract with the sibling chapter
-(`03-01a-reconciliation-helpers.md`).** That chapter builds `upsertModule`/
+**Integration contract with Tasks 24–26.** Those tasks build `upsertModule`/
 `removeModule`/`upsertLink`/`removeLink`/`upsertSubsystem`/`removeSubsystem`
 (private, per-entity helpers) plus two public `GraphDataSlice` actions built
 from them: `applyAddedCollection(collection)` (upserts every entity in one
 collection) and `applyDeletedCollection(collection)` (removes every entity in
-one collection). **This chapter's `applyComponentCollection` calls those two
-public actions — `applyAddedCollection`/`applyDeletedCollection` must apply
+one collection). **This task's `applyComponentCollection` calls those two
+public actions — `applyAddedCollection`/`applyDeletedCollection` apply
 their bucket directly via the upsert/remove helpers and must not themselves
 call `applyComponentCollection`.** (The original single-file design-doc
-sketch this LLD section is based on predates the two-chapter split and shows
-`applyAddedCollection` wrapping its argument into a 3-bucket object and
-calling `applyComponentCollection({addedComponentCollectionDto: collection,
-...})` — if the sibling chapter implemented that literally, calling it from
-inside `applyComponentCollection` here would recurse infinitely. This task's
-version is the canonical one for the split: `applyAddedCollection`/
-`applyDeletedCollection` are leaf-level bucket appliers, and
-`recomputeContainersAndSubgraphs`/`pruneDeletedLinkBookkeeping`/
-`adjustSurvivingPortCounts` run exactly once per `applyComponentCollection`
-call, from here.)
+sketch this LLD section is based on shows `applyAddedCollection` wrapping
+its argument into a 3-bucket object and calling
+`applyComponentCollection({addedComponentCollectionDto: collection, ...})`
+— implementing it that literally would make calling it from inside
+`applyComponentCollection` here recurse infinitely. This task's version is
+the canonical one: `applyAddedCollection`/`applyDeletedCollection` are
+leaf-level bucket appliers, and `recomputeContainersAndSubgraphs`/
+`pruneDeletedLinkBookkeeping`/`adjustSurvivingPortCounts` run exactly once
+per `applyComponentCollection` call, from here.)
 
 **The `updated` bucket needs no separate helper.** `applyAddedCollection`'s
-own doc comment (`03-01a-reconciliation-helpers.md`) describes it as
-populating "only the added bucket... for call sites that are purely
-additive" — but the operation it performs per entity is an upsert
-(`moduleInstances[id] = ...`), which is exactly what refreshing an
-already-existing "updated" entity's fields also needs: a `Record`
-assignment by id is identical whether that id is new or already present.
-There is no behavioral difference between "add module X" and "update module
-X" once both reach `upsertModule` — only "delete module X" differs (removal,
-not upsert). So `applyComponentCollection` reuses `applyAddedCollection` for
-both the `added` and `updated` buckets, rather than needing its own
-duplicate upsert loop or reaching into the sibling chapter's private
-helpers.
+own doc comment (Task 24) describes it as populating "only the added
+bucket... for call sites that are purely additive" — but the operation it
+performs per entity is an upsert (`moduleInstances[id] = ...`), which is
+exactly what refreshing an already-existing "updated" entity's fields also
+needs: a `Record` assignment by id is identical whether that id is new or
+already present. There is no behavioral difference between "add module X"
+and "update module X" once both reach `upsertModule` — only "delete module
+X" differs (removal, not upsert). So `applyComponentCollection` reuses
+`applyAddedCollection` for both the `added` and `updated` buckets, rather
+than needing its own duplicate upsert loop or reaching into Tasks 24–26's
+private helpers.
 
 **Each call below commits its own `set()` independently — not one atomic
 transaction.** This store has no middleware for cross-slice atomic updates,
@@ -4993,7 +4995,7 @@ interface/factory.
 **Package:** `packages/react-app`
 
 **Files:**
-- Modify: `packages/react-app/tests/features/graph-designer/graph-designer-store.test.ts` (add cases to the existing file, created by `02-01-edit-session-core.md`'s Task 14)
+- Modify: `packages/react-app/tests/features/graph-designer/graph-designer-store.test.ts` (add cases to the existing file, created by Task 14)
 
 **Spec:** `docs/graph-designer-edit/plans/foundation-plan-handoff.md` Batch 4 —
 "Exclusive-lock behavior across two simulated Graph Designer tabs on the same
@@ -5001,20 +5003,20 @@ interface/factory.
 
 **Why this is a genuine gap, not a duplicate.** Reading every existing test
 across the six prior chapters that touches the exclusive lock:
-- `01-02-exclusive-lock.md`'s Task 7 (`exclusive-lock-slice.test.ts`) and
+- Task 7 (`exclusive-lock-slice.test.ts`) and
   Task 9 (`global-store.test.ts`) test `setActiveExclusiveMode`/
   `releaseExclusiveMode` and selector reactivity directly against
   `createExclusiveLockSlice`/`useGlobalStore` — never through a second
   `EditSessionSlice`/`GraphDesignerStore` instance, so they don't exercise
   what a real second Graph Designer *tab* would do.
-- `02-01-edit-session-core.md`'s Task 10
+- Task 10
   (`edit-session-slice.test.ts`, "fails to enter edit mode … when the lock is
   already held") fakes the "another tab already holds it" precondition with
   a raw `useGlobalStore.getState().setActiveExclusiveMode(...)` call, not a
   second `createEditSessionSlice` instance — it proves the rejection path
   works when the lock is already held by *something*, not specifically by a
   second tab's own `enterEditMode()` call.
-- `02-01-edit-session-core.md`'s Task 14
+- Task 14
   (`graph-designer-store.test.ts`, "scopes the exclusive lock to the
   projectId passed at creation, not a flat flag") *does* create two real
   `createGraphDesignerStore(...)` instances and call `enterEditMode()` on
@@ -5124,8 +5126,8 @@ pure-delete, and mixed cases."
 
 **Why this is a genuine gap, not a duplicate.** Reading every
 `applyComponentCollection`/`applyAddedCollection`/`applyDeletedCollection`
-test across `03-01a-reconciliation-helpers.md` and
-`03-01b-reconciliation-orchestrator.md`:
+test across Tasks 24–26 and
+Tasks 30–34:
 - Tasks 24, 25, and 26 each test exactly one bucket kind in isolation
   (modules only, then links only, then subsystems only) via
   `applyAddedCollection`/`applyDeletedCollection` directly — never all three
@@ -5182,8 +5184,7 @@ import type {
 ```
 
 Add these fixture builders (mirroring the ones already established in
-`graph-data-slice.test.ts` by `03-01a-reconciliation-helpers.md`'s Tasks
-24–26, redeclared here since this is a different test file):
+`graph-data-slice.test.ts` by Tasks 24–26, redeclared here since this is a different test file):
 
 ```typescript
 function makeSpfModuleDto(overrides: Partial<SpfModuleDto> = {}): SpfModuleDto {
@@ -5463,9 +5464,9 @@ Expected: PASS, this new test green alongside every test already in this
 file (Task 14's and Task 40's). As in Task 40, this is not a TDD "RED then
 GREEN" test — every piece it composes
 (`enterEditMode`/`withMutationLock`/`exitEditMode` from
-`02-01-edit-session-core.md`; `applyComponentCollection` and its four
-internal steps from `03-01a-reconciliation-helpers.md`/
-`03-01b-reconciliation-orchestrator.md`) already exists and is already unit
+Tasks 10–14; `applyComponentCollection` and its four
+internal steps from Tasks 24–26/
+Tasks 30–34) already exists and is already unit
 tested in isolation. A failure here means the pieces don't compose
 correctly together — e.g. a bucket-processing order bug, or a stale
 `get()` read across one of `applyComponentCollection`'s five sequential
@@ -5502,6 +5503,164 @@ Expected: PASS (no errors).
              -m "merge, container/subgraph recompute, link-bookkeeping" \
              -m "pruning, and port-count adjustment all agree with each" \
              -m "other and with the released exclusive lock." \
+             -m "Signed-off-by: [Name] <[email]>"
+  ```
+
+  **STOP — do not run `git commit` until the user explicitly approves the
+  message.** Only execute after confirmation.
+
+---
+
+### Task 42: Release the exclusive lock on `beforeunload` (app quit/reload)
+
+**Package:** `packages/react-app`
+
+**Files:**
+- Modify: `packages/react-app/src/widgets/editor-shell/ui/editor-shell.tsx`
+- Test: `packages/react-app/tests/widgets/editor-shell/editor-shell.test.tsx` (add a case to the existing file if one exists, else create it)
+
+**Spec:** `docs/graph-designer-edit/design/core-edit-session-design.md`'s
+"Lock release is wired into every graceful close path" section — the one
+release path the per-tab `useEffect` cleanup (Tasks 6–9's
+`releaseExclusiveMode`, called from Tasks 10–14's `exitEditMode`) cannot
+cover is an app quit/reload that tears down the renderer without running
+React unmount cleanup at all. The design doc calls for a release call in
+`editor-shell.tsx`'s existing `beforeunload` handler (already wired for
+`ConfigFileManager.instance.save()` at
+`packages/react-app/src/widgets/editor-shell/ui/editor-shell.tsx:242-265`,
+confirmed by direct read of the current file), covering every project with
+an active `'usecase-edit'` lock ahead of — or instead of — any per-tab
+unmount cycle running.
+
+This does not touch `'discovery-wizard'`/`'diff-merge'` locks — releasing
+those on app teardown is those features' own concern, not this chapter's;
+this task only releases the `'usecase-edit'` mode this plan introduces.
+
+- [ ] **Step 1: Write the failing test**
+
+```typescript
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+jest.mock('~shared/lib/logger');
+jest.mock('~shared/config/config-manager', () => ({
+  ConfigFileManager: {
+    instance: {save: jest.fn().mockResolvedValue(undefined)},
+  },
+}));
+
+import {render} from '@testing-library/react';
+
+import {useGlobalStore} from '~shared/store/global-store';
+import EditorShell from '~widgets/editor-shell/ui/editor-shell';
+
+describe('EditorShell — beforeunload exclusive-lock release', () => {
+  afterEach(() => {
+    useGlobalStore.setState({activeExclusiveModeByProject: {}});
+  });
+
+  it('releases every usecase-edit lock on beforeunload', () => {
+    useGlobalStore.getState().setActiveExclusiveMode('proj-1', 'usecase-edit');
+    useGlobalStore.getState().setActiveExclusiveMode('proj-2', 'usecase-edit');
+    useGlobalStore
+      .getState()
+      .setActiveExclusiveMode('proj-3', 'discovery-wizard');
+
+    render(<EditorShell />);
+    window.dispatchEvent(new Event('beforeunload'));
+
+    const locks = useGlobalStore.getState().activeExclusiveModeByProject;
+    expect(locks['proj-1']).toBeUndefined();
+    expect(locks['proj-2']).toBeUndefined();
+    expect(locks['proj-3']).toBe('discovery-wizard');
+  });
+});
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `cd packages/react-app && pnpm test -- --testPathPattern="tests/widgets/editor-shell/editor-shell.test.tsx"`
+Expected: FAIL — `proj-1`/`proj-2` still hold `'usecase-edit'` after the
+`beforeunload` event, since the handler doesn't release them yet.
+
+- [ ] **Step 3: Add the release call to the existing `beforeunload` handler**
+
+In `packages/react-app/src/widgets/editor-shell/ui/editor-shell.tsx`, add
+the import:
+
+```typescript
+import {useGlobalStore} from '~shared/store/global-store';
+```
+
+Modify the existing `handleBeforeUnload` (lines 242-265) to release every
+`'usecase-edit'` lock before saving config:
+
+```typescript
+  // Save configuration on app exit
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      const {activeExclusiveModeByProject, releaseExclusiveMode} =
+        useGlobalStore.getState();
+      Object.entries(activeExclusiveModeByProject).forEach(
+        ([projectId, mode]) => {
+          if (mode === 'usecase-edit') {
+            releaseExclusiveMode(projectId, mode);
+          }
+        },
+      );
+
+      // beforeunload is synchronous, so we can't reliably await async operations
+      // Just trigger the save without waiting
+      ConfigFileManager.instance.save().catch((error) => {
+        logger.error('Failed to save configuration on exit', {
+          action: 'save_config_on_exit',
+          component: 'EditorShell',
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    };
+```
+
+This calls `releaseExclusiveMode` even in cases where a per-tab `useEffect`
+cleanup would also have fired — safe and not a double-release in the
+problematic sense, since `releaseExclusiveMode` (Tasks 6–9) is a no-op once
+the lock for that `projectId`/`mode` pair is already gone.
+
+- [ ] **Step 4: Run the test to verify it passes**
+
+Run: `cd packages/react-app && pnpm test -- --testPathPattern="tests/widgets/editor-shell/editor-shell.test.tsx"`
+Expected: PASS.
+
+- [ ] **Step 5: Run the full test suite to confirm no regression**
+
+Run: `cd packages/react-app && pnpm test`
+Expected: PASS.
+
+- [ ] **Step 6: Verify the project still typechecks**
+
+Run: `cd packages/react-app && pnpm typecheck`
+Expected: PASS (no errors).
+
+- [ ] **Step 7: Commit**
+
+  Use the `commit` skill to draft the commit message. Show the proposed
+  message and the exact commands to the user and **wait for explicit
+  confirmation** before running anything:
+
+  ```bash
+  git add packages/react-app/src/widgets/editor-shell/ui/editor-shell.tsx \
+          packages/react-app/tests/widgets/editor-shell/editor-shell.test.tsx
+  git commit -m "fix(react): release usecase-edit lock on app quit/reload" \
+             -m "The per-tab useEffect cleanup that normally releases the" \
+             -m "cross-project exclusive lock never runs on an app" \
+             -m "quit/reload, since that tears down the renderer without" \
+             -m "React unmount cleanup. EditorShell's existing" \
+             -m "beforeunload handler now also releases every" \
+             -m "usecase-edit lock, closing the one gap" \
+             -m "core-edit-session-design.md's Mode State section" \
+             -m "identifies in the graceful-close release paths." \
              -m "Signed-off-by: [Name] <[email]>"
   ```
 

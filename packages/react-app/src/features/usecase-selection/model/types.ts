@@ -5,7 +5,7 @@
 
 // Re-export DTO types for UI convenience
 export type {
-  FilteredKV,
+  KeyValuePairsInfo,
   KeyValueInfo as KeyValue,
   RelatedEndPointLink,
   UsecaseCategory,

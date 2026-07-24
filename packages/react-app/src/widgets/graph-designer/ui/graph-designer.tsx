@@ -49,6 +49,7 @@ import {
 } from '../lib/graph-search';
 import {buildLevelViewFromGraphData} from '../lib/level-view-adapter';
 import {layoutLevelView} from '../lib/level-view-layout';
+import {shouldResetSessionLocalMaps} from '../lib/session-local-maps';
 
 interface GraphDesignerProps {
   projectGroupId: string;
@@ -82,6 +83,10 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
     (s) => s.graphDataStatus,
   );
   const loadGraphData = useGraphDesignerStoreShallow((s) => s.loadGraphData);
+  const mode = useGraphDesignerStoreShallow((s) => s.mode);
+  const resetSessionLocalMaps = useGraphDesignerStoreShallow(
+    (s) => s.resetSessionLocalMaps,
+  );
   const levelView = useGraphDesignerStoreShallow((s) => s.levelView);
   const setLevelView = useGraphDesignerStoreShallow((s) => s.setLevelView);
   const clearLevelView = useGraphDesignerStoreShallow((s) => s.clearLevelView);
@@ -298,6 +303,20 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
     loadGraphData,
     resetSearch,
   ]);
+
+  // Effect A2 — clear session-local maps on mode transitions, independent of
+  // selection so entering/exiting Edit mode doesn't re-trigger Effect A's
+  // canvas reset and graph reload.
+  useEffect(() => {
+    if (shouldResetSessionLocalMaps(mode)) {
+      // No source of truth to recompute subgraphProvenanceById/kvCasesById/
+      // pairLinksById/excludedLinks from once the edit session that
+      // populated them ends — clear them on every transition into 'view'
+      // so a previous session's entries never leak into the next
+      // (core-edit-session-design.md's Mode State section).
+      resetSessionLocalMaps();
+    }
+  }, [mode, resetSessionLocalMaps]);
 
   // Effect B — build LevelView when graphData is ready
   useEffect(() => {
