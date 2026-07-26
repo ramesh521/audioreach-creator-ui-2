@@ -9,6 +9,7 @@ import {render, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import {ConfigFileManager} from '~shared/config/config-manager';
+import {useUserPreferences} from '~shared/config/hooks';
 import {DEFAULT_USER_PREFERENCES} from '~shared/config/user-preferences-types';
 import {showToast} from '~shared/controls/global-toaster';
 import {DisplayOptionsPopover} from '~widgets/graph-designer/ui/display-options-popover';
@@ -102,6 +103,20 @@ function seedProjectConfig() {
   });
 }
 
+function renderPopover(projectId: string) {
+  function Wrapper() {
+    const {preferences, updatePreference} = useUserPreferences(projectId);
+    return (
+      <DisplayOptionsPopover
+        preferences={preferences}
+        projectId={projectId}
+        updatePreference={updatePreference}
+      />
+    );
+  }
+  return render(<Wrapper />);
+}
+
 describe('DisplayOptionsPopover', () => {
   beforeEach(() => {
     // @ts-expect-error reset singleton between tests
@@ -113,7 +128,7 @@ describe('DisplayOptionsPopover', () => {
 
   // Graph View checkboxes should reflect whatever is in DEFAULT_USER_PREFERENCES
   it('renders all Graph View checkboxes with current preference values', () => {
-    render(<DisplayOptionsPopover projectId={PROJECT_ID} />);
+    renderPopover(PROJECT_ID);
 
     expect(
       screen.getByRole('checkbox', {name: 'Highlight PP Modules'}),
@@ -129,7 +144,7 @@ describe('DisplayOptionsPopover', () => {
   // Toggling a checkbox should update the in-memory preferences store
   it('calls updatePreference with the correct path and value when a checkbox is toggled', async () => {
     const user = userEvent.setup();
-    render(<DisplayOptionsPopover projectId={PROJECT_ID} />);
+    renderPopover(PROJECT_ID);
 
     await user.click(
       screen.getByRole('checkbox', {name: 'Show Control Links'}),
@@ -142,7 +157,7 @@ describe('DisplayOptionsPopover', () => {
   // The debounced disk write should still fire after the debounce window
   it('persists the change to disk via ConfigFileManager.save', async () => {
     const user = userEvent.setup();
-    render(<DisplayOptionsPopover projectId={PROJECT_ID} />);
+    renderPopover(PROJECT_ID);
 
     await user.click(screen.getByRole('checkbox', {name: 'Show MDF Modules'}));
 
@@ -152,7 +167,7 @@ describe('DisplayOptionsPopover', () => {
   // Closing the popover before the debounce fires must not drop the change
   it('flushes a pending debounced save immediately when the popover unmounts', async () => {
     const user = userEvent.setup();
-    const {unmount} = render(<DisplayOptionsPopover projectId={PROJECT_ID} />);
+    const {unmount} = renderPopover(PROJECT_ID);
 
     await user.click(screen.getByRole('checkbox', {name: 'Show MDF Modules'}));
     // Unmount immediately, well within the debounce window — simulates the
@@ -170,7 +185,7 @@ describe('DisplayOptionsPopover', () => {
       status: false,
     });
     const user = userEvent.setup();
-    render(<DisplayOptionsPopover projectId={PROJECT_ID} />);
+    renderPopover(PROJECT_ID);
 
     await user.click(screen.getByRole('checkbox', {name: 'Show MDF Modules'}));
 
@@ -186,7 +201,7 @@ describe('DisplayOptionsPopover', () => {
   it('shows a danger toast when the in-memory preference write fails', async () => {
     // No project config seeded under this ID — setUserPreference returns false
     const user = userEvent.setup();
-    render(<DisplayOptionsPopover projectId="unseeded-project" />);
+    renderPopover('unseeded-project');
 
     await user.click(screen.getByRole('checkbox', {name: 'Show MDF Modules'}));
 
@@ -199,7 +214,7 @@ describe('DisplayOptionsPopover', () => {
 
   // Both Workflow radios must always be present, regardless of which is selected
   it('always renders both Usecase Workflow and System Workflow radios', () => {
-    render(<DisplayOptionsPopover projectId={PROJECT_ID} />);
+    renderPopover(PROJECT_ID);
 
     expect(screen.getByText('Usecase Workflow')).toBeInTheDocument();
     expect(screen.getByText('System Workflow')).toBeInTheDocument();
@@ -207,7 +222,7 @@ describe('DisplayOptionsPopover', () => {
 
   // The nested level radios are only meaningful under Usecase Workflow
   it('shows the Subsystem/Usecase level radios when Usecase Workflow is selected', () => {
-    render(<DisplayOptionsPopover projectId={PROJECT_ID} />);
+    renderPopover(PROJECT_ID);
 
     expect(screen.getByText('Subsystem level')).toBeInTheDocument();
     expect(screen.getByText('Usecase level')).toBeInTheDocument();
@@ -216,7 +231,7 @@ describe('DisplayOptionsPopover', () => {
   // Selecting System Workflow should hide the now-irrelevant level radios
   it('hides the Subsystem/Usecase level radios after selecting System Workflow', async () => {
     const user = userEvent.setup();
-    render(<DisplayOptionsPopover projectId={PROJECT_ID} />);
+    renderPopover(PROJECT_ID);
 
     await user.click(screen.getByTestId('q-radio-select-system-workflow'));
 
@@ -227,7 +242,7 @@ describe('DisplayOptionsPopover', () => {
   // Switching back to Usecase Workflow should bring the level radios back
   it('reveals the Subsystem/Usecase level radios again after switching back to Usecase Workflow', async () => {
     const user = userEvent.setup();
-    render(<DisplayOptionsPopover projectId={PROJECT_ID} />);
+    renderPopover(PROJECT_ID);
 
     await user.click(screen.getByTestId('q-radio-select-system-workflow'));
     await user.click(screen.getByTestId('q-radio-select-usecase-workflow'));
@@ -238,7 +253,7 @@ describe('DisplayOptionsPopover', () => {
 
   // The three ID checkboxes only make sense once IDs are actually shown
   it('hides the detailed-view-only ID checkboxes in Compact View', () => {
-    render(<DisplayOptionsPopover projectId={PROJECT_ID} />);
+    renderPopover(PROJECT_ID);
 
     expect(screen.queryByText('Show Subgraph IDs')).not.toBeInTheDocument();
     expect(screen.queryByText('Show Container IDs')).not.toBeInTheDocument();
@@ -250,7 +265,7 @@ describe('DisplayOptionsPopover', () => {
   // Switching to Detailed View should reveal all three ID checkboxes
   it('reveals the detailed-view-only ID checkboxes after switching to Detailed View', async () => {
     const user = userEvent.setup();
-    render(<DisplayOptionsPopover projectId={PROJECT_ID} />);
+    renderPopover(PROJECT_ID);
 
     await user.click(screen.getByTestId('q-radio-select-detailed'));
 
@@ -261,7 +276,7 @@ describe('DisplayOptionsPopover', () => {
 
   // The default combination (Usecase Workflow + Usecase level) disables the control
   it('disables Simplified Subsystems for the default Usecase Workflow + Usecase level combination', () => {
-    render(<DisplayOptionsPopover projectId={PROJECT_ID} />);
+    renderPopover(PROJECT_ID);
 
     expect(
       screen.getByRole('checkbox', {name: 'Simplified Subsystems'}),
@@ -271,7 +286,7 @@ describe('DisplayOptionsPopover', () => {
   // Subsystem level (still under Usecase Workflow) is an enabling combination
   it('enables Simplified Subsystems after selecting Subsystem level under Usecase Workflow', async () => {
     const user = userEvent.setup();
-    render(<DisplayOptionsPopover projectId={PROJECT_ID} />);
+    renderPopover(PROJECT_ID);
 
     await user.click(screen.getByTestId('q-radio-select-subsystem-level'));
 
@@ -283,7 +298,7 @@ describe('DisplayOptionsPopover', () => {
   // System Workflow is the other enabling combination, regardless of level
   it('enables Simplified Subsystems after switching to System Workflow', async () => {
     const user = userEvent.setup();
-    render(<DisplayOptionsPopover projectId={PROJECT_ID} />);
+    renderPopover(PROJECT_ID);
 
     await user.click(screen.getByTestId('q-radio-select-system-workflow'));
 
@@ -295,7 +310,7 @@ describe('DisplayOptionsPopover', () => {
   // No Workflow transition should ever overwrite the user's own checked value
   it('does not force the checked value when enabling or disabling Simplified Subsystems', async () => {
     const user = userEvent.setup();
-    render(<DisplayOptionsPopover projectId={PROJECT_ID} />);
+    renderPopover(PROJECT_ID);
 
     // Enable it (Subsystem level), check it manually, then switch through
     // every combination — the user's checked value must never be reset.
@@ -317,7 +332,7 @@ describe('DisplayOptionsPopover', () => {
   // Show all ports is unchecked since portVisibilityMode defaults to 'active'
   it('reflects the current Port Visibility Mode preference on the checkbox', async () => {
     const user = userEvent.setup();
-    render(<DisplayOptionsPopover projectId={PROJECT_ID} />);
+    renderPopover(PROJECT_ID);
 
     await user.click(screen.getByTestId('q-radio-select-detailed'));
 
@@ -329,7 +344,7 @@ describe('DisplayOptionsPopover', () => {
   // Checking Show all ports should save portVisibilityMode as 'all'
   it('saves display.portVisibilityMode as "all" when Show all ports is checked', async () => {
     const user = userEvent.setup();
-    render(<DisplayOptionsPopover projectId={PROJECT_ID} />);
+    renderPopover(PROJECT_ID);
 
     await user.click(screen.getByTestId('q-radio-select-detailed'));
     await user.click(screen.getByRole('checkbox', {name: 'Show all ports'}));

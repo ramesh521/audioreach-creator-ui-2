@@ -10,13 +10,15 @@ import {Radio, RadioGroup} from '@qualcomm-ui/react/radio';
 import {Tooltip} from '@qualcomm-ui/react/tooltip';
 
 import {ConfigFileManager} from '~shared/config/config-manager';
-import {useUserPreferences} from '~shared/config/hooks';
+import type {UserPreferences} from '~shared/config/user-preferences-types';
 import {showToast} from '~shared/controls/global-toaster';
 
 const SAVE_DEBOUNCE_MS = 300;
 
 interface DisplayOptionsPopoverProps {
+  preferences: UserPreferences;
   projectId: string;
+  updatePreference: (path: string, value: unknown) => boolean;
 }
 
 function Section({
@@ -43,8 +45,11 @@ function Section({
   );
 }
 
-export function DisplayOptionsPopover({projectId}: DisplayOptionsPopoverProps) {
-  const {preferences, updatePreference} = useUserPreferences(projectId);
+export function DisplayOptionsPopover({
+  preferences,
+  projectId,
+  updatePreference,
+}: DisplayOptionsPopoverProps) {
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const flushSave = useCallback(async () => {

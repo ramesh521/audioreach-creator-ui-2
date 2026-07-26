@@ -46,6 +46,7 @@ import {
   type ViewportState,
   type XY,
 } from '~features/usecase-visualizer';
+import {useUserPreferences} from '~shared/config/hooks';
 import {showToast} from '~shared/controls/global-toaster';
 import {logger} from '~shared/lib/logger';
 import {useRegisterSideNav, useSideNav} from '~shared/lib/side-nav';
@@ -57,6 +58,7 @@ import {
 import {tabLayoutService} from '~widgets/project-layout/project-layout-manager';
 
 import {applyCollapses} from '../lib/apply-collapses';
+import {applyPortVisibility} from '../lib/apply-port-visibility';
 import {applyPositionOverrides} from '../lib/apply-position-overrides';
 import {
   computeContainsMatchIds,
@@ -92,6 +94,12 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
   );
 
   const usecaseData = initialUsecaseData;
+
+  const {preferences, updatePreference} = useUserPreferences(projectGroupId);
+  const effectivePortVisibilityMode =
+    preferences.visualization.viewMode === 'detailed'
+      ? preferences.display.portVisibilityMode
+      : 'active';
 
   // Graph data from store
   const graphData = useGraphDesignerStoreShallow((s) => s.graphData);
@@ -331,20 +339,33 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
     resetSearch,
   ]);
 
-  // Effect B — build LevelView when graphData is ready
+  // Effect B — build LevelView when graphData is ready or the port
+  // visibility mode changes. Filtering runs before layoutLevelView so ELK
+  // sizes/packs modules, containers, and subgraphs around the ports that
+  // will actually be visible, instead of the full port count.
   useEffect(() => {
-    if (graphDataStatus !== 'ready' || !graphData || levelView !== null) {
+    if (graphDataStatus !== 'ready' || !graphData) {
       return;
     }
     const gen = ++layoutGenerationRef.current;
     const levelId = selectedUsecases.join(',');
     const unpositioned = buildLevelViewFromGraphData(graphData, levelId);
-    void layoutLevelView(unpositioned).then((lv) => {
+    const filtered = applyPortVisibility(
+      unpositioned,
+      effectivePortVisibilityMode,
+    );
+    void layoutLevelView(filtered).then((lv) => {
       if (layoutGenerationRef.current === gen) {
         setLevelView(lv);
       }
     });
-  }, [graphDataStatus, graphData, levelView, selectedUsecases, setLevelView]);
+  }, [
+    graphDataStatus,
+    graphData,
+    selectedUsecases,
+    setLevelView,
+    effectivePortVisibilityMode,
+  ]);
 
   // Side nav implementation
   const hasSelection = (graph.modules?.length ?? 0) > 0;
@@ -440,6 +461,17 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
     [handleModuleDoubleClick, levelId],
   );
 
+  const displayOptionsContent = useMemo(
+    () => (
+      <DisplayOptionsPopover
+        preferences={preferences}
+        projectId={projectGroupId}
+        updatePreference={updatePreference}
+      />
+    ),
+    [preferences, projectGroupId, updatePreference],
+  );
+
   const sideNavItems = useMemo(
     () => [
       // Edit group
@@ -531,11 +563,11 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
         icon: SlidersHorizontal,
         id: 'display-options',
         label: 'Display Options',
-        popoverContent: <DisplayOptionsPopover projectId={projectGroupId} />,
+        popoverContent: displayOptionsContent,
         tooltip: 'Display Options',
       },
     ],
-    [hasSelection, canUndoRedo, projectGroupId],
+    [hasSelection, canUndoRedo, displayOptionsContent],
   );
 
   const sideNavHandlers = useMemo(

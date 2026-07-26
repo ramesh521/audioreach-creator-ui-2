@@ -160,6 +160,18 @@ Referenced from Error Handling below: if preferences have not loaded yet on firs
 **New file:** `display-options-popover.tsx`
 A QUI Popover that opens to the right of the side nav when the user clicks Display Options. Organized into four sections:
 
+**Props.** `DisplayOptionsPopover` does not call `useUserPreferences` itself — its parent, `graph-designer.tsx`, is the sole owner of that hook and passes the result down as props:
+
+```ts
+interface DisplayOptionsPopoverProps {
+  preferences: UserPreferences;
+  projectId: string;
+  updatePreference: (path: string, value: unknown) => boolean;
+}
+```
+
+`projectId` is kept as its own prop because the popover's internal `flushSave` calls `ConfigFileManager.instance.save(projectId)` directly. Only the `preferences` read and `updatePreference` write are lifted to the parent. Because `graph-designer.tsx` calls `useUserPreferences(projectGroupId)` once and passes the same `preferences` object to both `DisplayOptionsPopover` and its own render pipeline, a checkbox toggle re-renders both consumers with the new value in the same pass — no context or event-emitter is needed, since the two already share a parent.
+
 **Graph View** — three Checkboxes:
 *   Highlight PP Modules
 *   Show Control Links
