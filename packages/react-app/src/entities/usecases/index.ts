@@ -2,21 +2,27 @@ export {
   deleteUsecases,
   getAllUsecases,
   getUsecaseComponents,
+  getUsecasesFilteredBySubsystem,
+  getUsecasesWithFilter,
 } from './api/usecases-api';
 export type {
-  FilteredKV,
-  KeyValueInfo,
+  KeyValueInfo as KeyValue,
   RelatedEndPointLink,
+  SubsystemFilteredKv,
   UsecaseDto,
   UsecaseIdentifier,
 } from './model/usecase.dto';
 export {
-  createEmptyUsecaseCategories,
+  mapSubsystemResultsToCategories,
   mapUsecaseDtoToCategories,
 } from './model/usecase.mapper';
-export type {UsecaseCategory} from './model/usecase.types';
+export type {UsecaseCategory, UsecaseItem} from './model/usecase.types';
 export {
-  formatUsecaseDisplay,
   getSystemIdsFromFormattedUsecases,
-  getUsecaseIdentifiersFromFormattedUsecases,
+  getLeafItems,
 } from './model/usecase-utils';
+export {
+  formatAsKeysValues,
+  formatAsKeysValuesWithIds,
+  formatAsSearchKey,
+} from './lib/usecase-format';

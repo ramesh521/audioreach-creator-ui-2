@@ -223,6 +223,60 @@ describe('ConfigFileManager', () => {
     });
   });
 
+  describe('setUserPreference', () => {
+    const projectId = 'testProjectPrefs';
+    const initialConfigData = {
+      arcconfig: {userPreferences: DEFAULT_USER_PREFERENCES},
+    };
+
+    beforeEach(async () => {
+      mockLoadConfigData.mockResolvedValue({
+        data: JSON.stringify(initialConfigData),
+        status: true,
+      });
+      await configManager.initializeConfig();
+      // Ensure a ProjectConfigManager exists for the projectId
+      configManager.getProjectConfigData(projectId, 'userPreferences');
+    });
+
+    it('sets an allowlisted preference path', () => {
+      const result = configManager.setUserPreference(
+        projectId,
+        'visualization.showControlLinks',
+        false,
+      );
+
+      expect(result).toBe(true);
+      expect(
+        configManager.getUserPreferences(projectId).visualization
+          .showControlLinks,
+      ).toBe(false);
+    });
+
+    it('rejects a path that is not in the allowlist', () => {
+      const result = configManager.setUserPreference(
+        projectId,
+        'visualization.notARealPreference',
+        true,
+      );
+
+      expect(result).toBe(false);
+    });
+
+    it('rejects a __proto__ path segment', () => {
+      const result = configManager.setUserPreference(
+        projectId,
+        '__proto__.polluted',
+        true,
+      );
+
+      expect(result).toBe(false);
+      expect(
+        (Object.prototype as Record<string, unknown>).polluted,
+      ).toBeUndefined();
+    });
+  });
+
   describe('archieveProjectConfig', () => {
     const projectId = 'testProjectToClose';
     const initialConfigData = {arcconfig: {project: {name: 'projectConfig'}}};

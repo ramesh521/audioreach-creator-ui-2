@@ -3,29 +3,21 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-import {useCallback, useEffect, useState} from 'react';
+import {useCallback} from 'react';
 
-import {ConfigFileManager} from '../config-manager';
-import type {UserPreferences} from '../user-preferences-types';
+import {useProjectStoreShallow} from '~shared/store/project-store-context';
 
 /**
- * React hook for accessing and updating user preferences
- * Provides reactive access to project-specific user preferences
- *
- * @param projectId - The ID of the project to manage preferences for
- * @returns Object containing preferences and update functions
+ * React hook for accessing and updating user preferences.
+ * Reads from and writes to the project-level Zustand store so that all
+ * components sharing the same ProjectStoreContext see the same preferences
+ * and re-render when they change.
  */
-export function useUserPreferences(projectId: string) {
-  const [preferences, setPreferences] = useState<UserPreferences>(() =>
-    ConfigFileManager.instance.getUserPreferences(projectId),
+export function useUserPreferences() {
+  const userPreferences = useProjectStoreShallow((s) => s.userPreferences);
+  const storeUpdateUserPreference = useProjectStoreShallow(
+    (s) => s.updateUserPreference,
   );
-
-  // Refresh preferences when projectId changes
-  useEffect(() => {
-    const newPreferences =
-      ConfigFileManager.instance.getUserPreferences(projectId);
-    setPreferences(newPreferences);
-  }, [projectId]);
 
   /**
    * Updates a single preference value
@@ -33,23 +25,8 @@ export function useUserPreferences(projectId: string) {
    * @param value - The new value for the preference
    */
   const updatePreference = useCallback(
-    (path: string, value: any) => {
-      const success = ConfigFileManager.instance.setUserPreference(
-        projectId,
-        path,
-        value,
-      );
-
-      if (success) {
-        // Update local state to trigger re-render
-        const updatedPreferences =
-          ConfigFileManager.instance.getUserPreferences(projectId);
-        setPreferences(updatedPreferences);
-      }
-
-      return success;
-    },
-    [projectId],
+    (path: string, value: unknown) => storeUpdateUserPreference(path, value),
+    [storeUpdateUserPreference],
   );
 
   /**
@@ -58,13 +35,13 @@ export function useUserPreferences(projectId: string) {
    * @returns The current value of the preference
    */
   const getPreference = useCallback(
-    (path: string): any => {
+    (path: string): unknown => {
       const pathParts = path.split('.');
-      let value: any = preferences;
+      let value: unknown = userPreferences;
 
       for (const part of pathParts) {
         if (value && typeof value === 'object' && part in value) {
-          value = value[part];
+          value = (value as Record<string, unknown>)[part];
         } else {
           return undefined;
         }
@@ -72,12 +49,12 @@ export function useUserPreferences(projectId: string) {
 
       return value;
     },
-    [preferences],
+    [userPreferences],
   );
 
   return {
     getPreference,
-    preferences,
+    preferences: userPreferences,
     updatePreference,
   };
 }

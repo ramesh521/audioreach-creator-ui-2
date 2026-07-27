@@ -4,7 +4,7 @@
  */
 
 import type {ApiIssueItem} from '~entities/api-issues';
-import type {KeyValueInfo, RelatedEndPointLink} from '~entities/usecases';
+import type {KeyValue, RelatedEndPointLink} from '~entities/usecases';
 
 export interface SubgraphKvSelectionDto {
   systemId: string;
@@ -20,7 +20,7 @@ export interface CreateUsecasesRequestDto {
 
 export interface UsecaseIdentifierWithChangeInfoDto {
   changeId: string;
-  keyValueCollection: KeyValueInfo[];
+  keyValueCollection: KeyValue[];
   relatedEndPointLinks?: RelatedEndPointLink[];
   systemId: string;
   usecaseAliasId?: number;

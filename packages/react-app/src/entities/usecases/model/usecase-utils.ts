@@ -3,96 +3,39 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-import type {UsecaseIdentifier} from './usecase.dto';
-import type {UsecaseCategory} from './usecase.types';
+import type {UsecaseCategory, UsecaseItem} from './usecase.types';
 
 /**
- * Formats a usecase identifier into a display string
- * This matches the format used in UsecaseSelectionControl
- */
-export function formatUsecaseDisplay(usecase: UsecaseIdentifier): string {
-  return usecase.keyValueCollection
-    .map((kv) => kv.valueInfo.valueLabel)
-    .join(' • ');
-}
-
-/**
- * Extracts systemIds from formatted usecase strings by matching them
- * against the original usecase data
+ * Extracts systemIds from selected usecase names by matching them against
+ * the category data.
  *
- * @param formattedUsecases - Array of formatted usecase strings (e.g., ["Value1 • Value2"])
- * @param usecaseData - Original usecase category data containing UsecaseIdentifier objects
+ * @param selectedNames - Array of usecase display names (item.name values)
+ * @param usecaseData   - Category data containing UsecaseItem trees
  * @returns Array of systemIds corresponding to the selected usecases
  */
 export function getSystemIdsFromFormattedUsecases(
-  formattedUsecases: string[],
+  selectedNames: string[],
   usecaseData: UsecaseCategory[],
 ): string[] {
-  if (!formattedUsecases || formattedUsecases.length === 0) {
+  if (!selectedNames?.length || !usecaseData?.length) {
     return [];
   }
 
-  if (!usecaseData || usecaseData.length === 0) {
-    return [];
-  }
-
+  const allLeafItems = usecaseData.flatMap((cat) => getLeafItems(cat.items));
   const systemIds: string[] = [];
 
-  // Flatten all usecases from all categories
-  const allUsecases: UsecaseIdentifier[] = usecaseData.flatMap(
-    (category) => category.usecases,
-  );
-
-  // For each formatted string, find the matching usecase and extract systemId
-  for (const formattedUsecase of formattedUsecases) {
-    const matchingUsecase = allUsecases.find(
-      (usecase) => formatUsecaseDisplay(usecase) === formattedUsecase,
-    );
-
-    if (matchingUsecase && matchingUsecase.systemId) {
-      systemIds.push(matchingUsecase.systemId);
+  for (const name of selectedNames) {
+    const match = allLeafItems.find((item) => item.name === name);
+    if (match?.systemId) {
+      systemIds.push(match.systemId);
     }
   }
 
   return systemIds;
 }
 
-/**
- * Gets all UsecaseIdentifier objects from formatted usecase strings
- *
- * @param formattedUsecases - Array of formatted usecase strings
- * @param usecaseData - Original usecase category data
- * @returns Array of UsecaseIdentifier objects
- */
-export function getUsecaseIdentifiersFromFormattedUsecases(
-  formattedUsecases: string[],
-  usecaseData: UsecaseCategory[],
-): UsecaseIdentifier[] {
-  if (!formattedUsecases || formattedUsecases.length === 0) {
-    return [];
-  }
-
-  if (!usecaseData || usecaseData.length === 0) {
-    return [];
-  }
-
-  const usecaseIdentifiers: UsecaseIdentifier[] = [];
-
-  // Flatten all usecases from all categories
-  const allUsecases: UsecaseIdentifier[] = usecaseData.flatMap(
-    (category) => category.usecases,
+/** Returns only leaf items (items with no children) from a tree. */
+export const getLeafItems = (items: UsecaseItem[]): UsecaseItem[] =>
+  items.flatMap((item) =>
+    (item.children?.length ?? 0) > 0 ? getLeafItems(item.children!) : [item],
   );
-
-  // For each formatted string, find the matching usecase
-  for (const formattedUsecase of formattedUsecases) {
-    const matchingUsecase = allUsecases.find(
-      (usecase) => formatUsecaseDisplay(usecase) === formattedUsecase,
-    );
-
-    if (matchingUsecase) {
-      usecaseIdentifiers.push(matchingUsecase);
-    }
-  }
-
-  return usecaseIdentifiers;
-}

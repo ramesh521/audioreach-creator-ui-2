@@ -12,6 +12,7 @@ import {ConfigFileManager} from '~shared/config/config-manager';
 import {useUserPreferences} from '~shared/config/hooks';
 import {DEFAULT_USER_PREFERENCES} from '~shared/config/user-preferences-types';
 import {showToast} from '~shared/controls/global-toaster';
+import {createProjectStore, ProjectStoreContext} from '~shared/store';
 import {DisplayOptionsPopover} from '~widgets/graph-designer/ui/display-options-popover';
 
 jest.mock('~shared/lib/logger');
@@ -103,9 +104,16 @@ function seedProjectConfig() {
   });
 }
 
-function renderPopover(projectId: string) {
+/**
+ * Renders DisplayOptionsPopover wrapped in ProjectStoreContext.Provider.
+ * The project store is created after seedProjectConfig() so the
+ * UserPreferencesSlice picks up the seeded ConfigFileManager data.
+ * An inner Wrapper calls useUserPreferences() and passes the result down
+ * as props, mirroring how GraphDesigner renders the popover in production.
+ */
+function renderPopover(projectId: string = PROJECT_ID) {
   function Wrapper() {
-    const {preferences, updatePreference} = useUserPreferences(projectId);
+    const {preferences, updatePreference} = useUserPreferences();
     return (
       <DisplayOptionsPopover
         preferences={preferences}
@@ -114,7 +122,12 @@ function renderPopover(projectId: string) {
       />
     );
   }
-  return render(<Wrapper />);
+  const store = createProjectStore(projectId);
+  return render(
+    <ProjectStoreContext.Provider value={store}>
+      <Wrapper />
+    </ProjectStoreContext.Provider>,
+  );
 }
 
 describe('DisplayOptionsPopover', () => {

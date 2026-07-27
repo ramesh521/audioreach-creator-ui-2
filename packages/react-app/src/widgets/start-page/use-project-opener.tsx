@@ -140,14 +140,16 @@ export function useProjectOpener({
           name === 'Graph Designer'
         ) {
           return (
-            <GraphDesignerStoreContext.Provider value={tabStore}>
-              <GraphDesigner
-                projectGroupId={project.id}
-                screenshotRegistry={screenshotRegistry}
-                tabId={mainTab.id}
-                usecaseData={usecaseData}
-              />
-            </GraphDesignerStoreContext.Provider>
+            <ProjectStoreContext.Provider value={projectStore}>
+              <GraphDesignerStoreContext.Provider value={tabStore}>
+                <GraphDesigner
+                  projectId={project.id}
+                  screenshotRegistry={screenshotRegistry}
+                  tabId={mainTab.id}
+                  usecaseData={usecaseData}
+                />
+              </GraphDesignerStoreContext.Provider>
+            </ProjectStoreContext.Provider>
           );
         }
         if (component === 'module-list' || name === 'Module List') {

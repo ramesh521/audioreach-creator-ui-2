@@ -2,12 +2,15 @@
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  * SPDX-License-Identifier: BSD-3-Clause
  */
+import {memo, useEffect, useMemo, useState} from 'react';
 
 import {
   ChevronDown,
   ChevronRight,
-  PanelTopClose,
-  PanelTopOpen,
+  ChevronsDown,
+  ChevronsUp,
+  Loader2,
+  SearchX,
   Settings,
   Trash2,
 } from 'lucide-react';
@@ -15,34 +18,311 @@ import {
 import {Button, IconButton} from '@qualcomm-ui/react/button';
 import {Checkbox} from '@qualcomm-ui/react/checkbox';
 import {Dialog} from '@qualcomm-ui/react/dialog';
+import {Menu} from '@qualcomm-ui/react/menu';
+import {Tooltip} from '@qualcomm-ui/react/tooltip';
+import {Portal} from '@qualcomm-ui/react-core/portal';
 
-import type {KeyValue, Usecase, UsecaseCategory} from '../model/types';
+import {
+  formatAsKeysValues,
+  formatAsKeysValuesWithIds,
+  formatAsSearchKey,
+  getLeafItems,
+  type UsecaseCategory,
+  type UsecaseItem,
+} from '~entities/usecases';
+import {logger} from '~shared/lib/logger';
+
+const copyToClipboard = (text: string): void => {
+  navigator.clipboard
+    .writeText(text)
+    .then(() => {
+      logger.info(`Copied ${text} to clipboard`, {
+        action: 'copy_to_clipboard',
+        component: 'UsecaseListPanel',
+      });
+    })
+    .catch((error: unknown) => {
+      logger.error('Failed to copy to clipboard', {
+        action: 'copy_to_clipboard',
+        component: 'UsecaseListPanel',
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+};
+
+/** Derives checkbox `checked`/`indeterminate` state from a matched/total count. */
+const getCheckboxState = (
+  matched: number,
+  total: number,
+): {checked: boolean; indeterminate: boolean} => ({
+  checked: matched === total && total > 0,
+  indeterminate: matched > 0 && matched < total,
+});
+
+// ── UsecaseItemRow ────────────────────────────────────────────────────────────
+// Renders a single item in the usecase tree — either a group header (with
+// children) or a leaf usecase row. Wrapped with React.memo so only the row
+// whose props changed re-renders when the selection or expansion state updates.
+
+interface UsecaseItemRowProps {
+  expandedItems: Set<string>;
+  handleSelectCategory: (itemNames: string[], isSelected: boolean) => void;
+  handleSelectUsecase: (itemName: string, isSelected: boolean) => void;
+  item: UsecaseItem;
+  selectedUsecasesSet: Set<string>;
+  setContextMenuItem: React.Dispatch<
+    React.SetStateAction<{item: UsecaseItem; x: number; y: number} | null>
+  >;
+  setExpandedItems: React.Dispatch<React.SetStateAction<Set<string>>>;
+  setHoveredItem: React.Dispatch<
+    React.SetStateAction<{anchorRect: DOMRect; item: UsecaseItem} | null>
+  >;
+}
+
+const UsecaseItemRow = memo<UsecaseItemRowProps>(
+  ({
+    expandedItems,
+    handleSelectCategory,
+    handleSelectUsecase,
+    item,
+    selectedUsecasesSet,
+    setContextMenuItem,
+    setExpandedItems,
+    setHoveredItem,
+  }) => {
+    const hasChildren = (item.children?.length ?? 0) > 0;
+
+    if (hasChildren) {
+      const isExpanded = expandedItems.has(item.name);
+      const leafDescendants = getLeafItems([item]);
+      const checkedCount = leafDescendants.filter((i) =>
+        selectedUsecasesSet.has(i.name),
+      ).length;
+      const checkboxState = getCheckboxState(
+        checkedCount,
+        leafDescendants.length,
+      );
+
+      return (
+        /* systemId is present for leaf usecases; group headers like subsystem filtered, use name as fallback key */
+        <div>
+          <div className="mb-1 flex items-center">
+            <IconButton
+              aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${item.name}`}
+              emphasis="neutral"
+              icon={isExpanded ? ChevronDown : ChevronRight}
+              onClick={() => {
+                setExpandedItems((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(item.name)) {
+                    next.delete(item.name);
+                  } else {
+                    next.add(item.name);
+                  }
+                  return next;
+                });
+              }}
+              size="sm"
+              variant="ghost"
+            />
+            <label
+              className="flex cursor-pointer items-center text-sm font-medium"
+              style={{color: 'var(--color-text-neutral-secondary)'}}
+            >
+              <Checkbox
+                aria-label={`Select all in ${item.name}`}
+                checked={checkboxState.checked}
+                indeterminate={checkboxState.indeterminate}
+                onCheckedChange={(checked) => {
+                  const names = leafDescendants.map((i) => i.name);
+                  handleSelectCategory(names, checked === true);
+                }}
+                size="sm"
+              />
+              <span className="ml-2">{item.name}</span>
+            </label>
+          </div>
+          {isExpanded && (
+            <div
+              className="ml-8 pl-2"
+              style={{borderLeft: '1px solid var(--color-border-neutral-02)'}}
+            >
+              {item.children!.map((child) => (
+                <UsecaseItemRow
+                  key={child.systemId ?? child.name}
+                  expandedItems={expandedItems}
+                  handleSelectCategory={handleSelectCategory}
+                  handleSelectUsecase={handleSelectUsecase}
+                  item={child}
+                  selectedUsecasesSet={selectedUsecasesSet}
+                  setContextMenuItem={setContextMenuItem}
+                  setExpandedItems={setExpandedItems}
+                  setHoveredItem={setHoveredItem}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ── Leaf item ──────────────────────────────────────────────────────────────
+    // Leaf usecases always have a systemId from the API.
+    // The fallback to item.name is a safety net (should never be needed here).
+    return (
+      <div
+        className="mb-2 last:mb-0"
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setContextMenuItem({item, x: e.clientX, y: e.clientY});
+        }}
+        onMouseEnter={(e) => {
+          setHoveredItem({
+            anchorRect: (
+              e.currentTarget as HTMLElement
+            ).getBoundingClientRect(),
+            item,
+          });
+        }}
+        onMouseLeave={() => setHoveredItem(null)}
+      >
+        <label
+          className="flex cursor-pointer items-center text-sm"
+          style={{color: 'var(--color-text-neutral-primary)'}}
+        >
+          <Checkbox
+            aria-label={`Select ${item.name}`}
+            checked={selectedUsecasesSet.has(item.name)}
+            onCheckedChange={(checked) =>
+              handleSelectUsecase(item.name, checked === true)
+            }
+            size="sm"
+          />
+          <span className="ml-2">{item.name}</span>
+        </label>
+      </div>
+    );
+  },
+);
+
+UsecaseItemRow.displayName = 'UsecaseItemRow';
+
+// ── UsecaseListPanel ──────────────────────────────────────────────────────────
 
 interface UsecaseListPanelProps {
+  /** When false, the delete button is hidden regardless of selection. Defaults to true. */
+  allowDelete?: boolean;
   expandedCategories: string[];
-  formatUsecaseDisplay: (usecase: Usecase) => string;
   handleSelectAll: (isSelected: boolean) => void;
-  handleSelectUsecase: (formattedUsecase: string, isSelected: boolean) => void;
-  isUsecaseChecked: (usecase: Usecase) => boolean;
+  handleSelectCategory: (itemNames: string[], isSelected: boolean) => void;
+  handleSelectUsecase: (itemName: string, isSelected: boolean) => void;
+  /**
+   * When true, a loading spinner is shown instead of the usecase list.
+   * Set while a backend search request is in flight.
+   */
+  isSearching?: boolean;
   onClose: () => void;
+  onCollapseAll: () => void;
   onDeleteSelected: () => void;
+  onExpandAll: () => void;
   selectedUsecases: string[];
   toggleCategoryExpansion: (categoryName: string) => void;
   usecaseData: UsecaseCategory[];
 }
 
-const UsecaseListPanel: React.FC<UsecaseListPanelProps> = ({
+export const UsecaseListPanel: React.FC<UsecaseListPanelProps> = ({
+  allowDelete = true,
   expandedCategories,
-  formatUsecaseDisplay,
   handleSelectAll,
+  handleSelectCategory,
   handleSelectUsecase,
-  isUsecaseChecked,
+  isSearching = false,
   onClose,
+  onCollapseAll,
   onDeleteSelected,
+  onExpandAll,
   selectedUsecases,
   toggleCategoryExpansion,
   usecaseData,
 }) => {
+  const [contextMenuItem, setContextMenuItem] = useState<{
+    item: UsecaseItem;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const [hoveredItem, setHoveredItem] = useState<{
+    anchorRect: DOMRect;
+    item: UsecaseItem;
+  } | null>(null);
+
+  // Seeded from item.expanded on first render.
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(() => {
+    const initial = new Set<string>();
+    const seed = (items: UsecaseItem[]) => {
+      items.forEach((item) => {
+        if (item.expanded && item.children?.length) {
+          initial.add(item.name);
+        }
+        if (item.children?.length) {
+          seed(item.children);
+        }
+      });
+    };
+    usecaseData.forEach((cat) => seed(cat.items));
+    return initial;
+  });
+
+  // When usecaseData changes (e.g. search or workflow switch), merge
+  // any newly-arriving group items that have expanded: true into expandedItems.
+  // The mount-time seed only runs once, so new groups would otherwise render
+  // collapsed until the dropdown is closed and reopened.
+  useEffect(() => {
+    const newlyExpanded: string[] = [];
+    const collect = (items: UsecaseItem[]) => {
+      items.forEach((item) => {
+        if (item.expanded && item.children?.length) {
+          newlyExpanded.push(item.name);
+        }
+        if (item.children?.length) {
+          collect(item.children);
+        }
+      });
+    };
+    usecaseData.forEach((cat) => collect(cat.items));
+
+    if (newlyExpanded.length > 0) {
+      setExpandedItems((prev) => {
+        const hasNew = newlyExpanded.some((name) => !prev.has(name));
+        if (!hasNew) {
+          return prev;
+        } // avoid unnecessary re-render
+        const next = new Set(prev);
+        newlyExpanded.forEach((name) => next.add(name));
+        return next;
+      });
+    }
+  }, [usecaseData]);
+
+  const selectedUsecasesSet = useMemo(
+    () => new Set(selectedUsecases),
+    [selectedUsecases],
+  );
+
+  const selectAllState = useMemo(() => {
+    const uniqueVisibleLeafNames = [
+      ...new Set(
+        usecaseData.flatMap((cat) =>
+          getLeafItems(cat.items).map((item) => item.name),
+        ),
+      ),
+    ];
+    const checkedVisibleCount = uniqueVisibleLeafNames.filter((name) =>
+      selectedUsecasesSet.has(name),
+    ).length;
+    return getCheckboxState(checkedVisibleCount, uniqueVisibleLeafNames.length);
+  }, [usecaseData, selectedUsecasesSet]);
+
   return (
     <div className="flex w-full flex-col">
       {/* Top controls - Sticky header */}
@@ -57,11 +337,8 @@ const UsecaseListPanel: React.FC<UsecaseListPanelProps> = ({
           >
             <Checkbox
               aria-label="Select all usecases"
-              checked={
-                selectedUsecases.length ===
-                  usecaseData.flatMap((cat) => cat.usecases).length &&
-                usecaseData.flatMap((cat) => cat.usecases).length > 0
-              }
+              checked={selectAllState.checked}
+              indeterminate={selectAllState.indeterminate}
               onCheckedChange={(checked) => handleSelectAll(checked === true)}
               size="sm"
             />
@@ -71,7 +348,8 @@ const UsecaseListPanel: React.FC<UsecaseListPanelProps> = ({
             <IconButton
               aria-label="Expand All"
               emphasis="neutral"
-              icon={PanelTopOpen}
+              icon={ChevronsDown}
+              onClick={onExpandAll}
               size="md"
               title="Expand All"
               variant="ghost"
@@ -79,12 +357,13 @@ const UsecaseListPanel: React.FC<UsecaseListPanelProps> = ({
             <IconButton
               aria-label="Collapse All"
               emphasis="neutral"
-              icon={PanelTopClose}
+              icon={ChevronsUp}
+              onClick={onCollapseAll}
               size="md"
               title="Collapse All"
               variant="ghost"
             />
-            {selectedUsecases.length > 0 && (
+            {allowDelete && selectedUsecases.length > 0 && (
               <Dialog.Root emphasis="danger" preventScroll={false}>
                 <Dialog.Trigger>
                   <IconButton
@@ -142,116 +421,182 @@ const UsecaseListPanel: React.FC<UsecaseListPanelProps> = ({
 
       {/* Usecase Categories - Scrollable content */}
       <div className="flex-grow overflow-y-auto px-3 py-2">
-        {usecaseData.map((category) => {
-          const isCategoryExpanded = expandedCategories.includes(category.name);
-          const checkedUsecasesInCategory = category.usecases.filter(
-            (uc: Usecase) => isUsecaseChecked(uc),
-          ).length;
-          const totalUsecasesInCategory = category.usecases.length;
-          const allChecked =
-            checkedUsecasesInCategory === totalUsecasesInCategory;
-          const someChecked =
-            checkedUsecasesInCategory > 0 &&
-            checkedUsecasesInCategory < totalUsecasesInCategory;
-          const icon = isCategoryExpanded ? ChevronDown : ChevronRight;
-          return (
-            <div key={category.name} className="mb-3 last:mb-0">
-              <div className="mb-1 flex items-center">
-                <IconButton
-                  aria-label={`${isCategoryExpanded ? 'Collapse' : 'Expand'} ${category.name}`}
-                  emphasis="neutral"
-                  icon={icon}
-                  onClick={() => toggleCategoryExpansion(category.name)}
-                  size="sm"
-                  variant="ghost"
-                />
-                <label
-                  className="flex cursor-pointer items-center text-sm font-semibold"
-                  style={{color: 'var(--color-text-neutral-primary)'}}
-                >
-                  <Checkbox
-                    aria-label={`Select all usecases in ${category.name}`}
-                    checked={allChecked}
-                    indeterminate={someChecked}
-                    onCheckedChange={(checked) => {
-                      category.usecases.forEach((uc: Usecase) =>
-                        handleSelectUsecase(
-                          formatUsecaseDisplay(uc),
-                          checked === true,
-                        ),
-                      );
-                    }}
+        {isSearching ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <Loader2
+              className="mb-3 animate-spin opacity-60"
+              size={28}
+              style={{color: 'var(--color-text-neutral-secondary)'}}
+            />
+            <p
+              className="text-sm"
+              style={{color: 'var(--color-text-neutral-secondary)'}}
+            >
+              Searching...
+            </p>
+          </div>
+        ) : usecaseData.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <SearchX
+              className="mb-3 opacity-40"
+              size={32}
+              style={{color: 'var(--color-text-neutral-secondary)'}}
+            />
+            <p
+              className="text-sm font-medium"
+              style={{color: 'var(--color-text-neutral-primary)'}}
+            >
+              No usecases match
+            </p>
+          </div>
+        ) : (
+          usecaseData.map((category) => {
+            const isCategoryExpanded = expandedCategories.includes(
+              category.name,
+            );
+
+            // Leaf items for category-level checkbox state
+            const categoryLeafItems = getLeafItems(category.items);
+            const checkedInCategory = categoryLeafItems.filter((item) =>
+              selectedUsecasesSet.has(item.name),
+            ).length;
+            const categoryCheckboxState = getCheckboxState(
+              checkedInCategory,
+              categoryLeafItems.length,
+            );
+            const icon = isCategoryExpanded ? ChevronDown : ChevronRight;
+
+            return (
+              <div key={category.name} className="mb-3 last:mb-0">
+                {/* Category header */}
+                <div className="mb-1 flex items-center">
+                  <IconButton
+                    aria-label={`${isCategoryExpanded ? 'Collapse' : 'Expand'} ${category.name}`}
+                    emphasis="neutral"
+                    icon={icon}
+                    onClick={() => toggleCategoryExpansion(category.name)}
                     size="sm"
+                    variant="ghost"
                   />
-                  <span className="ml-2">{category.name}</span>
-                </label>
-              </div>
-              {isCategoryExpanded && (
-                <div
-                  className="ml-6 pl-3"
-                  style={{
-                    borderLeft: '1px solid var(--color-border-neutral-02)',
-                  }}
-                >
-                  {category.usecases.map(
-                    (usecase: Usecase, usecaseIndex: number) => {
-                      const formattedUsecase = formatUsecaseDisplay(usecase);
-                      return (
-                        <div key={usecaseIndex} className="mb-2 last:mb-0">
-                          <label
-                            className="flex cursor-pointer items-center text-sm"
-                            style={{color: 'var(--color-text-neutral-primary)'}}
-                          >
-                            <Checkbox
-                              aria-label={`Select ${formattedUsecase}`}
-                              checked={selectedUsecases.includes(
-                                formattedUsecase,
-                              )}
-                              onCheckedChange={(checked) =>
-                                handleSelectUsecase(
-                                  formattedUsecase,
-                                  checked === true,
-                                )
-                              }
-                              size="sm"
-                            />
-                            <span className="ml-2">{formattedUsecase}</span>
-                          </label>
-                          <div
-                            className="ml-6 mt-0.5 space-y-0.5 text-xs"
-                            style={{
-                              color: 'var(--color-text-neutral-secondary)',
-                            }}
-                          >
-                            {usecase.keyValueCollection.map(
-                              (kv: KeyValue, kvIndex: number) => (
-                                <div key={kvIndex}>
-                                  <span
-                                    className="font-medium"
-                                    style={{
-                                      color:
-                                        'var(--color-text-neutral-primary)',
-                                    }}
-                                  >
-                                    {kv.keyInfo.keyLabel}:
-                                  </span>{' '}
-                                  {kv.valueInfo.valueLabel}
-                                </div>
-                              ),
-                            )}
-                          </div>
-                        </div>
-                      );
-                    },
-                  )}
+                  <label
+                    className="flex cursor-pointer items-center text-sm font-semibold"
+                    style={{color: 'var(--color-text-neutral-primary)'}}
+                  >
+                    <Checkbox
+                      aria-label={`Select all usecases in ${category.name}`}
+                      checked={categoryCheckboxState.checked}
+                      indeterminate={categoryCheckboxState.indeterminate}
+                      onCheckedChange={(checked) => {
+                        const names = categoryLeafItems.map(
+                          (item) => item.name,
+                        );
+                        handleSelectCategory(names, checked === true);
+                      }}
+                      size="sm"
+                    />
+                    <span className="ml-2">{category.name}</span>
+                  </label>
                 </div>
-              )}
-            </div>
-          );
-        })}
+
+                {/* Category items — rendered recursively */}
+                {isCategoryExpanded && (
+                  <div
+                    className="ml-10 pl-3"
+                    style={{
+                      borderLeft: '1px solid var(--color-border-neutral-02)',
+                    }}
+                  >
+                    {category.items.map((item) => (
+                      <UsecaseItemRow
+                        key={item.systemId ?? item.name}
+                        expandedItems={expandedItems}
+                        handleSelectCategory={handleSelectCategory}
+                        handleSelectUsecase={handleSelectUsecase}
+                        item={item}
+                        selectedUsecasesSet={selectedUsecasesSet}
+                        setContextMenuItem={setContextMenuItem}
+                        setExpandedItems={setExpandedItems}
+                        setHoveredItem={setHoveredItem}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
+
+      {/* Single tooltip — shown on leaf item hover */}
+      {hoveredItem && (
+        <Tooltip
+          hideArrow
+          open
+          positioning={{
+            getAnchorRect: () => hoveredItem.anchorRect,
+            placement: 'bottom-start',
+          }}
+          trigger={<span style={{display: 'none'}} />}
+        >
+          {formatAsKeysValues(hoveredItem.item)}
+        </Tooltip>
+      )}
+
+      {/* Single context menu — shared across all item rows */}
+      {contextMenuItem && (
+        <Portal>
+          <Menu.Root
+            onOpenChange={(open) => {
+              if (!open) {
+                setContextMenuItem(null);
+              }
+            }}
+            open
+            positioning={{
+              getAnchorRect: () => ({
+                x: contextMenuItem.x,
+                y: contextMenuItem.y,
+              }),
+              gutter: 0,
+              placement: 'bottom-start',
+            }}
+          >
+            <Menu.Positioner>
+              <Menu.Content>
+                <Menu.Item
+                  onClick={() => {
+                    copyToClipboard(formatAsSearchKey(contextMenuItem.item));
+                    setContextMenuItem(null);
+                  }}
+                  value="copy-search-key"
+                >
+                  Copy as Search Key
+                </Menu.Item>
+                <Menu.Item
+                  onClick={() => {
+                    copyToClipboard(formatAsKeysValues(contextMenuItem.item));
+                    setContextMenuItem(null);
+                  }}
+                  value="copy-keys-values"
+                >
+                  Copy as Usecase Keys/Values
+                </Menu.Item>
+                <Menu.Item
+                  onClick={() => {
+                    copyToClipboard(
+                      formatAsKeysValuesWithIds(contextMenuItem.item),
+                    );
+                    setContextMenuItem(null);
+                  }}
+                  value="copy-keys-values-ids"
+                >
+                  Copy as Usecase Keys/Values and IDs
+                </Menu.Item>
+              </Menu.Content>
+            </Menu.Positioner>
+          </Menu.Root>
+        </Portal>
+      )}
     </div>
   );
 };
-
-export default UsecaseListPanel;

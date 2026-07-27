@@ -6,7 +6,10 @@
 import {type ApiResult, httpClient} from '~shared/api';
 
 import type {ComponentCollectionDto} from '../model/usecase-component.dto';
-import type {UsecaseDto} from '../model/usecase.dto';
+import type {
+  SubsystemFilteredUsecasesDto,
+  UsecaseDto,
+} from '../model/usecase.dto';
 
 /**
  * Fetch all usecases for a specific project.
@@ -48,5 +51,39 @@ export async function getUsecaseComponents(
   return httpClient.post<ComponentCollectionDto>(
     `/projects/${projectId}/usecases/components/query`,
     {systemIds},
+  );
+}
+
+/**
+ * Search usecases using a structured filter expression.
+ * Called when the user types in the search box inside UsecaseSelectionControl.
+ * @param projectId - The unique identifier of the project
+ * @param filter    - Transformed filter string built by buildUsecaseApiFilter()
+ *                    e.g. "subgraphId:42 AND containerId:10"
+ * @returns Filtered array of UsecaseDto matching the filter
+ */
+export async function getUsecasesWithFilter(
+  projectId: string,
+  filter: string,
+): Promise<ApiResult<UsecaseDto[]>> {
+  const params = new URLSearchParams({filter});
+  return httpClient.get<UsecaseDto[]>(
+    `/projects/${projectId}/usecases?${params.toString()}`,
+  );
+}
+
+/**
+ * Fetch usecases grouped by subsystem.
+ * Used for Usecase Workflow → Subsystem Level and System Workflow.
+ * Each entry in the response represents one subsystem group with its
+ * identifying key-value info and the usecases that belong to it.
+ * @param projectId - The unique identifier of the project
+ * @returns Array of subsystem filtered results
+ */
+export async function getUsecasesFilteredBySubsystem(
+  projectId: string,
+): Promise<ApiResult<SubsystemFilteredUsecasesDto[]>> {
+  return httpClient.get<SubsystemFilteredUsecasesDto[]>(
+    `/projects/${projectId}/usecases/filtered-by-subsystem`,
   );
 }

@@ -160,17 +160,6 @@ export interface KeyValueInfo {
   valueInfo: ValueInfo;
 }
 
-export interface UsecaseIdentifierDto {
-  changeInfo: ChangeInfoDto;
-  keyValueCollection: KeyValueInfo[];
-  relatedEndPointLinks?: EndPointLink[];
-  systemId: string;
-  usecaseAliasId?: number;
-  usecaseAliasName?: string;
-  usecaseCategory?: string;
-  usecaseType: 'Ec' | 'Regular' | 'Manual';
-}
-
 export interface ComponentCollectionDto {
   controlLinks: ControlLinkDto[];
   dataLinks: DataLinkDto[];

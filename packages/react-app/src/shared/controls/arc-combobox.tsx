@@ -35,6 +35,8 @@ export interface ArcComboboxProps<T = string> {
   multiple?: boolean;
   /** Change handler - called when selection changes */
   onChange?: (value: T | T[]) => void;
+  /** open the combobox when clicks on the input */
+  openOnClick?: boolean;
   /** Array of options to display */
   options?: T[];
   /** Placeholder text */
@@ -64,6 +66,7 @@ export const ArcCombobox = <T extends string = string>(
     minWidth,
     multiple = false,
     onChange,
+    openOnClick = false,
     options = [],
     placeholder,
     required = false,
@@ -126,6 +129,7 @@ export const ArcCombobox = <T extends string = string>(
         invalid={isInvalid}
         multiple={multiple}
         onValueChange={handleValueChange}
+        openOnClick={openOnClick}
         positioning={{sameWidth: true}}
         value={normalizedValue}
       >

@@ -3,48 +3,82 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-import type {UsecaseDto} from './usecase.dto';
-import type {UsecaseCategory} from './usecase.types';
+import {formatUsecaseDisplay} from '../lib/usecase-format';
+
+import type {
+  SubsystemFilteredUsecasesDto,
+  UsecaseDto,
+  UsecaseIdentifier,
+} from './usecase.dto';
+import type {UsecaseCategory, UsecaseItem} from './usecase.types';
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Converts a UsecaseIdentifier (full DTO) to a lean UsecaseItem for the UI. */
+function usecaseIdentifierToItem(uc: UsecaseIdentifier): UsecaseItem {
+  return {
+    expanded: false,
+    keyValueCollection: uc.keyValueCollection,
+    name: formatUsecaseDisplay(uc),
+    systemId: uc.systemId,
+  };
+}
+
+// ── Mappers ───────────────────────────────────────────────────────────────────
 
 /**
- * Maps backend UsecaseDto array to UI UsecaseCategory format
- * Following FSD principles: entity layer handles data transformation
- * @param usecases - Array of UsecaseDto from the API
+ * Maps backend UsecaseDto array to UI UsecaseCategory format.
+ * Each unique usecaseCategory value becomes one UsecaseCategory.
+ * Usecases without a category are grouped under "Default".
  */
 export function mapUsecaseDtoToCategories(
   usecases: UsecaseDto[],
 ): UsecaseCategory[] {
-  const categories: UsecaseCategory[] = [];
-
-  // Group usecases by category
   const categoryMap = new Map<string, UsecaseDto[]>();
 
   usecases.forEach((usecase) => {
-    // Determine category based on usecase type or alias
-    const categoryName = usecase.usecaseAliasName
-      ? 'Recently Selected'
-      : 'Default';
-
+    const categoryName = usecase.usecaseCategory || 'Default';
     if (!categoryMap.has(categoryName)) {
       categoryMap.set(categoryName, []);
     }
     categoryMap.get(categoryName)!.push(usecase);
   });
 
-  // Convert map to array of categories
+  const categories: UsecaseCategory[] = [];
   categoryMap.forEach((usecases, categoryName) => {
     categories.push({
-      expanded: categoryName === 'Recently Selected', // Auto-expand recently selected
+      expanded: false,
+      items: usecases.map(usecaseIdentifierToItem),
       name: categoryName,
-      usecases,
     });
   });
   return categories;
 }
 
 /**
- * Creates empty usecase categories for initial state
+ * Maps subsystem filtered results to a single UsecaseCategory named
+ * "Subsystem Filtered Usecases".
+ *
+ * Each SubsystemFilteredUsecasesDto becomes a UsecaseItem (subsystem group)
+ * whose name is derived from filteredKv, whose children are the usecases
+ * belonging to that subsystem.
  */
-export function createEmptyUsecaseCategories(): UsecaseCategory[] {
-  return [];
+export function mapSubsystemResultsToCategories(
+  results: SubsystemFilteredUsecasesDto[],
+): UsecaseCategory[] {
+  const groupItems: UsecaseItem[] = results.map((result) => ({
+    children: result.usecases.map(usecaseIdentifierToItem),
+    expanded: true,
+    keyValueCollection: result.filteredKv.keyValueCollection,
+    // No systemId for group headers yet
+    name: formatUsecaseDisplay(result.filteredKv),
+  }));
+
+  return [
+    {
+      expanded: true,
+      items: groupItems,
+      name: 'Subsystem Filtered Usecases',
+    },
+  ];
 }

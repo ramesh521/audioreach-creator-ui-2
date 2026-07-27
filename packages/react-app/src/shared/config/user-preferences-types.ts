@@ -26,14 +26,35 @@ export interface DisplayPreferences {
   portVisibilityMode: 'all' | 'active';
 }
 
+// ── Workflow constants ────────────────────────────────────────────────────────
+
+/** Workflow type values — use instead of raw string literals. */
+export const WORKFLOW_TYPES = {
+  SYSTEM: 'system-workflow',
+  USECASE: 'usecase-workflow',
+} as const;
+
+/** Workflow level values — use instead of raw string literals. */
+export const WORKFLOW_LEVELS = {
+  SUBSYSTEM: 'subsystem-level',
+  USECASE: 'usecase-level',
+} as const;
+
+/** Derived type from WORKFLOW_TYPES constant values. */
+export type WorkflowType = (typeof WORKFLOW_TYPES)[keyof typeof WORKFLOW_TYPES];
+
+/** Derived type from WORKFLOW_LEVELS constant values. */
+export type WorkflowLevel =
+  (typeof WORKFLOW_LEVELS)[keyof typeof WORKFLOW_LEVELS];
+
 /**
  * User preferences for usecase settings
  */
 export interface UsecasePreferences {
   namePreference: 'alias' | 'keyvalues' | 'values';
   selectedUsecases: string[];
-  workflowLevel: 'subsystem-level' | 'usecase-level';
-  workflowType: 'usecase-workflow' | 'system-workflow';
+  workflowLevel: WorkflowLevel;
+  workflowType: WorkflowType;
 }
 
 /**
@@ -74,8 +95,8 @@ export const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferences = {
 export const DEFAULT_USECASE_PREFERENCES: UsecasePreferences = {
   namePreference: 'alias',
   selectedUsecases: [],
-  workflowLevel: 'usecase-level',
-  workflowType: 'usecase-workflow',
+  workflowLevel: WORKFLOW_LEVELS.USECASE,
+  workflowType: WORKFLOW_TYPES.USECASE,
 };
 
 /**

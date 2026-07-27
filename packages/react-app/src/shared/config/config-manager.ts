@@ -18,6 +18,29 @@ import {
   setConfigData,
 } from './utils';
 
+/**
+ * Dot-notation paths that setUserPreference() is allowed to write. Add a new
+ * entry here whenever a preference control is added to DisplayOptionsPopover
+ * (or any other settings UI) — anything not listed here is rejected, since
+ * this path ultimately drives a dynamic property write in setConfigData().
+ */
+const USER_PREFERENCE_PATHS = new Set([
+  'display.portVisibilityMode',
+  'usecases.namePreference',
+  'usecases.workflowLevel',
+  'usecases.workflowType',
+  'visualization.expandSubgraphs',
+  'visualization.highlightPPModules',
+  'visualization.showContainerIds',
+  'visualization.showControlLinks',
+  'visualization.showDanglingLinks',
+  'visualization.showMdfModules',
+  'visualization.showModuleInstanceIds',
+  'visualization.showSubgraphIds',
+  'visualization.simplifySubsystems',
+  'visualization.viewMode',
+]);
+
 export class ConfigFileManager {
   private static _instance: ConfigFileManager;
   private configDataMap: JSONDataMap;
@@ -346,6 +369,16 @@ export class ConfigFileManager {
    * @returns `true` if the preference was successfully set, `false` otherwise.
    */
   setUserPreference(projectId: string, path: string, value: any): boolean {
+    if (!USER_PREFERENCE_PATHS.has(path)) {
+      logger.warn('Rejected write to non-allowlisted preference path', {
+        action: 'set_user_preference',
+        component: 'ConfigFileManager',
+        error: `path: ${path}`,
+        projectId,
+      });
+      return false;
+    }
+
     const projectConfig = this.projectConfigMap.get(projectId);
     if (!projectConfig) {
       logger.verbose('No configuration data exists for project', {

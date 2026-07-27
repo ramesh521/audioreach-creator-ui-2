@@ -6,7 +6,7 @@
 import type {StoreApi} from 'zustand';
 
 import type {SubgraphPairDto} from '~entities/subgraph-definitions/model/subgraph-definition.dto';
-import type {KeyValueInfo} from '~entities/usecases';
+import type {KeyValue} from '~entities/usecases';
 import {logger} from '~shared/lib/logger';
 import {projectStoreRegistry} from '~shared/store/project-store-registry';
 
@@ -24,7 +24,7 @@ export type SubgraphProvenance =
  *  combination offered as a unit, not an individually toggleable pair
  */
 export interface KvSelection {
-  keyValuePairs: KeyValueInfo[];
+  keyValuePairs: KeyValue[];
   selected: boolean;
   systemId: string;
 }

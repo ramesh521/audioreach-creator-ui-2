@@ -11,12 +11,14 @@ import {createExclusiveLockSlice} from './project-store-slices/exclusive-lock-sl
 import {createLogsSlice} from './project-store-slices/logs-slice';
 import {createProjectMetaDataSlice} from './project-store-slices/project-metadata-slice';
 import {createTabsSlice} from './project-store-slices/tabs-slice';
+import {createUserPreferencesSlice} from './project-store-slices/user-preferences-slice';
 import type {
   ExclusiveLockSlice,
   LogsSlice,
   ProjectMetaDataSlice,
   ProjectStore,
   TabsSlice,
+  UserPreferencesSlice,
 } from './project-store.types';
 
 export type {ProjectStore};
@@ -45,6 +47,11 @@ export function createProjectStore(projectId: string): StoreApi<ProjectStore> {
     ...createLogsSlice(
       (partial) => set(partial as Partial<ProjectStore>),
       () => get() as LogsSlice,
+    ),
+    ...createUserPreferencesSlice(
+      (partial) => set(partial as Partial<ProjectStore>),
+      () => get() as UserPreferencesSlice,
+      projectId,
     ),
     ...createExclusiveLockSlice(
       (partial) => set(partial as Partial<ProjectStore>),

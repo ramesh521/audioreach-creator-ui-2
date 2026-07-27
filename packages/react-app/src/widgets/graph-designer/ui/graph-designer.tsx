@@ -29,7 +29,10 @@ import {
 } from 'lucide-react';
 
 import {type LevelView, NODE_KIND, type NodeKind} from '~entities/graph';
-import {getSystemIdsFromFormattedUsecases} from '~entities/usecases';
+import {
+  getSystemIdsFromFormattedUsecases,
+  type UsecaseCategory,
+} from '~entities/usecases';
 import {
   GraphDesignerStoreContext,
   useGraphDesignerStore,
@@ -37,8 +40,8 @@ import {
 } from '~features/graph-designer';
 import {SearchComponent} from '~features/search-component';
 import {
-  type UsecaseCategory,
   UsecaseSelectionControl,
+  useWorkflowUsecaseData,
 } from '~features/usecase-selection';
 import {
   type SearchHighlights,
@@ -47,6 +50,7 @@ import {
   type XY,
 } from '~features/usecase-visualizer';
 import {useUserPreferences} from '~shared/config/hooks';
+import {WORKFLOW_TYPES} from '~shared/config/user-preferences-types';
 import {showToast} from '~shared/controls/global-toaster';
 import {logger} from '~shared/lib/logger';
 import {useRegisterSideNav, useSideNav} from '~shared/lib/side-nav';
@@ -71,7 +75,7 @@ import {layoutLevelView} from '../lib/level-view-layout';
 import {DisplayOptionsPopover} from './display-options-popover';
 
 interface GraphDesignerProps {
-  projectGroupId: string;
+  projectId: string;
   screenshotRegistry: Map<string, () => Promise<string | null>>;
   tabId?: string;
   usecaseData: UsecaseCategory[];
@@ -80,7 +84,7 @@ interface GraphDesignerProps {
 const EMPTY_SET: ReadonlySet<number> = new Set<number>();
 
 const GraphDesigner: React.FC<GraphDesignerProps> = ({
-  projectGroupId,
+  projectId,
   screenshotRegistry,
   tabId,
   usecaseData: initialUsecaseData,
@@ -95,11 +99,22 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
 
   const usecaseData = initialUsecaseData;
 
-  const {preferences, updatePreference} = useUserPreferences(projectGroupId);
+  const {preferences, updatePreference} = useUserPreferences();
   const effectivePortVisibilityMode =
     preferences.visualization.viewMode === 'detailed'
       ? preferences.display.portVisibilityMode
       : 'active';
+  const {workflowLevel, workflowType} = preferences.usecases;
+
+  const {isLoading: isWorkflowLoading, resolvedData} = useWorkflowUsecaseData(
+    projectId,
+    workflowType,
+    workflowLevel,
+    usecaseData,
+  );
+
+  // Derived flags for UsecaseSelectionControl
+  const isSystemWorkflow = workflowType === WORKFLOW_TYPES.SYSTEM;
 
   // Graph data from store
   const graphData = useGraphDesignerStoreShallow((s) => s.graphData);
@@ -215,11 +230,11 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
   const handleScreenshotReady = (
     screenshotFn: () => Promise<string | null>,
   ) => {
-    screenshotRegistry.set(projectGroupId, screenshotFn);
+    screenshotRegistry.set(projectId, screenshotFn);
     logger.verbose('Screenshot function registered', {
       action: 'register_screenshot',
       component: 'GraphDesigner',
-      projectId: projectGroupId,
+      projectId,
     });
   };
 
@@ -304,14 +319,14 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
   // Cleanup screenshot registration on unmount
   useEffect(() => {
     return () => {
-      screenshotRegistry.delete(projectGroupId);
+      screenshotRegistry.delete(projectId);
       logger.verbose('Screenshot function unregistered', {
         action: 'unregister_screenshot',
         component: 'GraphDesigner',
-        projectId: projectGroupId,
+        projectId,
       });
     };
-  }, [projectGroupId, screenshotRegistry]);
+  }, [projectId, screenshotRegistry]);
 
   // Effect A — trigger load when selection changes
   useEffect(() => {
@@ -326,14 +341,14 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
     }
     const systemIds = getSystemIdsFromFormattedUsecases(
       selectedUsecases,
-      usecaseData,
+      resolvedData,
     );
     if (systemIds.length > 0) {
       void loadGraphData(systemIds);
     }
   }, [
     selectedUsecases,
-    usecaseData,
+    resolvedData,
     clearLevelView,
     loadGraphData,
     resetSearch,
@@ -379,7 +394,7 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
       const layout = useProjectLayoutStore.getState();
       const existingTabId = store.getState().moduleOpenTabs[nodeId];
       if (existingTabId) {
-        layout.setActiveProjectTab(projectGroupId, existingTabId);
+        layout.setActiveProjectTab(projectId, existingTabId);
         return;
       }
       if (pendingModuleOpensRef.current.has(nodeId)) {
@@ -395,7 +410,7 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
         }
         const existingAfterFetch = store.getState().moduleOpenTabs[nodeId];
         if (existingAfterFetch) {
-          layout.setActiveProjectTab(projectGroupId, existingAfterFetch);
+          layout.setActiveProjectTab(projectId, existingAfterFetch);
           return;
         }
         const moduleDataTabRef = createRef<ModuleDataTabHandle>();
@@ -413,12 +428,12 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
           },
         );
         store.getState().setModuleOpenTab(nodeId, tab.id);
-        layout.setActiveProjectTab(projectGroupId, tab.id);
+        layout.setActiveProjectTab(projectId, tab.id);
       } finally {
         pendingModuleOpensRef.current.delete(nodeId);
       }
     },
-    [projectGroupId, store],
+    [projectId, store],
   );
 
   const eventHandlers = useMemo(
@@ -465,11 +480,11 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
     () => (
       <DisplayOptionsPopover
         preferences={preferences}
-        projectId={projectGroupId}
+        projectId={projectId}
         updatePreference={updatePreference}
       />
     ),
-    [preferences, projectGroupId, updatePreference],
+    [preferences, projectId, updatePreference],
   );
 
   const sideNavItems = useMemo(
@@ -515,7 +530,6 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
         shortcut: 'Ctrl+F',
       },
       // Tools group
-
       {
         group: 'Tools',
         icon: Package,
@@ -711,10 +725,12 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
         }}
       >
         <UsecaseSelectionControl
+          disabled={isSystemWorkflow}
           onSelectedUsecasesChange={setSelectedUsecases}
-          projectId={projectGroupId}
+          projectId={projectId}
+          selectAll={isSystemWorkflow && !isWorkflowLoading}
           selectedUsecases={selectedUsecases}
-          usecaseData={usecaseData}
+          usecaseData={resolvedData}
         />
       </div>
 

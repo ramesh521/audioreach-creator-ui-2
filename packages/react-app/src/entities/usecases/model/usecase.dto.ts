@@ -16,23 +16,35 @@ export interface UsecaseDto {
   usecaseAliasId?: number;
   usecaseAliasName?: string;
   usecaseCategory?: string;
-  usecaseType: 'Ec' | 'Regular' | 'Manual';
+  usecaseType: 'Regular' | 'Manual';
 }
 
-export interface UsecaseIdentifier extends UsecaseDto {}
+/**
+ * Identifies a subsystem group returned by the filtered-by-subsystem endpoint.
+ */
+export interface SubsystemFilteredKv {
+  keyValueCollection: KeyValueInfo[];
+}
+
+export type UsecaseIdentifier = UsecaseDto;
 
 export interface KeyValueInfo {
   keyInfo: KeyInfo;
   valueInfo: ValueInfo;
 }
 
-export interface FilteredKV {
-  keyValueCollection: KeyValueInfo[];
-  systemId: string;
-}
-
 export interface RelatedEndPointLink {
   description: string;
   hypertextRef: string;
   method: string;
+}
+
+/**
+ * Response shape from GET /projects/{id}/usecases/filtered-by-subsystem.
+ * Each entry represents one subsystem group with its identifying key-value
+ * info and the usecases that belong to it.
+ */
+export interface SubsystemFilteredUsecasesDto {
+  filteredKv: SubsystemFilteredKv;
+  usecases: UsecaseIdentifier[];
 }

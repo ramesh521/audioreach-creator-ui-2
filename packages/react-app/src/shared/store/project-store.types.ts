@@ -17,11 +17,13 @@ export type {
   ExclusiveLockSlice,
   ExclusiveSessionMode,
 } from './project-store-slices/exclusive-lock-slice';
+export type {UserPreferencesSlice} from './project-store-slices/user-preferences-slice';
 
 import type {ExclusiveLockSlice} from './project-store-slices/exclusive-lock-slice';
 import type {LogsSlice} from './project-store-slices/logs-slice';
 import type {ProjectMetaDataSlice} from './project-store-slices/project-metadata-slice';
 import type {TabsSlice} from './project-store-slices/tabs-slice';
+import type {UserPreferencesSlice} from './project-store-slices/user-preferences-slice';
 
 export type ProjectStore = {
   closeProject: () => void;
@@ -29,4 +31,5 @@ export type ProjectStore = {
 } & ProjectMetaDataSlice &
   TabsSlice &
   LogsSlice &
-  ExclusiveLockSlice;
+  ExclusiveLockSlice &
+  UserPreferencesSlice;
