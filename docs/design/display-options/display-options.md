@@ -1,5 +1,14 @@
 # Display Options
 
+**Version:** 1.1
+
+## Revision History
+
+| Version | Date | Summary of changes |
+| --- | --- | --- |
+| 1.0 | 2026-07-27 | Initial merge of `display-options.md`, `port-visibility.md`, and the `expand-collapse-subgraphs` design into one doc. |
+| 1.1 | 2026-07-30 | Expand Subgraphs checkbox now reads and writes `visualization.expandSubgraphs` directly via `savePreference`; `subgraph-collapse.ts` keeps only `allSubgraphIds` and `collapseSetForLevel`. Also adds a progress overlay — a blurred backdrop with a QUI `ProgressRing` and an "Expanding Subgraphs"/"Collapsing Subgraphs" label — shown while `graph-designer.tsx` applies a checkbox click. |
+
 ## Feature Overview and Strategic Fit
 
 **Display Options in Side Nav:** The Graph Designer exposes a set of
@@ -35,7 +44,10 @@ Wiring it up turns it into a global control: one click expands or collapses
 **all** subgraphs at the currently-viewed level, and the choice persists
 across restarts. Today, subgraphs can only be collapsed/expanded one at a
 time via each subgraph's own header button; this control adds a global one
-alongside it, it does not replace the per-subgraph control.
+alongside it, it does not replace the per-subgraph control. It reads and
+writes the preference directly — clicking it always expands or collapses
+everything at the current level, overriding any individual subgraph toggles
+made there.
 
 A collapsed subgraph renders as a single `SubgraphProxyNode` hiding its
 internal containers and modules (see `apply-collapses.ts`). Because
@@ -58,35 +70,28 @@ Implementation: see *Expand/Collapse Design* under Component Design.
 - `user-preferences-types.ts` adds `showMdfModules` and `viewMode` to
   `VisualizationPreferences`, and adds `workflowType` and `workflowLevel` to
   `UsecasePreferences`. `DEFAULT_VISUALIZATION_PREFERENCES.expandSubgraphs`
-  flips from `false` to `true`, so fresh users keep the all-expanded
-  first-load view once the checkbox sets each level's default collapse state
-  from this preference (see *Expand/Collapse Design* below).
+  is `false`, so fresh users get an all-collapsed first-load view.
 - `shared/config/hooks/use-user-preferences.ts` — no changes; still the
   single source of truth for reading/writing preferences.
 - `display-options-popover.tsx` — new component containing checkboxes and
   RadioGroup controls for all visualization preferences. Does not call
   `useUserPreferences` itself; takes `preferences`, `projectId`, and
   `updatePreference` as props from its parent (see *Component Design*
-  below). The "Expand Subgraphs" checkbox additionally takes two derived
-  props, `expandSubgraphsChecked` / `onExpandSubgraphsChange`, layered on
-  top of the shared props-lifting pattern (see *Key Invariant* below for
-  why Expand Subgraphs specifically needs this and no other control does).
+  below).
 - `graph-designer.tsx` connects to the user preferences system and registers
   the Display Options item in the side nav using the `SlidersHorizontal`
-  icon. Becomes the sole owner of `useUserPreferences(projectGroupId)`.
+  icon. Becomes the sole owner of `useUserPreferences()`.
   Computes `effectivePortVisibilityMode` and applies `applyPortVisibility`
-  inside Effect B, before `layoutLevelView`. Derives `expandSubgraphsChecked`,
-  owns the `onExpandSubgraphsChange` handler, and sets each level's default
-  collapse state once via `defaultCollapseForLevel`.
+  inside Effect B, before `layoutLevelView`. Applies
+  `preferences.visualization.expandSubgraphs` to the current level's
+  collapse state whenever the level or the preference changes (see
+  *Expand/Collapse Design* below).
+- `widgets/graph-designer/lib/subgraph-collapse.ts` — new file holding the
+  two pure functions this feature needs: `allSubgraphIds` and
+  `collapseSetForLevel`. See *Expand/Collapse Design* below.
 - `widgets/graph-designer/lib/apply-port-visibility.ts` — new file. Pure
   function `applyPortVisibility(level, effectiveMode)` that filters each
   module's `ports` array.
-- `widgets/graph-designer/lib/all-subgraph-ids.ts` — new file. Pure function
-  `allSubgraphIds(level)` reading raw subgraph ids from `LevelView`.
-- `widgets/graph-designer/lib/default-collapse-for-level.ts` — new file. Pure
-  function `defaultCollapseForLevel(current, levelId, level, expandSubgraphs)`
-  that sets a level's default collapse set once, without ever overwriting a later
-  individual toggle.
 
 ---
 
@@ -101,8 +106,7 @@ Implementation: see *Expand/Collapse Design* under Component Design.
   sessions
 - The QUI Popover closes automatically when the user clicks outside it
 - The checkboxes and RadioGroup controls reflect the current saved
-  preferences and update them directly, **except** "Expand Subgraphs" — see
-  *Key Invariant* below for why its displayed state is derived instead
+  preferences and update them directly
 - Both `Usecase Workflow` and `System Workflow` radios are always visible.
   `Subsystem level` / `Usecase level` render as a nested sub-choice under
   `Usecase Workflow` and collapse away when `System Workflow` is selected
@@ -128,7 +132,7 @@ its value here (see Error Handling below).
 | `visualization.showSubgraphIds` | `false` | Show Subgraph IDs checkbox |
 | `visualization.showContainerIds` | `false` | Show Container IDs checkbox |
 | `visualization.showModuleInstanceIds` | `false` | Show Module Instance IDs checkbox |
-| `visualization.expandSubgraphs` | `true` | Expand Subgraphs checkbox |
+| `visualization.expandSubgraphs` | `false` | Expand Subgraphs checkbox |
 | `visualization.simplifySubsystems` | `false` | Simplified Subsystems checkbox |
 | `visualization.showMdfModules` | `false` | Show MDF Modules checkbox |
 | `usecases.namePreference` | `'alias'` | Usecase Name radio (Alias / Key Value(s) / Value(s)) |
@@ -149,9 +153,8 @@ its value here (see Error Handling below).
 | Port Visibility — effective visibility rule | Effective mode = `viewMode === 'detailed' ? portVisibilityMode : 'active'`. Compact View always forces active-only; Detailed View honors the saved preference. | Must Have | Functional |
 | Port Visibility — resize and live update on toggle | Toggling re-filters the `LevelView` and re-runs ELK layout immediately (filter before layout, not after) — module, container, and subgraph boxes resize/repack to the true visible-port count, with no usecase reselect or reload needed. | Must Have | Functional |
 | Expand Subgraphs — wire the control | The existing checkbox drives rendering, scoped to the currently-viewed `levelId`: checking expands all subgraphs at that level (collapse set → empty); unchecking collapses all to proxy nodes (collapse set → all subgraph ids at that level, from the **raw** `levelView`). No new control or preference key. | Must Have | Functional |
-| Expand Subgraphs — derived checkbox display | `checked = collapsedSubgraphs.size === 0`. No `subgraphs.length` guard — a level with no subgraphs is vacuously "all expanded" and shows checked. | Must Have | Functional |
-| Expand Subgraphs — individual toggles preserved | Per-subgraph header buttons are unchanged; collapsing any one subgraph unchecks the box, re-expanding the last one re-checks it. | Must Have | Functional |
-| Expand Subgraphs — default/write-path isolation | The persisted `expandSubgraphs` sets a level's default collapse set only on first visit (`true` → empty, `false` → all ids); thereafter only the checkbox's own toggle writes it back. See *Key Invariant* below. | Must Have | Functional |
+| Expand Subgraphs — individual toggles overridden | Per-subgraph header buttons still work, but any change to the `expandSubgraphs` preference re-applies to every subgraph at the current level, overriding whatever those buttons had set there. | Must Have | Functional |
+| Expand Subgraphs — progress overlay | As a user, when I click Expand Subgraphs and the recompute takes a visible moment, I want a blurred overlay with a progress ring and an "Expanding Subgraphs"/"Collapsing Subgraphs" label over the graph canvas, so the screen doesn't look frozen. | Must Have | Functional |
 | Simplified Subsystems checkbox | As a user, I want to check or uncheck Simplified Subsystems from the Popover. It is disabled only for the default combination — Usecase Workflow + Usecase level. It is enabled for Usecase Workflow + Subsystem level, and for System Workflow at either level. Enabling or disabling it never changes its checked value — it always shows whatever the user last checked or unchecked it to. | Must Have | Functional |
 | Show MDF Modules checkbox | As a user, I want to check or uncheck Show MDF Modules from the Popover | Must Have | Functional |
 | Compact View / Detailed View radio | As a user, I want to switch between Compact View and Detailed View from the Popover. **Compact View:** Nodes show names only — module/container/subgraph IDs are hidden for a smaller, denser, easier-to-read graph. **Detailed View:** Nodes show their full IDs (module instance, container, subgraph) alongside names, giving a complete view of each module. | Must Have | Functional |
@@ -166,29 +169,6 @@ its value here (see Error Handling below).
 - `portStatus` (`'unused'|'partial'|'used'`) styling semantics — unchanged.
 - Filtering `SubsystemNode` or `SubgraphProxyNode` ports — see the
   active-port definition above; there is nothing for the toggle to hide.
-- Mirroring the Expand Subgraphs derived checkbox state back into the
-  persisted `expandSubgraphs` preference on individual subgraph toggles —
-  rejected explicitly; see *Key Invariant* below.
-
----
-
-## Key Invariant: Expand Subgraphs Write-Path Isolation
-
-The persisted `expandSubgraphs` boolean and the checkbox's *displayed*
-`checked` state are decoupled. `checked` is derived live from
-`collapsedSubgraphs` (`collapsedSubgraphs.size === 0`); the preference is
-**written only** by the checkbox's own `onCheckedChange`, and **read only**
-by the effect that sets a level's default state. Individual subgraph
-toggles touch `collapseByLevel` alone and never write the preference.
-
-If an individual toggle were allowed to write the preference, collapsing one
-subgraph would round-trip `false` into persistence and silently change the
-default for every future level — the failure mode this split exists to avoid.
-
-This invariant applies to Expand Subgraphs specifically because it is the
-one control whose displayed state can change via a route other than its own
-checkbox (the per-subgraph header buttons). No other control in this popover
-has a competing write path, so no other control needs this split.
 
 ---
 
@@ -204,14 +184,17 @@ has a competing write path, so no other control needs this split.
 - The Popover has four sections: Graph View, Workflow, Graph Display, and
   Usecase Name
 - Checkboxes show the current on/off state; "Show all ports" only appears
-  once Detailed View is selected. "Expand Subgraphs" shows a **derived**
-  state (see *Key Invariant* above), not a direct reflection of the saved
-  preference.
+  once Detailed View is selected. "Expand Subgraphs" reflects
+  `visualization.expandSubgraphs` directly.
 - RadioGroup controls show the current selection
 - Every change writes immediately to the user preferences store (see
   Preference persistence above for the exact save mechanism)
 - Clicking anywhere outside the Popover closes it — any pending debounced
   write is flushed on close, so no change made just before closing is lost
+- While `graph-designer.tsx` applies a checkbox-triggered Expand Subgraphs
+  change, a blurred overlay with a QUI `ProgressRing` and an "Expanding
+  Subgraphs"/"Collapsing Subgraphs" label covers the graph canvas (see
+  *Expand/Collapse Design* below)
 
 **Popover UI (default state — Usecase Workflow / Usecase level / Compact
 View):**
@@ -231,7 +214,7 @@ View):**
 │ GRAPH DISPLAY                          │
 │ ● Compact View                         │
 │ ○ Detailed View                        │
-│ ☑ Expand Subgraphs                     │
+│ ☐ Expand Subgraphs                     │
 │ ☐ Simplified Subsystems (disabled)     │
 │ ☐ Show MDF Modules                     │
 ├───────────────────────────────────────┤
@@ -241,8 +224,8 @@ View):**
 │ ○ Value(s)                             │
 └───────────────────────────────────────┘
 ```
-(Expand Subgraphs shows checked by default — see the default-flip rationale
-under Architectural Impacts above.)
+(Expand Subgraphs shows unchecked by default — `expandSubgraphs` defaults to
+`false`, so a fresh project's first load has every subgraph collapsed.)
 
 Selecting Subsystem level (still Usecase Workflow) enables Simplified
 Subsystems with no other visible change. Selecting System Workflow hides the
@@ -251,10 +234,6 @@ value is never forced either way in any of these transitions (see the
 Simplified Subsystems row in Requirements above). Selecting Detailed View
 reveals four more checkboxes — Show Subgraph IDs, Show Container IDs, Show
 Module Instance IDs, Show all ports — nested beneath it.
-
-**Individual subgraph collapse while Expand Subgraphs is checked** —
-collapsing one subgraph via its own header button unchecks the box, even
-though no other subgraph changed and the saved preference is untouched.
 
 ---
 
@@ -266,13 +245,10 @@ Display Options. Organized into four sections:
 
 **Props.** `DisplayOptionsPopover` does not call `useUserPreferences`
 itself — its parent, `graph-designer.tsx`, is the sole owner of that hook
-and passes the result down as props, plus two additional derived props for
-the Expand Subgraphs checkbox:
+and passes the result down as props:
 
 ```ts
 interface DisplayOptionsPopoverProps {
-  expandSubgraphsChecked: boolean;
-  onExpandSubgraphsChange: (checked: boolean) => void;
   preferences: UserPreferences;
   projectId: string;
   updatePreference: (path: string, value: unknown) => boolean;
@@ -282,18 +258,11 @@ interface DisplayOptionsPopoverProps {
 `projectId` is kept as its own prop because the popover's internal
 `flushSave` calls `ConfigFileManager.instance.save(projectId)` directly.
 Only the `preferences` read and `updatePreference` write are lifted to the
-parent. Because `graph-designer.tsx` calls `useUserPreferences(projectGroupId)`
+parent. Because `graph-designer.tsx` calls `useUserPreferences()`
 once and passes the same `preferences` object to both `DisplayOptionsPopover`
 and its own render pipeline, a checkbox toggle re-renders both consumers with
 the new value in the same pass — no context or event-emitter is needed,
 since the two already share a parent.
-
-`expandSubgraphsChecked` / `onExpandSubgraphsChange` extend this pattern for
-Expand Subgraphs specifically (see *Key Invariant* above for why):
-`graph-designer.tsx` derives `checked` and owns the collapse-set rewrite; the
-popover still performs the durable preference write itself via its existing
-`savePreference` — see the Expand Subgraphs bullet under *Graph Display*
-below for the exact split.
 
 **Graph View** — three Checkboxes:
 - Highlight PP Modules
@@ -314,13 +283,11 @@ below for the exact split.
   to `display.portVisibilityMode` (`'all'` when checked, `'active'` when
   unchecked); see *Port Visibility Design* below for how the effective mode
   is computed and applied.
-- **Expand Subgraphs** — Checkbox, always visible. `checked` reads the
-  `expandSubgraphsChecked` prop, not `visualization.expandSubgraphs`
-  directly. On toggle, `onCheckedChange` calls both
-  `onExpandSubgraphsChange(checked)` and the popover's own
-  `savePreference('visualization.expandSubgraphs', checked)`. See
-  *Expand/Collapse Design* below for why the durable write stays in the
-  popover rather than moving to the parent.
+- **Expand Subgraphs** — Checkbox, always visible. `checked` reads
+  `visualization.expandSubgraphs` directly; `onCheckedChange` calls
+  `savePreference('visualization.expandSubgraphs', checked)` — the same
+  pattern as every other checkbox in this popover. See *Expand/Collapse
+  Design* below for how `graph-designer.tsx` applies the change.
 - Simplified Subsystems — Checkbox. `disabled` follows the Workflow
   type/level rule in Requirements above; checked value is preserved across
   all transitions (same row). While disabled, a QUI Tooltip wraps the
@@ -334,8 +301,7 @@ below for the exact split.
 - Value(s)
 
 Each control reads the current saved preference and writes back immediately
-when the user makes a change — except Expand Subgraphs, whose `checked`
-comes from the derived prop described above.
+when the user makes a change.
 
 ### Port Visibility Design
 
@@ -412,52 +378,46 @@ reaches that memo, so a second filter pass there would be redundant.
 
 ### Expand/Collapse Design
 
-**New pure functions** (`widgets/graph-designer/lib/`):
+**One module** (`widgets/graph-designer/lib/subgraph-collapse.ts`) holds
+every pure function this feature needs:
 
 ```ts
-// all-subgraph-ids.ts — reads the raw levelView (see Feature Overview above)
+// Reads the raw levelView (see Feature Overview above), never the
+// post-applyCollapses graph.
 export function allSubgraphIds(level: LevelView): number[];
 
-// default-collapse-for-level.ts — sets the default state once, never
-// overwrites a later toggle
-export function defaultCollapseForLevel(
-  current: Record<string, Set<number>>,
-  levelId: string,
+// The collapse set a level should have for a given expandSubgraphs value:
+// empty when expanded, every subgraph id when collapsed.
+export function collapseSetForLevel(
   level: LevelView,
   expandSubgraphs: boolean,
-): Record<string, Set<number>>;
+): Set<number>;
 ```
-
-`defaultCollapseForLevel` returns `current` unchanged (same reference) if
-`levelId` is already a key — this is what lets the default-setting effect
-re-run safely on every render without ever clobbering a user's individual
-toggle.
 
 **`GraphDesigner`** (already owns `collapseByLevel`, `levelId`,
 `preferences`) adds:
 
-- `expandSubgraphsChecked = collapsedSubgraphs.size === 0` (derived,
-  inline).
-- `onExpandSubgraphsChange(checked)` — rewrites `collapseByLevel[levelId]`
-  to `new Set()` when checked, or `new Set(allSubgraphIds(levelView))` when
-  unchecked. Reads the raw `levelView`, never the post-collapse `graph` (see
-  Feature Overview above). Does **not** write the preference — see below for
-  why.
-- A `useEffect` that sets the default state, keyed on `levelView` and the
-  persisted preference, that calls `defaultCollapseForLevel` and is safe to
-  re-run: it's a no-op once the level already has a default value. The
-  existing selection-change effect already resets `collapseByLevel({})` and
-  nulls `levelView` on usecase change, so this effect just sets the default
-  again once the new level arrives — no ordering change needed.
+- `appliedExpandSubgraphsRef` — the last `expandSubgraphs` value the effect
+  below applied, used to tell a checkbox click apart from any other reason
+  the effect re-ran (a new usecase selection, the Show all ports toggle,
+  etc.) — both change `levelView` or `preferences`, but only a checkbox
+  click should show the overlay.
+- A `useEffect`, keyed on `levelView` and
+  `preferences.visualization.expandSubgraphs`, that always rewrites
+  `collapseByLevel[levelView.levelId]` via `collapseSetForLevel`. When the
+  ref shows the preference itself changed, the rewrite runs inside
+  `startExpandCollapseTransition` (from `useTransition`) so `isPending`
+  drives the overlay below; otherwise it runs directly, with no overlay.
 
-**Why the durable write stays in the popover, not the parent:**
-`updatePreference` alone is not enough for this purpose — it only writes
-in-memory and never calls `.save()`. If the parent's `onExpandSubgraphsChange`
-wrote the preference instead of the popover, persistence would fall back to
-an un-awaited save on app exit that a crash could lose. Keeping the write in
-the popover's `savePreference` gives Expand Subgraphs the exact same
-debounced-save-plus-flush-on-close durability guarantee as every other
-checkbox in this popover.
+**Progress overlay:** a large usecase selection can make the
+`collapseSetForLevel` write and the resulting re-render of the graph take a
+visible moment. While `isPending` is `true`, `GraphDesigner` renders (via
+`createPortal` into `document.body`, so it isn't clipped by the canvas's
+`overflow-hidden` container) a `fixed inset-0` backdrop with `backdrop-blur-sm`,
+a QUI `ProgressRing`, and a label reading "Expanding Subgraphs" or
+"Collapsing Subgraphs" depending on `preferences.visualization.expandSubgraphs`.
+Colors come from QUI design tokens only (`--color-surface-overlay`,
+`--color-surface-raised`, `--color-text-neutral-primary`).
 
 ---
 
@@ -474,7 +434,7 @@ Not applicable on frontend.
   `false` or rejects — a toast notification is shown to the user
 - If preferences have not loaded yet on first render, all controls fall back
   to the values in the Default Values table above
-- `applyPortVisibility` and `defaultCollapseForLevel` are pure, total functions
+- `applyPortVisibility` and `collapseSetForLevel` are pure, total functions
   over already-validated `LevelView` / in-memory state — no new failure
   modes. A module with zero active ports renders with an empty `ports`
   array, a valid existing state no different from a module that has no
@@ -509,10 +469,9 @@ Not applicable on frontend.
   ELK calls, subgraph-column assignment, bounding-box computation) instead
   of an instant synchronous filter — correct box sizing requires ELK to see
   the true port count, which only happens by re-running layout.
-- `allSubgraphIds` is O(n) over a level's subgraphs; `defaultCollapseForLevel`
-  is O(n) on first visit, O(1) after via the in-record guard. Both are
-  negligible next to the `applyCollapses` / layout pipeline that already
-  runs per render.
+- `allSubgraphIds` and `collapseSetForLevel` are O(n) over a level's
+  subgraphs, negligible next to the `applyCollapses` / layout pipeline that
+  already runs per render.
 
 ---
 
@@ -524,9 +483,7 @@ Not applicable on frontend.
   controls, and all Radio options across the Workflow RadioGroup (and its
   nested sub-group), Compact/Detailed View, and the Usecase Name RadioGroup
 - Each checkbox/Radio calls `savePreference` with the correct preference
-  path and new value on interaction
-- Each control reflects the current saved preference, **except** Expand
-  Subgraphs, whose `checked` reflects the `expandSubgraphsChecked` prop
+  path and new value on interaction, including Expand Subgraphs
 - Both `Usecase Workflow` and `System Workflow` radios are always present
 - `Subsystem level` / `Usecase level` are visible when `Usecase Workflow` is
   selected, hidden when `System Workflow` is selected, and reappear when
@@ -545,10 +502,9 @@ Not applicable on frontend.
   while it is disabled
 - Show all ports is hidden outside Detailed View and saves
   `display.portVisibilityMode` as `'all'`/`'active'` when checked/unchecked
-- Expand Subgraphs reflects the `expandSubgraphsChecked` prop; clicking it
-  calls `onExpandSubgraphsChange` with the negated value and persists
-  `visualization.expandSubgraphs` (same `savePreference` path as sibling
-  checkboxes)
+- Expand Subgraphs reflects `visualization.expandSubgraphs` directly and
+  saves the new value via `savePreference` when clicked — same pattern as
+  every other checkbox
 - A toast notification is shown when a preference save fails
 - A pending debounced save flushes immediately when the Popover unmounts
   (verifies no change is lost on close)
@@ -562,11 +518,8 @@ Not applicable on frontend.
   `portVisibilityMode` through unchanged
 - `allSubgraphIds`: returns every id from `level.subgraphs`; returns `[]`
   for empty/absent `subgraphs`
-- `defaultCollapseForLevel`: sets an empty set when `expandSubgraphs` is
-  `true`, all-ids when `false`; **returns the input untouched, same
-  reference, when the level is already present** — proves the default can't
-  clobber an individual toggle; preserves other levels already in the
-  record
+- `collapseSetForLevel`: returns an empty set when `expandSubgraphs` is
+  `true`; returns every subgraph id when `false`
 
 **Integration Tests:**
 
@@ -603,10 +556,10 @@ Not applicable on frontend.
 `graph-designer.tsx` has no existing test harness (rendering it requires
 mocking `GraphDesignerStoreContext`, async ELK layout, `SideNavProvider`,
 and the full `UsecaseVisualizer`/`@xyflow/react` tree — infrastructure no
-other test in this suite builds). The `effectivePortVisibilityMode` formula,
-the `applyPortVisibility` transform, `allSubgraphIds`, and
-`defaultCollapseForLevel` are all already covered by unit tests above; the
-wiring itself is verified manually in the running app:
+other test in this suite builds). Every pure function in
+`subgraph-collapse.ts` and the `effectivePortVisibilityMode` formula are
+already covered by unit tests above; the wiring itself is verified manually
+in the running app:
 
 - Toggling "Show all ports" re-runs layout and updates module box sizes and
   port handles, without reselecting the usecase or reloading the graph data
@@ -615,13 +568,15 @@ wiring itself is verified manually in the running app:
 - Detailed View with `portVisibilityMode: 'all'` shows all ports and larger
   module boxes; with `'active'` shows only connected ports and
   correspondingly smaller, tightly-packed boxes
-- A fresh load is all-expanded (default flipped to `true`); unchecking
-  Expand Subgraphs collapses all subgraphs at the current level, checking
-  re-expands them
-- Collapsing one subgraph individually unchecks Expand Subgraphs without
-  touching the preference
+- A fresh load is all-collapsed (default is `false`); checking Expand
+  Subgraphs expands all subgraphs at the current level, unchecking
+  re-collapses them
+- Collapsing one subgraph individually via its own header button does not
+  touch the Expand Subgraphs checkbox or the persisted preference
 - The Expand Subgraphs choice survives an app restart
-- A level with no subgraphs shows Expand Subgraphs checked
+- Clicking Expand Subgraphs shows the blur overlay with a spinning
+  `ProgressRing` and the correct "Expanding"/"Collapsing Subgraphs" label
+  until the recompute finishes
 
 ---
 
