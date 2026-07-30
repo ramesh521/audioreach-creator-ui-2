@@ -10,6 +10,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useTransition,
 } from 'react';
 
 import {
@@ -27,6 +28,9 @@ import {
   Upload,
   Wand2,
 } from 'lucide-react';
+import {createPortal} from 'react-dom';
+
+import {ProgressRing} from '@qualcomm-ui/react/progress-ring';
 
 import {type LevelView, NODE_KIND, type NodeKind} from '~entities/graph';
 import {
@@ -71,6 +75,7 @@ import {
 } from '../lib/graph-search';
 import {buildLevelViewFromGraphData} from '../lib/level-view-adapter';
 import {layoutLevelView} from '../lib/level-view-layout';
+import {collapseSetForLevel} from '../lib/subgraph-collapse';
 
 import {DisplayOptionsPopover} from './display-options-popover';
 
@@ -158,6 +163,47 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
   const levelId = levelView?.levelId ?? '';
   const collapsedSubgraphs = (collapseByLevel[levelId] ??
     EMPTY_SET) as Set<number>;
+
+  // Shows a blur overlay while a large graph recompute is in progress, so
+  // the screen doesn't look frozen.
+  const [isExpandCollapsePending, startExpandCollapseTransition] =
+    useTransition();
+  const expandCollapseLabel = preferences.visualization.expandSubgraphs
+    ? 'Expanding Subgraphs'
+    : 'Collapsing Subgraphs';
+
+  // Last checkbox value applied, to detect a checkbox click vs. a level load.
+  const appliedExpandSubgraphsRef = useRef(
+    preferences.visualization.expandSubgraphs,
+  );
+
+  // Applies expandSubgraphs to the current level; overlay only on checkbox click.
+  useEffect(() => {
+    if (!levelView) {
+      return;
+    }
+    const checkboxChanged =
+      appliedExpandSubgraphsRef.current !==
+      preferences.visualization.expandSubgraphs;
+    appliedExpandSubgraphsRef.current =
+      preferences.visualization.expandSubgraphs;
+
+    const apply = () => {
+      setCollapseByLevel((prev) => ({
+        ...prev,
+        [levelView.levelId]: collapseSetForLevel(
+          levelView,
+          preferences.visualization.expandSubgraphs,
+        ),
+      }));
+    };
+
+    if (checkboxChanged) {
+      startExpandCollapseTransition(apply);
+    } else {
+      apply();
+    }
+  }, [levelView, preferences.visualization.expandSubgraphs]);
 
   const graph = useMemo<LevelView>(() => {
     if (!levelView) {
@@ -716,6 +762,34 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
 
   return (
     <div className="flex h-full flex-col">
+      {isExpandCollapsePending &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm"
+            style={{
+              backgroundColor:
+                'color-mix(in oklab, var(--color-surface-overlay) 50%, transparent)',
+            }}
+          >
+            <div
+              className="rounded-lg p-8 shadow-xl"
+              style={{backgroundColor: 'var(--color-surface-raised)'}}
+            >
+              <div className="text-center">
+                <div className="mb-4 flex justify-center">
+                  <ProgressRing />
+                </div>
+                <div
+                  className="mb-2 text-lg font-semibold"
+                  style={{color: 'var(--color-text-neutral-primary)'}}
+                >
+                  {expandCollapseLabel}
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
       {/* Usecase Selection Control at the top */}
       <div
         className="flex-shrink-0 p-4"

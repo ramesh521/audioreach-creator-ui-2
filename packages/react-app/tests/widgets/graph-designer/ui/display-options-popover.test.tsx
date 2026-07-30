@@ -365,4 +365,24 @@ describe('DisplayOptionsPopover', () => {
     const saved = ConfigFileManager.instance.getUserPreferences(PROJECT_ID);
     expect(saved.display.portVisibilityMode).toBe('all');
   });
+
+  // Expand Subgraphs is unchecked since expandSubgraphs defaults to false
+  it('reflects the current expandSubgraphs preference on the checkbox', () => {
+    renderPopover(PROJECT_ID);
+
+    expect(
+      screen.getByRole('checkbox', {name: 'Expand Subgraphs'}),
+    ).not.toBeChecked();
+  });
+
+  // Checking Expand Subgraphs should save expandSubgraphs as true
+  it('saves visualization.expandSubgraphs as true when Expand Subgraphs is checked', async () => {
+    const user = userEvent.setup();
+    renderPopover(PROJECT_ID);
+
+    await user.click(screen.getByRole('checkbox', {name: 'Expand Subgraphs'}));
+
+    const saved = ConfigFileManager.instance.getUserPreferences(PROJECT_ID);
+    expect(saved.visualization.expandSubgraphs).toBe(true);
+  });
 });
