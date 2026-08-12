@@ -36,10 +36,7 @@ let win: BrowserWindow;
 const CONFIG_FILE = 'config.json';
 const MAX_RECENT_PROJECTS = 20;
 
-// Track log view state for menu updates
-let isLogViewOpen = false;
 let hasActiveProject = false;
-let isKeyConfiguratorViewOpen = false;
 
 /**
  * Create and set the application menu
@@ -83,35 +80,12 @@ function createApplicationMenu(): void {
     ],
   });
 
-  // View menu with log view toggle
-  const viewSubmenu: Electron.MenuItemConstructorOptions[] = [];
-
-  // Only show log view menu item when a project is active
-  if (hasActiveProject) {
-    viewSubmenu.push({
-      click: () => {
-        win.webContents.send('menu:toggle-log-view');
-      },
-      label: isLogViewOpen ? 'Hide Log View' : 'Show Log View',
-    });
-    viewSubmenu.push({type: 'separator'});
-
-    viewSubmenu.push({
-      click: () => {
-        win.webContents.send('menu:toggle-key-configurator-view');
-      },
-      label: isKeyConfiguratorViewOpen
-        ? 'Hide Key Configurator'
-        : 'Show Key Configurator',
-    });
-    viewSubmenu.push({type: 'separator'});
-  }
-
-  viewSubmenu.push(
+  // View menu
+  const viewSubmenu: Electron.MenuItemConstructorOptions[] = [
     {role: 'toggleDevTools'},
     {type: 'separator'},
     {role: 'togglefullscreen'},
-  );
+  ];
 
   template.push({
     label: 'View',
@@ -120,22 +94,6 @@ function createApplicationMenu(): void {
 
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);
-}
-
-/**
- * Update menu to reflect current log view state
- */
-function updateMenuLogViewState(isOpen: boolean): void {
-  isLogViewOpen = isOpen;
-  createApplicationMenu();
-}
-
-/**
- * Update menu to reflect current key configurator state
- */
-function updateMenuKeyConfiguratorState(isOpen: boolean): void {
-  isKeyConfiguratorViewOpen = isOpen;
-  createApplicationMenu();
 }
 
 /**
@@ -573,36 +531,11 @@ ipcMain.handle('mru:get-store-path', (): string => {
 
 //  #endregion MRU Store IPC Handlers
 
-//  #region Log View IPC Handlers
-
-/** Update log view state from renderer */
-ipcMain.handle('log-view:update-state', (_event, isOpen: boolean): void => {
-  updateMenuLogViewState(isOpen);
-});
-
-//  #endregion Log View IPC Handlers
-
-//  #region Key Configurator View IPC Handlers
-
-/** Update key configurator view state from renderer */
-ipcMain.handle(
-  'key-configurator-view:update-state',
-  (_event, isOpen: boolean): void => {
-    updateMenuKeyConfiguratorState(isOpen);
-  },
-);
-
-//  #endregion Key Configurator View IPC Handlers
-
 //  #region Project Context IPC Handlers
 
 /** Update project context state */
 ipcMain.handle('project-context:set', (_event, isActive: boolean): void => {
   updateMenuProjectContext(isActive);
-  // Reset log view state when switching to app context
-  if (!isActive) {
-    isLogViewOpen = false;
-  }
 });
 
 //  #endregion Project Context IPC Handlers

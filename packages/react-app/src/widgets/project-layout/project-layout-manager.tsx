@@ -31,6 +31,11 @@ import {
   syncPanelStateFromModel,
 } from '~features/panel-collapse';
 import {ConfigFileManager} from '~shared/config/config-manager';
+import {
+  CENTER_TABSET_ID,
+  PLACEHOLDER_COMPONENT_NAME,
+  ROOT_LAYOUT_ID,
+} from '~shared/config/utils';
 import {logger} from '~shared/lib/logger';
 import {tabFocusRegistry} from '~shared/store';
 import type {
@@ -53,8 +58,9 @@ import {deepEqual} from '~shared/utils/deep-equality';
 
 import 'flexlayout-react/style/combined.css';
 
-// Render function for placeholder — called each time to produce a fresh element instance
-// (a shared constant would confuse React's reconciler when multiple placeholders are mounted)
+// Render function for placeholder — called each time to produce a fresh element
+// instance (a shared constant would confuse React's reconciler when multiple
+// placeholders are mounted)
 const renderPlaceholder = () =>
   createElement(
     'div',
@@ -69,7 +75,7 @@ const renderPlaceholder = () =>
 const findAncestorUnderRoot = (node: Node): Node | null => {
   let currentNode: Node = node;
   let parentNode: Node | undefined = currentNode.getParent();
-  while (parentNode && parentNode.getId() !== 'root') {
+  while (parentNode && parentNode.getId() !== ROOT_LAYOUT_ID) {
     currentNode = parentNode;
     parentNode = currentNode.getParent();
   }
@@ -112,7 +118,8 @@ class ProjectLayoutManager extends Component<
 
   /**
    * Build FlexLayout model JSON from store data
-   * This function is a translator that converts  ApplicationStore data into FlexLayout's required JSON format
+   * This function is a translator that converts  ApplicationStore data into
+   * FlexLayout's required JSON format
    */
   buildFlexLayoutModelFromStore = (): any => {
     // Get fresh store reference to avoid stale data
@@ -220,7 +227,8 @@ class ProjectLayoutManager extends Component<
           };
           children.push(tabDef);
 
-          // Check if this should be selected (prioritize group's activeTabId for active group)
+          // Check if this should be selected (prioritize group's activeTabId for
+          // active group)
           const shouldSelect =
             (activeTabGroup?.id === project.id &&
               project.activeTabId === projectTab.id) ||
@@ -244,7 +252,8 @@ class ProjectLayoutManager extends Component<
     });
 
     // Return complete FlexLayout JSON structure
-    // recreates the FlexLayout configuration structure that tells FlexLayout how to display tabs like horizontal
+    // recreates the FlexLayout configuration structure that tells FlexLayout how to
+    // display tabs like horizontal
     const modelJson = {
       global: {
         borderEnableAutoHide: true,
@@ -359,7 +368,11 @@ class ProjectLayoutManager extends Component<
           ...flexLayoutData.global,
         };
 
-        return Model.fromJson(flexLayoutData);
+        const model = Model.fromJson(flexLayoutData);
+        // Clean up any leftover placeholder now that a real tab has been
+        // reinserted, instead of waiting for a click/drag.
+        removeSidePlaceholdersIfNeeded(model);
+        return model;
       } catch (error) {
         logger.error(`Failed to parse FlexLayout JSON:${error}`);
       }
@@ -549,7 +562,8 @@ class ProjectLayoutManager extends Component<
       if (appTab && appGroup) {
         // Check if this is the last tab - if so, let closeAppTab handle everything
         if (appGroup.appTabs.length === 1) {
-          // Last tab - let closeAppTab method handle both individual and group callbacks
+          // Last tab - let closeAppTab method handle both individual and group
+          // callbacks
           this.store.closeAppTab(tabId);
           // Store subscription will automatically trigger rebuild
           return;
@@ -580,7 +594,8 @@ class ProjectLayoutManager extends Component<
 
       // Handle project tab closing - check for group destruction scenarios FIRST
       for (const project of this.store.projectGroups) {
-        // Check if it's the main tab being closed - this should destroy the entire group
+        // Check if it's the main tab being closed - this should destroy the entire
+        // group
         if (project.mainTab.id === tabId) {
           // Main tab closing - this is GROUP DESTRUCTION
           if (project.onClose) {
@@ -691,7 +706,8 @@ class ProjectLayoutManager extends Component<
       const groupName = tabNode.getName();
       const tabId = tabNode.getId(); // Get the tab ID which contains group ID
 
-      // Extract group ID from tab ID (format: "app-group-label-{groupId}" or "project-group-label-{groupId}")
+      // Extract group ID from tab ID (format: "app-group-label-{groupId}" or
+      // "project-group-label-{groupId}")
       let groupId = null;
       if (tabId.startsWith('app-group-label-')) {
         groupId = tabId.replace('app-group-label-', '');
@@ -862,7 +878,8 @@ class ProjectLayoutManager extends Component<
 
     // Render FlexLayout with all features
     // Note: We need to get the theme from the wrapper component
-    // The Layout component itself doesn't accept className, so we rely on the wrapper
+    // The Layout component itself doesn't accept className, so we rely on the
+    // wrapper
     return createElement(Layout, {
       factory: this.factory,
       model,
@@ -971,7 +988,8 @@ export class TabLayoutService {
         return this.globalManager.createFlexLayoutModel(mainTab.id);
       });
 
-      // Per-instance debounce timers — avoid firing on every drag event during splitter resize
+      // Per-instance debounce timers — avoid firing on every drag event during
+      // splitter resize
       const syncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
         null,
       );
@@ -980,8 +998,8 @@ export class TabLayoutService {
       );
 
       useEffect(() => {
-        // Drop filtering: left/right panels allow only top/bottom splits; bottom panel allows
-        // only left/right splits; center panel disallows all drops.
+        // Drop filtering: left/right panels allow only top/bottom splits; bottom
+        // panel allows only left/right splits; center panel disallows all drops.
         model.setOnAllowDrop(
           (
             _: Node,
@@ -995,17 +1013,17 @@ export class TabLayoutService {
             if (!rootChild) {
               return true;
             }
-            // FlexLayout may wrap center-panel in a row after tree restructuring.
+            // FlexLayout may wrap center-tabset in a row after tree restructuring.
             const containsCenterPanel = (node: Node): boolean => {
-              if (node.getId() === 'center-panel') {
+              if (node.getId() === CENTER_TABSET_ID) {
                 return true;
               }
               return node
                 .getChildren()
-                .some((child) => containsCenterPanel(child as Node));
+                .some((child) => containsCenterPanel(child));
             };
-            if (!containsCenterPanel(rootChild)) {
-              // Left or right panel — block left/right splits
+            if (containsCenterPanel(rootChild)) {
+              // Top area (left/center/right) — block left/right splits
               return (
                 dropLocationName !== 'left' && dropLocationName !== 'right'
               );
@@ -1015,7 +1033,8 @@ export class TabLayoutService {
           },
         );
 
-        // Sync store with model state on load — handles panels that were saved as collapsed
+        // Sync store with model state on load — handles panels that were saved as
+        // collapsed
         syncPanelStateFromModel(model, mainTab.id);
 
         let mounted = true;
@@ -1045,7 +1064,8 @@ export class TabLayoutService {
         );
 
         // Subscribe to layout store changes for panel toggling
-        // doAction updates weights in-place and triggers onModelChange, which saves to ConfigFileManager
+        // doAction updates weights in-place and triggers onModelChange, which saves
+        // to ConfigFileManager
         const unsubscribeLayout = createPanelCollapseLogic(model);
 
         return () => {
@@ -1075,7 +1095,7 @@ export class TabLayoutService {
             const component = node.getComponent();
             const tabId = node.getId();
 
-            if (component === 'panel-placeholder') {
+            if (component === PLACEHOLDER_COMPONENT_NAME) {
               return renderPlaceholder();
             }
 
@@ -1089,7 +1109,8 @@ export class TabLayoutService {
               }
             }
 
-            // Prefer the provided factory for custom components (e.g., GraphDesigner)
+            // Prefer the provided factory for custom components (e.g.,
+            // GraphDesigner)
             const providedComponent = factory(node);
             if (providedComponent !== null) {
               return providedComponent;
@@ -1105,12 +1126,14 @@ export class TabLayoutService {
               const tabId = action.data.node;
               const appStore = useProjectLayoutStore.getState();
 
-              // Check if this is a panel tab (either from componentRegistry or config)
+              // Check if this is a panel tab (either from componentRegistry or
+              // config)
               const isDynamicPanel = tabId in appStore.componentRegistry;
               const panelTab = appStore.panelTabRegistry[tabId];
 
               if (isDynamicPanel && panelTab) {
-                // This is a dynamic panel tab - get the PanelTab object and call its callback
+                // This is a dynamic panel tab - get the PanelTab object and call
+                // its callback
                 if (panelTab.onTabClose) {
                   const shouldClose = panelTab.onTabClose(
                     tabId,
@@ -1197,7 +1220,8 @@ export class TabLayoutService {
           onModelChange: (newModel: any) => {
             removeSidePlaceholdersIfNeeded(newModel);
 
-            // Debounced sync — avoids firing on every drag event during splitter resize
+            // Debounced sync — avoids firing on every drag event during splitter
+            // resize
             if (syncDebounceRef.current) {
               clearTimeout(syncDebounceRef.current);
             }
@@ -1212,7 +1236,8 @@ export class TabLayoutService {
 
             const layoutJson = newModel.toJson();
 
-            // Compare with previously saved layout (ignore ephemeral 'selected' indices)
+            // Compare with previously saved layout (ignore ephemeral 'selected'
+            // indices)
             const appStore = useProjectLayoutStore.getState();
             const prevStr = appStore.getLayoutConfig(mainTab.id);
 
@@ -1251,11 +1276,9 @@ export class TabLayoutService {
               clearTimeout(saveDebounceRef.current);
             }
             saveDebounceRef.current = setTimeout(() => {
-              // Serialize once so both stores get independent snapshots from the same moment
+              // Serialize once so both stores get independent snapshots from the
+              // same moment
               const layoutStr = JSON.stringify(layoutJson);
-              logger.info(
-                `Layout Updated (Main Tab: ${mainTab.title}):${JSON.stringify(layoutJson, null, 2)}`,
-              );
               useProjectLayoutStore
                 .getState()
                 .saveLayoutConfig(mainTab.id, layoutStr);
@@ -1425,12 +1448,14 @@ export class TabLayoutService {
                 const tabId = action.data.node;
                 const appStore = useProjectLayoutStore.getState();
 
-                // Check if this is a panel tab (either from componentRegistry or config)
+                // Check if this is a panel tab (either from componentRegistry or
+                // config)
                 const isDynamicPanel = tabId in appStore.componentRegistry;
                 const panelTab = appStore.panelTabRegistry[tabId];
 
                 if (isDynamicPanel && panelTab) {
-                  // This is a dynamic panel tab - get the PanelTab object and call its callback
+                  // This is a dynamic panel tab - get the PanelTab object and call
+                  // its callback
                   if (panelTab.onTabClose) {
                     const shouldClose = panelTab.onTabClose(
                       tabId,
@@ -1508,7 +1533,8 @@ export class TabLayoutService {
                     }
                   }
 
-                  // Use the panel tab close callback for config panels (for confirmation)
+                  // Use the panel tab close callback for config panels (for
+                  // confirmation)
                   if (onPanelTabClose) {
                     const shouldClose = onPanelTabClose(tabId, panelName);
                     if (!shouldClose) {
@@ -1523,7 +1549,8 @@ export class TabLayoutService {
             onModelChange: (newModel: any) => {
               const layoutJson = newModel.toJson();
 
-              // Compare with previously saved layout (ignore ephemeral 'selected' indices)
+              // Compare with previously saved layout (ignore ephemeral 'selected'
+              // indices)
               const appStore = useProjectLayoutStore.getState();
               const prevStr = appStore.getLayoutConfig(projectTab.id);
 
@@ -1560,13 +1587,6 @@ export class TabLayoutService {
                 // If parse/compare fails, fall through to save/log
               }
 
-              logger.info(
-                ` Panel Layout Updated (Project Tab: ${projectTab.title}):${JSON.stringify(
-                  layoutJson,
-                  null,
-                  2,
-                )}`,
-              );
               useProjectLayoutStore
                 .getState()
                 .saveLayoutConfig(projectTab.id, JSON.stringify(layoutJson));
@@ -1588,7 +1608,6 @@ export class TabLayoutService {
   setManager(manager: ProjectLayoutManager): void {
     this.globalManager = manager;
   }
-
   /**
    * Selects the tab with the given node id in the FlexLayout model.
    *

@@ -20,11 +20,18 @@ import type {
 } from '~features/project-operations';
 import {useArcRecentProjects} from '~features/recent-projects';
 import {SubgraphList} from '~features/subgraph-list';
+import {ValidationResultPanel} from '~features/validation-result-view';
 import {ConfigFileManager} from '~shared/config/config-manager';
 import {
   GetFlexLayoutConfig,
   GRAPH_DESIGNER_COMPONENT_NAME,
+  KEY_CONFIGURATOR_COMPONENT_NAME,
+  LOG_VIEW_COMPONENT_NAME,
   MAIN_TAB_TITLE,
+  migrateFlexLayoutConfig,
+  MODULE_LIST_COMPONENT_NAME,
+  SUBGRAPH_LIST_COMPONENT_NAME,
+  VALIDATION_RESULTS_COMPONENT_NAME,
 } from '~shared/config/utils';
 import {showToast} from '~shared/controls/global-toaster';
 import {logEventEmitter, logger, LogLevel} from '~shared/lib/logger';
@@ -90,16 +97,27 @@ export function useProjectOpener({
       projectId: project.id,
     });
 
-    // Use saved layout if available (restores user's panel positions), otherwise use default
+    // Use saved layout if available (restores user's panel positions), otherwise
+    // use default
     const savedLayout = ConfigFileManager.instance.getProjectConfigData(
       project.id,
       'layout.flexLayout',
     );
     const isValidFlexLayout = (v: unknown): v is IJsonModel =>
       !!v && typeof v === 'object' && 'layout' in v;
+    // Reconciles a saved layout against the current default — adds tabs the
+    // developer added since the layout was last saved, and drops tabs whose
+    // component the app no longer recognizes.
     const flexLayoutConfig = isValidFlexLayout(savedLayout)
-      ? savedLayout
+      ? migrateFlexLayoutConfig(savedLayout)
       : GetFlexLayoutConfig();
+    if (flexLayoutConfig !== savedLayout) {
+      ConfigFileManager.instance.setProjectConfigData(
+        project.id,
+        'layout.flexLayout',
+        flexLayoutConfig,
+      );
+    }
 
     // mainTab.id is deterministically `project_${project.id}`, so both stores
     // can be created before registering the FlexLayout render callback — the
@@ -133,12 +151,7 @@ export function useProjectOpener({
       },
       (node: any) => {
         const component = node.getComponent();
-        const name =
-          typeof node.getName === 'function' ? node.getName() : undefined;
-        if (
-          component === GRAPH_DESIGNER_COMPONENT_NAME ||
-          name === 'Graph Designer'
-        ) {
+        if (component === GRAPH_DESIGNER_COMPONENT_NAME) {
           return (
             <ProjectStoreContext.Provider value={projectStore}>
               <GraphDesignerStoreContext.Provider value={tabStore}>
@@ -152,31 +165,38 @@ export function useProjectOpener({
             </ProjectStoreContext.Provider>
           );
         }
-        if (component === 'module-list' || name === 'Module List') {
+        if (component === MODULE_LIST_COMPONENT_NAME) {
           return (
             <GraphDesignerStoreContext.Provider value={tabStore}>
               <ModuleList />
             </GraphDesignerStoreContext.Provider>
           );
         }
-        if (component === 'subgraph-list' || name === 'Subgraph List') {
+        if (component === SUBGRAPH_LIST_COMPONENT_NAME) {
           return (
             <GraphDesignerStoreContext.Provider value={tabStore}>
               <SubgraphList />
             </GraphDesignerStoreContext.Provider>
           );
         }
-        if (component === 'log-view' || name === 'Log View') {
+        if (component === LOG_VIEW_COMPONENT_NAME) {
           return (
             <ProjectStoreContext.Provider value={projectStore}>
               <LogViewPanel />
             </ProjectStoreContext.Provider>
           );
         }
-        if (component === 'key-configurator' || name === 'Key Configurator') {
+        if (component === KEY_CONFIGURATOR_COMPONENT_NAME) {
           return (
             <GraphDesignerStoreContext.Provider value={tabStore}>
               <KeyConfiguratorPanel />
+            </GraphDesignerStoreContext.Provider>
+          );
+        }
+        if (component === VALIDATION_RESULTS_COMPONENT_NAME) {
+          return (
+            <GraphDesignerStoreContext.Provider value={tabStore}>
+              <ValidationResultPanel />
             </GraphDesignerStoreContext.Provider>
           );
         }

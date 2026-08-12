@@ -72,18 +72,6 @@ export interface MruStoreApi {
   updateProjectImage: (projectId: string, image: string) => Promise<boolean>;
 }
 
-/** Key Configurator View API exposed to renderer process */
-export interface KeyConfiguratorViewApi {
-  onToggleKeyConfiguratorView: (callback: () => void) => () => void;
-  updateKeyConfiguratorViewState: (isOpen: boolean) => Promise<void>;
-}
-
-/** Log View API exposed to renderer process */
-export interface LogViewApi {
-  onToggleLogView: (callback: () => void) => () => void;
-  updateLogViewState: (isOpen: boolean) => Promise<void>;
-}
-
 /** Project Context API exposed to renderer process */
 export interface ProjectContextApi {
   setProjectContext: (isActive: boolean) => Promise<void>;

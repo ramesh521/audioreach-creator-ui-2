@@ -4,6 +4,10 @@
  */
 import {Actions, DockLocation, type Model, type Node} from 'flexlayout-react';
 
+import {
+  CENTER_TABSET_ID,
+  PLACEHOLDER_COMPONENT_NAME,
+} from '~shared/config/utils';
 import {useProjectLayoutStore} from '~shared/store/use-project-layout-store';
 
 import type {
@@ -34,12 +38,11 @@ const PLACEHOLDER_TAB_IDS = {
 } as const;
 type Side = keyof typeof PLACEHOLDER_TAB_IDS;
 
-// Finds the direct child of root that contains 'center-panel' at any depth
-const findRootChildContainingCenter = (
-  root: LayoutNodeJson,
-): LayoutNodeJson | null => {
+// Finds root's direct child that has center nested somewhere inside it — the "top
+// area" node.
+const findTopAreaNode = (root: LayoutNodeJson): LayoutNodeJson | null => {
   const containsCenter = (node: LayoutNodeJson): boolean => {
-    if (node.id === 'center-panel') {
+    if (node.id === CENTER_TABSET_ID) {
       return true;
     }
     return (node.children ?? []).some(containsCenter);
@@ -47,13 +50,14 @@ const findRootChildContainingCenter = (
   return root.children?.find(containsCenter) ?? null;
 };
 
-// Finds the immediate parent of the 'center-panel' tabset
-const findCenterPanelParent = (node: LayoutNodeJson): LayoutNodeJson | null => {
-  if (node.children?.some((child) => child.id === 'center-panel')) {
+// Finds center's parent — its siblings there are left (before) and right (after)
+// center.
+const findCenterParent = (node: LayoutNodeJson): LayoutNodeJson | null => {
+  if (node.children?.some((child) => child.id === CENTER_TABSET_ID)) {
     return node;
   }
   for (const child of node.children ?? []) {
-    const result = findCenterPanelParent(child);
+    const result = findCenterParent(child);
     if (result) {
       return result;
     }
@@ -61,39 +65,33 @@ const findCenterPanelParent = (node: LayoutNodeJson): LayoutNodeJson | null => {
   return null;
 };
 
+// Bottom = root children other than the top area; left/right = center's siblings
+// before/after it.
 const findPositionNodes = (
   json: LayoutJson,
   position: PanelPosition,
 ): LayoutNodeJson[] => {
   const root = json.layout;
+  const topAreaNode = findTopAreaNode(root);
 
   if (position === 'bottom') {
-    const parent = findCenterPanelParent(root);
-    // Bottom nodes only exist when center-panel is NOT a direct child of root.
-    // If parent is root, siblings of center-panel are left/right panels — not bottom.
-    // If parent is a column or a wrapper row (FlexLayout restructuring), siblings after
-    // center-panel are bottom nodes
-    if (!parent || parent.id === 'root') {
-      return [];
-    }
-    const centerIndex = parent.children!.findIndex(
-      (c) => c.id === 'center-panel',
-    );
-    return centerIndex === -1 ? [] : parent.children!.slice(centerIndex + 1);
+    return root.children.filter((child) => child !== topAreaNode);
   }
 
-  const centerRootChild = findRootChildContainingCenter(root);
-  const centerIndex = centerRootChild
-    ? (root.children?.indexOf(centerRootChild) ?? -1)
+  // Search only within the top area, so bottom (also a root child) isn't mistaken
+  // for a right sibling of center.
+  const centerParent = topAreaNode ? findCenterParent(topAreaNode) : null;
+  const centerIndex = centerParent
+    ? (centerParent.children?.findIndex((c) => c.id === CENTER_TABSET_ID) ?? -1)
     : -1;
 
-  if (centerIndex === -1) {
+  if (!centerParent || centerIndex === -1) {
     return [];
   }
 
   return position === 'left'
-    ? root.children.slice(0, centerIndex)
-    : root.children.slice(centerIndex + 1);
+    ? centerParent.children!.slice(0, centerIndex)
+    : centerParent.children!.slice(centerIndex + 1);
 };
 
 // Sets a node's weight to 0 (collapse) or restores it from savedWeights (expand).
@@ -134,21 +132,25 @@ const ensureSidePlaceholder = (model: Model, side: Side): void => {
   let targetNodeId: string;
   let dockLocation: DockLocation;
   if (side === 'bottom') {
-    const centerPanelNode = model.getNodeById('center-panel');
+    // Bottom sits directly under root, so docking BOTTOM onto root always recreates
+    // it full-width.
+    targetNodeId = model.getRoot().getId();
+    dockLocation = DockLocation.BOTTOM;
+  } else {
+    // Center can never move (drag/split/drop are all disabled on it), so it's
+    // always there to dock left/right against.
+    const centerPanelNode = model.getNodeById(CENTER_TABSET_ID);
     if (!centerPanelNode) {
       return;
     }
     targetNodeId = centerPanelNode.getId();
-    dockLocation = DockLocation.BOTTOM;
-  } else {
-    targetNodeId = model.getRoot().getId();
     dockLocation = side === 'left' ? DockLocation.LEFT : DockLocation.RIGHT;
   }
 
   model.doAction(
     Actions.addNode(
       {
-        component: 'panel-placeholder',
+        component: PLACEHOLDER_COMPONENT_NAME,
         enableClose: false,
         enableDrag: false,
         id: tabId,
@@ -206,14 +208,16 @@ export const createPanelCollapseLogic = (model: Model): (() => void) =>
       const nodes = findPositionNodes(layoutJson, position);
       const collapse = !currentVisibility[position];
 
-      // Tabset was deleted — insert a placeholder drop target instead of restoring weights
+      // Tabset was deleted — insert a placeholder drop target instead of restoring
+      // weights
       if (!collapse && !nodes.length) {
         ensureSidePlaceholder(model, position);
         continue;
       }
 
       // Skip dispatch when model already matches desired state.
-      // This prevents re-entry: syncPanelStateFromModel → togglePanel → subscriber fires
+      // This prevents re-entry: syncPanelStateFromModel → togglePanel → subscriber
+      // fires
       const alreadyMatches = collapse
         ? nodes.every((node) => (node.weight ?? 0) < MINIMUM_VISIBLE_WEIGHT)
         : nodes.every((node) => (node.weight ?? 0) >= MINIMUM_VISIBLE_WEIGHT);

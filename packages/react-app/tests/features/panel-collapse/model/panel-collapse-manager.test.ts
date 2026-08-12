@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-// Mock flexlayout-react — only the Actions and DockLocation used by panel-collapse-manager
+// Mock flexlayout-react — only the Actions and DockLocation used by
+// panel-collapse-manager
 jest.mock('flexlayout-react', () => ({
   Actions: {
     addNode: (
@@ -34,6 +35,10 @@ import {
   syncPanelStateFromModel,
   usePanelCollapseStore,
 } from '~features/panel-collapse';
+import {
+  CENTER_TABSET_ID,
+  PLACEHOLDER_COMPONENT_NAME,
+} from '~shared/config/utils';
 
 const PROJECT_ID = 'test-project';
 
@@ -48,7 +53,7 @@ jest.mock('~shared/store/use-project-layout-store', () => ({
 
 // ─── Layout helpers ──────────────────────────────────────────────────────────
 
-/** Standard 3-column layout: left tabset | center column | right tabset */
+/** Standard layout: root -> [topRow{left, center, right}, bottomTabset] */
 const makeLayout = ({
   bottomWeight = 20,
   hasLeftTabset = true,
@@ -58,26 +63,40 @@ const makeLayout = ({
 } = {}) => ({
   layout: {
     children: [
-      ...(hasLeftTabset
-        ? [{children: [], id: 'left-ts', type: 'tabset', weight: leftWeight}]
-        : []),
       {
         children: [
+          ...(hasLeftTabset
+            ? [
+                {
+                  children: [],
+                  id: 'left-ts',
+                  type: 'tabset',
+                  weight: leftWeight,
+                },
+              ]
+            : []),
           {
             children: [],
-            id: 'center-panel',
+            id: CENTER_TABSET_ID,
             type: 'tabset',
-            weight: 80 - bottomWeight,
+            weight: 80,
           },
-          {children: [], id: 'bottom-ts', type: 'tabset', weight: bottomWeight},
+          ...(hasRightTabset
+            ? [
+                {
+                  children: [],
+                  id: 'right-ts',
+                  type: 'tabset',
+                  weight: rightWeight,
+                },
+              ]
+            : []),
         ],
-        id: 'center-col',
-        type: 'column',
-        weight: 60,
+        id: 'top-row',
+        type: 'row',
+        weight: 100 - bottomWeight,
       },
-      ...(hasRightTabset
-        ? [{children: [], id: 'right-ts', type: 'tabset', weight: rightWeight}]
-        : []),
+      {children: [], id: 'bottom-ts', type: 'tabset', weight: bottomWeight},
     ],
     id: 'root',
     type: 'row',
@@ -142,7 +161,8 @@ describe('panel-collapse-manager', () => {
 
   // ── 1. Collapse → expand round-trip preserves saved weights ────────────────
 
-  // Collapsing saves the original weight; expanding should restore it, not use the default
+  // Collapsing saves the original weight; expanding should restore it, not use the
+  // default
   it('saves original weight on collapse and restores it on expand', () => {
     const model = createMockModel(makeLayout({leftWeight: 30}));
     const unsubscribe = createPanelCollapseLogic(model as any);
@@ -167,7 +187,8 @@ describe('panel-collapse-manager', () => {
 
   // ── 2. Deleted tabset → expand inserts a placeholder ──────────────────────
 
-  // When the tabset is gone, expanding should insert a drop-target placeholder instead
+  // When the tabset is gone, expanding should insert a drop-target placeholder
+  // instead
   it('inserts a placeholder when the left tabset has been deleted and panel is expanded', () => {
     // Layout with no left tabset (user deleted it)
     const model = createMockModel(makeLayout({hasLeftTabset: false}));
@@ -185,12 +206,14 @@ describe('panel-collapse-manager', () => {
         model.doAction(action);
         if (
           action?.type === 'FlexLayout_AddNode' ||
-          JSON.stringify(action).includes('panel-placeholder')
+          JSON.stringify(action).includes(PLACEHOLDER_COMPONENT_NAME)
         ) {
           addNodeActions.push(action);
         }
       },
-      getNodeById: (_id: string) => null,
+      // Left/right placeholders dock relative to center, which is always present.
+      getNodeById: (id: string) =>
+        id === CENTER_TABSET_ID ? {getId: () => CENTER_TABSET_ID} : null,
       getRoot: () => ({getId: () => 'root'}),
     };
 
@@ -224,7 +247,8 @@ describe('panel-collapse-manager', () => {
     );
   });
 
-  // If the model shows a panel as collapsed (weight 0) but the store says visible, sync the store
+  // If the model shows a panel as collapsed (weight 0) but the store says visible,
+  // sync the store
   it('toggles store to collapsed when model shows panel at weight 0 but store says visible', () => {
     // Store says left is visible
     usePanelCollapseStore.setState({
@@ -244,28 +268,28 @@ describe('panel-collapse-manager', () => {
 
   // ── 4. Stale/missing layout → syncPanelStateFromModel handles deleted tabsets ─
 
-  // A layout with no side tabsets should not crash and should mark those panels as collapsed
+  // A layout with no side tabsets should not crash and should mark those panels as
+  // collapsed
   it('does not crash when layout has no side panel nodes and marks them as collapsed', () => {
     usePanelCollapseStore.setState({
       panelStates: {[PROJECT_ID]: {bottom: true, left: true, right: true}},
       savedWeights: {},
     });
 
-    // Layout with no left or right tabsets (stale/minimal schema — tabsets were deleted)
-    // Bottom tabset is still present inside the center column
+    // Layout with no left or right tabsets (stale/minimal schema — tabsets were
+    // deleted). With both siblings gone, FlexLayout hoists center-tabset to be
+    // a direct child of root, alongside bottom-ts.
     const model = {
       toJson: () => ({
         layout: {
           children: [
             {
-              children: [
-                {children: [], id: 'center-panel', type: 'tabset', weight: 80},
-                {children: [], id: 'bottom-ts', type: 'tabset', weight: 20},
-              ],
-              id: 'center-col',
-              type: 'column',
-              weight: 100,
+              children: [],
+              id: CENTER_TABSET_ID,
+              type: 'tabset',
+              weight: 80,
             },
+            {children: [], id: 'bottom-ts', type: 'tabset', weight: 20},
           ],
           id: 'root',
           type: 'row',
@@ -286,7 +310,8 @@ describe('panel-collapse-manager', () => {
 
   // ── 5. removeSidePlaceholdersIfNeeded removes placeholder when real tab added ─
 
-  // Once a real tab is dropped in, the placeholder should be removed and splitting re-enabled
+  // Once a real tab is dropped in, the placeholder should be removed and splitting
+  // re-enabled
   it('removes placeholder tab when a real tab is dropped into the tabset', () => {
     const PLACEHOLDER_ID = 'left-placeholder-tab';
     const removedTabs: string[] = [];
