@@ -60,6 +60,24 @@ function renderModuleNode(node: ModuleNodeData, options: RenderOptions = {}) {
   );
 }
 
+// Renders with an active search highlight already applied to the node, to
+// test PP-highlight vs. search-highlight precedence.
+function renderModuleNodeWithActiveHighlight(node: ModuleNodeData) {
+  const store = createVisualizerStore();
+  store.getState().syncSearchHighlights({
+    activeId: node.id,
+    containsMatchNodeIds: [],
+    highlightedIds: [node.id],
+  });
+  return render(
+    <ReactFlowProvider>
+      <VisualizerStoreProvider store={store}>
+        <ModuleNode {...makeModuleNodeProps(node)} />
+      </VisualizerStoreProvider>
+    </ReactFlowProvider>,
+  );
+}
+
 describe('ModuleNode — default footer', () => {
   it('renders label and #moduleId as hex by default', () => {
     renderModuleNode(makeModule({label: 'Gain', moduleId: 42}));
@@ -286,5 +304,48 @@ describe('ModuleNode — even spacing', () => {
     const tops = handles.map((h) => h.style.top);
     // boxHeight = 100 - 56 footer = 44; step = (44 - 24) / 4 = 5
     expect(tops).toEqual(['17px', '22px', '27px']);
+  });
+});
+
+describe('ModuleNode — PP highlight', () => {
+  it('applies the PP background/border and data-pp-module when isPpModule is true', () => {
+    const node = makeModule({isPpModule: true});
+    const {container} = renderModuleNode(node);
+    const root = screen.getByTestId('module-node');
+    const shapeLayer = container.querySelector(
+      '[data-testid="module-shape-layer"]',
+    ) as HTMLElement;
+
+    expect(root.getAttribute('data-pp-module')).toBe('true');
+    expect(shapeLayer.style.backgroundColor).toBe(
+      'var(--color-background-support-success)',
+    );
+    expect(shapeLayer.style.borderColor).toBe(
+      'var(--color-border-support-success)',
+    );
+  });
+
+  it('omits data-pp-module and uses default styling when isPpModule is absent', () => {
+    renderModuleNode(makeModule());
+    const root = screen.getByTestId('module-node');
+    expect(root.getAttribute('data-pp-module')).toBe(null);
+  });
+
+  it('omits data-pp-module when isPpModule is false', () => {
+    renderModuleNode(makeModule({isPpModule: false}));
+    const root = screen.getByTestId('module-node');
+    expect(root.getAttribute('data-pp-module')).toBe(null);
+  });
+
+  it('lets an active search highlight win over the PP highlight', () => {
+    const node = makeModule({isPpModule: true});
+    const {container} = renderModuleNodeWithActiveHighlight(node);
+    const shapeLayer = container.querySelector(
+      '[data-testid="module-shape-layer"]',
+    ) as HTMLElement;
+
+    expect(shapeLayer.style.backgroundColor).toBe(
+      'var(--color-background-support-warning)',
+    );
   });
 });

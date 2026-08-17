@@ -68,8 +68,10 @@ import {
 import {tabLayoutService} from '~widgets/project-layout/project-layout-manager';
 
 import {applyCollapses} from '../lib/apply-collapses';
+import {applyLinkVisibility} from '../lib/apply-link-visibility';
 import {applyPortVisibility} from '../lib/apply-port-visibility';
 import {applyPositionOverrides} from '../lib/apply-position-overrides';
+import {applyPpHighlight} from '../lib/apply-pp-highlight';
 import {
   computeContainsMatchIds,
   searchLevelView,
@@ -90,6 +92,7 @@ interface GraphDesignerProps {
 }
 
 const EMPTY_SET: ReadonlySet<number> = new Set<number>();
+const EMPTY_STRING_SET: ReadonlySet<string> = new Set<string>();
 
 const GraphDesigner: React.FC<GraphDesignerProps> = ({
   projectId,
@@ -112,6 +115,8 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
     preferences.visualization.viewMode === 'detailed'
       ? preferences.display.portVisibilityMode
       : 'active';
+  const {highlightPPModules, showControlLinks, showDanglingLinks} =
+    preferences.visualization;
   const {workflowLevel, workflowType} = preferences.usecases;
 
   const {isLoading: isWorkflowLoading, resolvedData} = useWorkflowUsecaseData(
@@ -141,6 +146,9 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
   const syncEnableOverlays = useGraphDesignerStoreShallow(
     (s) => s.syncEnableOverlays,
   );
+
+  // Module list, for deriving which modules are PP for Highlight PP Modules.
+  const moduleList = useGraphDesignerStoreShallow((s) => s.moduleList);
 
   // Store API for imperative action calls and provider value for new tabs.
   const store = useGraphDesignerStore();
@@ -214,13 +222,47 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
     }
   }, [levelView, preferences.visualization.expandSubgraphs]);
 
-  const graph = useMemo<LevelView>(() => {
+  // Module list is loaded by the effect above; PP Highlight reads it here.
+  const ppModuleIds = useMemo(() => {
+    if (!highlightPPModules) {
+      return EMPTY_STRING_SET;
+    }
+    return new Set(
+      moduleList.filter((m) => m.category === 'PP').map((m) => m.moduleId),
+    );
+  }, [highlightPPModules, moduleList]);
+
+  // Collapse/visibility/highlight only depend on levelView and their own
+  // toggles, so a node drag (positionOverrides/parentSizes changing) doesn't
+  // force a redundant re-filter of links or re-stamp of PP modules.
+  const filteredAndHighlighted = useMemo<LevelView>(() => {
     if (!levelView) {
       return {levelId: ''};
     }
     const collapsed = applyCollapses(levelView, collapsedSubgraphs);
-    return applyPositionOverrides(collapsed, positionOverrides, parentSizes);
-  }, [levelView, collapsedSubgraphs, positionOverrides, parentSizes]);
+    const linkFiltered = applyLinkVisibility(
+      collapsed,
+      showControlLinks,
+      showDanglingLinks,
+    );
+    return applyPpHighlight(linkFiltered, ppModuleIds);
+  }, [
+    levelView,
+    collapsedSubgraphs,
+    showControlLinks,
+    showDanglingLinks,
+    ppModuleIds,
+  ]);
+
+  const graph = useMemo<LevelView>(
+    () =>
+      applyPositionOverrides(
+        filteredAndHighlighted,
+        positionOverrides,
+        parentSizes,
+      ),
+    [filteredAndHighlighted, positionOverrides, parentSizes],
+  );
 
   // Guards against stale layout results when selectedUsecases changes rapidly.
   const layoutGenerationRef = useRef(0);

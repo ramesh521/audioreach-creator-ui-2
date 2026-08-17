@@ -201,6 +201,7 @@ export function buildLevelViewFromGraphData(
       dataLinks.push({
         edgeKind: EDGE_KIND.DATA,
         id: c.connectionId,
+        isDangling: c.isDangling,
         sourceNodeId: c.fromModuleId,
         sourcePortId: c.fromPortId,
         targetNodeId: c.toModuleId,
@@ -210,6 +211,7 @@ export function buildLevelViewFromGraphData(
       controlLinks.push({
         edgeKind: EDGE_KIND.CONTROL,
         id: c.connectionId,
+        isDangling: c.isDangling,
         sourceNodeId: c.fromModuleId,
         sourcePortId: c.fromPortId,
         targetNodeId: c.toModuleId,

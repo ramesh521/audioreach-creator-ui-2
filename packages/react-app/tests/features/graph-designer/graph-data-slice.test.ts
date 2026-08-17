@@ -501,6 +501,7 @@ describe('applyAddedCollection / applyDeletedCollection — links', () => {
       connectionType: 'data',
       fromModuleId: 'sys-mod-1',
       fromPortId: '10',
+      isDangling: false,
       toModuleId: 'sys-ss-1',
       toPortId: '20',
     });

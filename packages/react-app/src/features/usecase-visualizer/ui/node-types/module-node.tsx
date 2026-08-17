@@ -133,6 +133,7 @@ export function ModuleNode({data: node, selected}: ModuleNodeProps) {
 
   const shape = node.shape ?? 'rect';
   const isLocked = node.locked === true;
+  const isPpModule = node.isPpModule === true;
   const ShapeIcon = SHAPE_ICONS[shape];
 
   const footer = override?.footer ?? defaultFooter(node, showModuleInstanceId);
@@ -146,18 +147,25 @@ export function ModuleNode({data: node, selected}: ModuleNodeProps) {
   const background =
     highlight.state === 'active'
       ? highlight.activeBackgroundColor
-      : 'var(--node-shade-medium)';
+      : isPpModule
+        ? 'var(--color-background-support-success)'
+        : 'var(--node-shade-medium)';
   // Selection shows the same info-coloured border as a search match; search
-  // state still wins when present.
+  // state still wins when present, then the PP highlight.
   const borderColor =
-    selected && highlight.state === 'none'
-      ? 'var(--color-border-support-info)'
-      : highlight.borderColor;
+    highlight.state !== 'none'
+      ? highlight.borderColor
+      : selected
+        ? 'var(--color-border-support-info)'
+        : isPpModule
+          ? 'var(--color-border-support-success)'
+          : highlight.borderColor;
 
   return (
     <div
       className="relative"
       data-locked={isLocked || undefined}
+      data-pp-module={isPpModule || undefined}
       data-shape={shape}
       data-testid="module-node"
       style={{height: node.height, width: node.width}}

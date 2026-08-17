@@ -55,6 +55,7 @@ export interface Connection {
   diffState?: DiffState;
   fromModuleId: string;
   fromPortId: string;
+  isDangling: boolean;
   toModuleId: string;
   toPortId: string;
 }
@@ -355,6 +356,7 @@ function upsertLink(
     connectionType,
     fromModuleId: link.sourceId,
     fromPortId: link.sourcePortId,
+    isDangling: link.isDangling,
     toModuleId: link.destinationId,
     toPortId: link.destinationPortId,
   };
@@ -809,6 +811,7 @@ export function createGraphDataSlice<
             connectionType: 'data',
             fromModuleId: link.sourceId,
             fromPortId: link.sourcePortId,
+            isDangling: link.isDangling,
             toModuleId: link.destinationId,
             toPortId: link.destinationPortId,
           };
@@ -824,6 +827,7 @@ export function createGraphDataSlice<
             connectionType: 'control',
             fromModuleId: link.sourceId,
             fromPortId: link.sourcePortId,
+            isDangling: link.isDangling,
             toModuleId: link.destinationId,
             toPortId: link.destinationPortId,
           };

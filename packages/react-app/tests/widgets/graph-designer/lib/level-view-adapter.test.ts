@@ -77,3 +77,42 @@ describe('buildLevelViewFromGraphData — SubgraphNode.parentId (B5, N7)', () =>
     expect(subgraph?.parentId).toBeUndefined();
   });
 });
+
+describe('buildLevelViewFromGraphData — isDangling passthrough', () => {
+  const dataWithConnection = (
+    connectionType: 'control' | 'data',
+    isDangling: boolean,
+  ): UsecaseGraphData => ({
+    ...baseData,
+    connections: [
+      {
+        connectionId: 'conn-1',
+        connectionType,
+        fromModuleId: 'sys-mod-1',
+        fromPortId: 'p-out',
+        isDangling,
+        toModuleId: 'sys-mod-1',
+        toPortId: 'p-in',
+      },
+    ],
+  });
+
+  it.each([
+    ['data', true],
+    ['data', false],
+    ['control', true],
+    ['control', false],
+  ] as const)(
+    'copies isDangling: %s from a %s Connection onto the matching link',
+    (connectionType, isDangling) => {
+      const lv = buildLevelViewFromGraphData(
+        dataWithConnection(connectionType, isDangling),
+        'level-1',
+      );
+
+      const link =
+        connectionType === 'data' ? lv.dataLinks?.[0] : lv.controlLinks?.[0];
+      expect(link?.isDangling).toBe(isDangling);
+    },
+  );
+});

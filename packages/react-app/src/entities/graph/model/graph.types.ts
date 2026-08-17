@@ -88,6 +88,7 @@ export interface ContainerNode extends NodeBase {
 export interface ModuleNode extends NodeBase {
   alias?: string;
   icon?: string;
+  isPpModule?: boolean;
   moduleId: number;
   moduleType: string;
   nodeKind: 'module';
@@ -130,6 +131,8 @@ export type AnyEdge = ControlLink | DataLink | ProxyControlLink | ProxyDataLink;
 
 export interface EdgeBase {
   id: string;
+  /** Not used on proxy links, since one merged line can't have a single true/false. */
+  isDangling?: boolean;
   label?: string;
   /** Excluded from Delete key and context menu. */
   locked?: boolean;

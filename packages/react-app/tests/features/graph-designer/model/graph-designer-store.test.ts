@@ -275,6 +275,7 @@ describe('createGraphDesignerStore — full edit-session round-trip through a mi
       connectionType: 'data',
       fromModuleId: 'mod-A',
       fromPortId: '12',
+      isDangling: false,
       toModuleId: 'mod-B',
       toPortId: '21',
     });
