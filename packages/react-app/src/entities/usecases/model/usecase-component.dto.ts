@@ -142,6 +142,17 @@ export interface DataLinkDto {
   systemId: string;
 }
 
+/** Data link kind. The backend defaults to `normal` when omitted. */
+export type DataLinkType = 'EC' | 'interUsecase' | 'normal';
+
+export interface CreateDataLinkRequest {
+  destinationNodeSystemId: string;
+  destinationPortSystemId: string;
+  sourceNodeSystemId: string;
+  sourcePortSystemId: string;
+  type?: DataLinkType;
+}
+
 export interface ControlLinkDto {
   connectionType: ConnectionType;
   destinationPortSystemId: string;

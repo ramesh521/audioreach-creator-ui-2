@@ -457,10 +457,26 @@ against the current backend swagger, per
 | `createControlLink` | POST | `/control-links` | `CreateControlLinkRequest` | `ComponentCollectionDto` |
 | `createDataLinkWithSubsystems` | POST | `/data-links/with-subsystems` | `CreateDataLinkRequest` | `ComponentCollectionWithSubsystemsDto` |
 | `createControlLinkWithSubsystems` | POST | `/control-links/with-subsystems` | `CreateControlLinkRequest` | `ComponentCollectionWithSubsystemsDto` |
-| `deleteDataLink` | DELETE | `/data-links/{id}` | — | Deleted link's own DTO |
-| `deleteControlLink` | DELETE | `/control-links/{id}` | — | Deleted link's own DTO |
+| `deleteDataLink` | DELETE | `/data-links/{dataLinkSystemId}` | — | Deleted link's own DTO |
+| `deleteControlLink` | DELETE | `/control-links/{controlLinkSystemId}` | — | Deleted link's own DTO |
 | `patchSpfModule` (port-count fields) | PATCH | `/spf-modules/{id}` | `{maxInputPortsSupported?, maxOutputPortsSupported?, maxControlPortsSupported?}` | `SpfModuleDto` |
 | `patchSubsystem` (port-count fields) | PATCH | `/subsystems/{id}` | `{maxInputDataPortsSupported?, maxOutputDataPortsSupported?, maxControlPortsSupported?}` | `SubsystemDto` |
+
+### 6.1 Request shape (data links)
+
+`CreateDataLinkRequest` — every field is a **systemId string**, and the four
+endpoint fields are required:
+
+```typescript
+interface CreateDataLinkRequest {
+  destinationNodeSystemId: string;
+  destinationPortSystemId: string;
+  sourceNodeSystemId: string;
+  sourcePortSystemId: string;
+  /** Defaults to 'normal' server-side when omitted. */
+  type?: 'EC' | 'interUsecase' | 'normal';
+}
+```
 
 ---
 

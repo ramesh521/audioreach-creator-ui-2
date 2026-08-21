@@ -44,6 +44,7 @@ export {useModuleList} from './hooks/use-module-list';
 export {useSubgraphList} from './hooks/use-subgraph-list';
 export {useSubsystemBrowser} from './hooks/use-subsystem-browser';
 export {useValidationResults} from './hooks/use-validation-results';
+export {createLinkOperations} from './lib/link-operations';
 export {
   parseModuleDropPayload,
   resolveModuleDropTarget,

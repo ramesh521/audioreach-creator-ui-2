@@ -39,6 +39,7 @@ import {
 } from '~entities/usecases';
 import {
   ApplyDiscardControls,
+  createLinkOperations,
   GraphDesignerStoreContext,
   parseModuleDropPayload,
   parseSubgraphDropPayload,
@@ -53,6 +54,7 @@ import {
   useWorkflowUsecaseData,
 } from '~features/usecase-selection';
 import {
+  type EdgeConnectPayload,
   type NodeDropPayload,
   type SearchHighlights,
   UsecaseVisualizer,
@@ -215,6 +217,12 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
   // Store API for imperative action calls and provider value for new tabs.
   const store = useGraphDesignerStore();
 
+  // Backend-call core for drawing/deleting connections on the canvas.
+  const linkOperations = useMemo(
+    () => createLinkOperations(projectId),
+    [projectId],
+  );
+
   // Keyed by moduleInstanceId (nodeId) so the tab-close callback can reach
   // the specific ModuleDataTab instance's confirmClose() handle.
   const moduleDataTabRefs = useRef(
@@ -258,14 +266,31 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
     preferences.visualization.expandSubgraphs,
   );
 
+  // Compares levelId plus subgraph ids together, so a link mutation doesn't reset the subgraphs the user manually expanded or collapsed.
+  const appliedLevelSignatureRef = useRef<string | undefined>(undefined);
+
   // Applies expandSubgraphs to the current level; overlay only on checkbox click.
   useEffect(() => {
     if (!levelView) {
       return;
     }
+    const subgraphIds = (levelView.subgraphs ?? [])
+      .map((sg) => sg.subgraphId)
+      .sort((a, b) => a - b);
+    const levelSignature = `${levelView.levelId}:${subgraphIds.join(',')}`;
+    const levelChanged = appliedLevelSignatureRef.current !== levelSignature;
     const checkboxChanged =
       appliedExpandSubgraphsRef.current !==
       preferences.visualization.expandSubgraphs;
+
+    // Add/delete rebuilds levelView without changing the level or the
+    // checkbox — reapplying here would discard whatever the user has manually
+    // expanded or collapsed.
+    if (!levelChanged && !checkboxChanged) {
+      return;
+    }
+
+    appliedLevelSignatureRef.current = levelSignature;
     appliedExpandSubgraphsRef.current =
       preferences.visualization.expandSubgraphs;
 
@@ -504,6 +529,8 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
     setPositionOverrides({});
     setParentSizes({});
     setViewportByLevel({});
+    // Resets the level tracker so reselecting the same usecases after deselecting still counts as a fresh load, not a same-level mutation.
+    appliedLevelSignatureRef.current = undefined;
     if (selectedUsecases.length === 0) {
       initializeEmptyGraphData();
       return;
@@ -718,6 +745,41 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
 
   const eventHandlers = useMemo(
     () => ({
+      onEdgeConnected: (payload: EdgeConnectPayload) => {
+        if (payload.edgeKind !== 'data') {
+          return;
+        }
+        // Catches the case where another connect is already in flight, so it shows a toast instead of an unhandled rejection.
+        linkOperations
+          .connectPorts(
+            store.getState,
+            payload.sourceNodeId,
+            payload.sourcePortId,
+            payload.targetNodeId,
+            payload.targetPortId,
+          )
+          .catch(() => {
+            showToast(
+              'Please wait for the current operation to finish',
+              'danger',
+            );
+          });
+      },
+      onEdgesDeleted: (payload: {edgeIds: string[]}) => {
+        const {connections} = store.getState().graphData ?? {connections: []};
+        const connectionTypeById = new Map(
+          connections.map((c) => [c.connectionId, c.connectionType]),
+        );
+        // Deletes one at a time, so an earlier delete can't get skipped while a later one is still in flight.
+        void (async () => {
+          for (const edgeId of payload.edgeIds) {
+            if (connectionTypeById.get(edgeId) !== 'data') {
+              continue;
+            }
+            await linkOperations.deleteLink(store.getState, edgeId);
+          }
+        })();
+      },
       onNodeDoubleClick: handleModuleDoubleClick,
       onNodeDragEnd: ({
         nodeId,
@@ -861,6 +923,7 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
       handleModuleDoubleClick,
       handleNodesDeleted,
       levelId,
+      linkOperations,
       store,
     ],
   );

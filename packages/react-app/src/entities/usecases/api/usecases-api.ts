@@ -10,7 +10,11 @@ import type {
 } from '~entities/subgraph-definitions/model/subgraph-response.dto';
 import {type ApiResult, httpClient} from '~shared/api';
 
-import type {ComponentCollectionDto} from '../model/usecase-component.dto';
+import type {
+  ComponentCollectionDto,
+  CreateDataLinkRequest,
+  DataLinkDto,
+} from '../model/usecase-component.dto';
 import type {
   SubsystemFilteredUsecasesDto,
   UsecaseDto,
@@ -156,5 +160,54 @@ export async function renameSubgraph(
   return httpClient.patch<SubgraphResponseDto>(
     `/projects/${projectId}/subgraphs/${subgraphSystemId}`,
     request,
+  );
+}
+
+/**
+ * Create a data link between two module ports.
+ * @param projectId - The unique identifier of the project
+ * @param request - The source/destination module and port ids to connect
+ * @returns The created link, wrapped in a component collection
+ */
+export async function createDataLink(
+  projectId: string,
+  request: CreateDataLinkRequest,
+): Promise<ApiResult<ComponentCollectionDto>> {
+  return httpClient.post<ComponentCollectionDto>(
+    `/projects/${projectId}/data-links`,
+    request,
+  );
+}
+
+/**
+ * Create a data link where either endpoint is a subsystem, letting the
+ * backend resolve and return every intermediate module/subsystem hop.
+ * @param projectId - The unique identifier of the project
+ * @param request - The source/destination module and port ids to connect
+ * @returns The created link and every intermediate hop, wrapped in a
+ * component collection
+ */
+export async function createDataLinkWithSubsystems(
+  projectId: string,
+  request: CreateDataLinkRequest,
+): Promise<ApiResult<ComponentCollectionDto>> {
+  return httpClient.post<ComponentCollectionDto>(
+    `/projects/${projectId}/data-links/with-subsystems`,
+    request,
+  );
+}
+
+/**
+ * Delete a data link.
+ * @param projectId - The unique identifier of the project
+ * @param connectionId - The data link's systemId
+ * @returns The deleted link's own DTO
+ */
+export async function deleteDataLink(
+  projectId: string,
+  connectionId: string,
+): Promise<ApiResult<DataLinkDto>> {
+  return httpClient.delete<DataLinkDto>(
+    `/projects/${projectId}/data-links/${connectionId}`,
   );
 }
