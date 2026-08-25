@@ -133,6 +133,7 @@ export interface EdgeBase {
   label?: string;
   /** Excluded from Delete key and context menu. */
   locked?: boolean;
+  meta?: Record<string, unknown>;
   sourceNodeId: string;
   sourcePortId: string;
   targetNodeId: string;

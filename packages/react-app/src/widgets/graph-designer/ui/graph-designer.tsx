@@ -50,6 +50,7 @@ import {
 } from '~features/usecase-selection';
 import {
   type SearchHighlights,
+  type SelectionChangePayload,
   UsecaseVisualizer,
   type ViewportState,
   type XY,
@@ -541,13 +542,10 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
         }
       },
       onSelectionChange: ({
-        selectedEdgeIds,
-        selectedNodeIds,
-      }: {
-        selectedEdgeIds: string[];
-        selectedNodeIds: string[];
-      }) => {
-        setSelection(selectedNodeIds, selectedEdgeIds);
+        selectedEdges,
+        selectedNodes,
+      }: SelectionChangePayload) => {
+        setSelection(selectedNodes, selectedEdges);
       },
       onSubgraphCollapse: (subgraphId: number) => {
         setCollapseByLevel((prev) => ({

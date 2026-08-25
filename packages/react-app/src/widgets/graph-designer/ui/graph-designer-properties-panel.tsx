@@ -24,14 +24,14 @@ export function GraphDesignerPropertiesPanel({
     effectiveLevelView,
     graphData,
     isEditing,
-    selectedEdgeIds,
-    selectedNodeIds,
+    selectedEdges,
+    selectedNodes,
   } = useGraphDesignerStoreShallow((s) => ({
     effectiveLevelView: s.effectiveLevelView,
     graphData: s.graphData,
     isEditing: s.isEditing,
-    selectedEdgeIds: s.selectedEdgeIds,
-    selectedNodeIds: s.selectedNodeIds,
+    selectedEdges: s.selectedEdges,
+    selectedNodes: s.selectedNodes,
   }));
 
   if (!graphData) {
@@ -50,8 +50,8 @@ export function GraphDesignerPropertiesPanel({
     onSubgraphNameChange: NOOP,
     onSubsystemNameChange: NOOP,
     projectId,
-    selectedEdgeIds,
-    selectedNodeIds,
+    selectedEdges,
+    selectedNodes,
     virtualControlLinks: effectiveLevelView?.proxyControlLinks ?? [],
     virtualDataLinks: effectiveLevelView?.proxyDataLinks ?? [],
   };

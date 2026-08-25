@@ -188,6 +188,40 @@ Cards inside each group preserve the order from `selectedNodes` or
 If no supported selected entity resolves, the panel renders the empty state.
 Group collapse state is widget-local and keyed by group type.
 
+### 5.1 Virtual link source of truth
+
+Virtual Data Links are a UI classification, not a first-class backend entity in
+`UsecaseGraphData`. The graph designer computes them while adapting/rendering
+the current level:
+
+- `buildLevelViewFromGraphData` creates backend-derived subsystem proxy links
+  when a connection endpoint is not module-to-module.
+- `applyCollapses` creates standard proxy links when collapsed subgraphs hide
+  real data/control links.
+- Future MDF classification also belongs in this UI-level adapter path, where
+  the visualizer has enough context to expose hidden MDF modules and real
+  connection IDs.
+
+The graph-designer host keeps the currently rendered level in
+`effectiveLevelView` and passes `effectiveLevelView.proxyDataLinks` and
+`effectiveLevelView.proxyControlLinks` into `PropertiesPanel` as
+`virtualDataLinks` and `virtualControlLinks`.
+
+For a selected proxy edge, the properties panel resolves the full virtual-link
+view model by matching `SelectedEdgeRef.id` to the current virtual-link array.
+The selected edge descriptor supplies identity and edge kind; the virtual-link
+array supplies UI-only details such as:
+
+- `kind` (`standard`, `mdf`, or `subsystem`)
+- `realConnectionIds`
+- `mdfModuleIds`
+- proxy endpoint node/port IDs
+
+The card then uses `graphData.connections` and `graphData.moduleInstances` only
+to enrich those UI-level virtual-link records with names, module IDs, and port
+display values. It must not try to reconstruct VDL classification from
+`graphData` alone.
+
 When resolving Virtual Data Link selections, the panel includes only proxy data
 links present in the current effective level view's `virtualDataLinks` array.
 Backend-discriminated subsystem proxy data links are not routed to the Virtual

@@ -9,8 +9,17 @@ import {ChevronDown, ChevronRight} from 'lucide-react';
 
 import {IconButton} from '@qualcomm-ui/react/button';
 
-import type {ProxyControlLink, ProxyDataLink} from '~entities/graph';
+import {
+  EDGE_KIND,
+  NODE_KIND,
+  type ProxyControlLink,
+  type ProxyDataLink,
+} from '~entities/graph';
 import type {UsecaseGraphData} from '~features/graph-designer/model/graph-data-slice';
+import type {
+  SelectedEdgeRef,
+  SelectedNodeRef,
+} from '~features/usecase-visualizer';
 import {ContainerPropertiesCard} from '~widgets/properties-panel/ui/entity-cards/container-properties-card';
 import {ControlLinkPropertiesCard} from '~widgets/properties-panel/ui/entity-cards/control-link-properties-card';
 import {DataLinkPropertiesCard} from '~widgets/properties-panel/ui/entity-cards/data-link-properties-card';
@@ -37,8 +46,8 @@ export interface PropertiesPanelProps {
   onSubgraphNameChange: (id: string, name: string) => void;
   onSubsystemNameChange: (id: string, name: string) => void;
   projectId: string;
-  selectedEdgeIds: string[];
-  selectedNodeIds: string[];
+  selectedEdges: SelectedEdgeRef[];
+  selectedNodes: SelectedNodeRef[];
   virtualControlLinks?: ProxyControlLink[];
   virtualDataLinks?: ProxyDataLink[];
 }
@@ -63,8 +72,8 @@ export function PropertiesPanel({
   onSubgraphNameChange,
   onSubsystemNameChange,
   projectId,
-  selectedEdgeIds,
-  selectedNodeIds,
+  selectedEdges,
+  selectedNodes,
   virtualControlLinks = [],
   virtualDataLinks = [],
 }: PropertiesPanelProps) {
@@ -81,15 +90,28 @@ export function PropertiesPanel({
     const modules: string[] = [];
     const subsystems: string[] = [];
 
-    for (const id of selectedNodeIds) {
-      if (graphData.subgraphs[id]) {
-        subgraphs.push(id);
-      } else if (graphData.containers[id]) {
-        containers.push(id);
-      } else if (graphData.moduleInstances[id]) {
-        modules.push(id);
-      } else if (graphData.subsystems[id]) {
-        subsystems.push(id);
+    for (const node of selectedNodes) {
+      if (
+        (node.nodeKind === NODE_KIND.SUBGRAPH ||
+          node.nodeKind === NODE_KIND.SUBGRAPH_PROXY) &&
+        graphData.subgraphs[node.systemId]
+      ) {
+        subgraphs.push(node.systemId);
+      } else if (
+        node.nodeKind === NODE_KIND.CONTAINER &&
+        graphData.containers[node.systemId]
+      ) {
+        containers.push(node.systemId);
+      } else if (
+        node.nodeKind === NODE_KIND.MODULE &&
+        graphData.moduleInstances[node.systemId]
+      ) {
+        modules.push(node.systemId);
+      } else if (
+        node.nodeKind === NODE_KIND.SUBSYSTEM &&
+        graphData.subsystems[node.systemId]
+      ) {
+        subsystems.push(node.systemId);
       }
     }
 
@@ -98,17 +120,25 @@ export function PropertiesPanel({
     const controlLinks: string[] = [];
     const virtualControlLinkIds: string[] = [];
 
-    for (const id of selectedEdgeIds) {
-      if (virtualDataLinks.some((vl) => vl.id === id)) {
-        virtualDataLinkIds.push(id);
-      } else if (virtualControlLinks.some((vl) => vl.id === id)) {
-        virtualControlLinkIds.push(id);
+    for (const edge of selectedEdges) {
+      if (
+        edge.edgeKind === EDGE_KIND.PROXY_DATA &&
+        virtualDataLinks.some((vl) => vl.id === edge.id)
+      ) {
+        virtualDataLinkIds.push(edge.id);
+      } else if (
+        edge.edgeKind === EDGE_KIND.PROXY_CONTROL &&
+        virtualControlLinks.some((vl) => vl.id === edge.id)
+      ) {
+        virtualControlLinkIds.push(edge.id);
       } else {
-        const conn = graphData.connections.find((c) => c.connectionId === id);
+        const conn = graphData.connections.find(
+          (c) => c.connectionId === edge.systemId,
+        );
         if (conn?.connectionType === 'data') {
-          dataLinks.push(id);
+          dataLinks.push(edge.systemId);
         } else if (conn?.connectionType === 'control') {
-          controlLinks.push(id);
+          controlLinks.push(edge.systemId);
         }
       }
     }
@@ -119,12 +149,12 @@ export function PropertiesPanel({
       {ids: modules, label: 'Modules', type: 'module'},
       {ids: subsystems, label: 'Subsystems', type: 'subsystem'},
       {ids: dataLinks, label: 'Data Links', type: 'data-link'},
+      {ids: controlLinks, label: 'Control Links', type: 'control-link'},
       {
         ids: virtualDataLinkIds,
         label: 'Virtual Data Links',
         type: 'virtual-data-link',
       },
-      {ids: controlLinks, label: 'Control Links', type: 'control-link'},
       {
         ids: virtualControlLinkIds,
         label: 'Virtual Control Links',
@@ -133,15 +163,15 @@ export function PropertiesPanel({
     ].filter((g) => g.ids.length > 0);
   }, [
     graphData,
-    selectedEdgeIds,
-    selectedNodeIds,
+    selectedEdges,
+    selectedNodes,
     virtualControlLinks,
     virtualDataLinks,
   ]);
 
   const allSelectedIds = useMemo(
-    () => new Set([...selectedNodeIds, ...selectedEdgeIds]),
-    [selectedEdgeIds, selectedNodeIds],
+    () => new Set([...selectedNodes, ...selectedEdges].map((ref) => ref.id)),
+    [selectedEdges, selectedNodes],
   );
 
   useEffect(() => {

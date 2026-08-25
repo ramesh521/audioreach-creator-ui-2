@@ -64,7 +64,24 @@ function makeModule(id: string): ModuleInstance {
 }
 
 const graphData: UsecaseGraphData = {
-  connections: [],
+  connections: [
+    {
+      connectionId: 'dl-1',
+      connectionType: 'data',
+      destinationId: 'm-2',
+      destinationPortId: '2',
+      sourceId: 'm-1',
+      sourcePortId: '1',
+    },
+    {
+      connectionId: 'cl-1',
+      connectionType: 'control',
+      destinationId: 'm-2',
+      destinationPortId: '4',
+      sourceId: 'm-1',
+      sourcePortId: '3',
+    },
+  ],
   containers: {
     'c-1': {
       containerId: 'c-1',
@@ -108,8 +125,8 @@ const baseProps: PropertiesPanelProps = {
   onSubgraphNameChange: jest.fn(),
   onSubsystemNameChange: jest.fn(),
   projectId: 'proj-1',
-  selectedEdgeIds: [],
-  selectedNodeIds: [],
+  selectedEdges: [],
+  selectedNodes: [],
 };
 
 describe('PropertiesPanel — grouping', () => {
@@ -122,7 +139,14 @@ describe('PropertiesPanel — grouping', () => {
     render(
       <PropertiesPanel
         {...baseProps}
-        selectedNodeIds={['sg-1', 'sg-2', 'c-1', 'm-1', 'm-2', 'm-3']}
+        selectedNodes={[
+          {id: 'subgraph-sg-1', nodeKind: 'subgraph', systemId: 'sg-1'},
+          {id: 'subgraph-sg-2', nodeKind: 'subgraph', systemId: 'sg-2'},
+          {id: 'container-c-1:sg-1', nodeKind: 'container', systemId: 'c-1'},
+          {id: 'm-1', nodeKind: 'module', systemId: 'm-1'},
+          {id: 'm-2', nodeKind: 'module', systemId: 'm-2'},
+          {id: 'm-3', nodeKind: 'module', systemId: 'm-3'},
+        ]}
       />,
     );
 
@@ -134,7 +158,13 @@ describe('PropertiesPanel — grouping', () => {
 
   it('does not render a group header for a single entity type selection', () => {
     render(
-      <PropertiesPanel {...baseProps} selectedNodeIds={['sg-1', 'sg-2']} />,
+      <PropertiesPanel
+        {...baseProps}
+        selectedNodes={[
+          {id: 'subgraph-sg-1', nodeKind: 'subgraph', systemId: 'sg-1'},
+          {id: 'subgraph-sg-2', nodeKind: 'subgraph', systemId: 'sg-2'},
+        ]}
+      />,
     );
 
     // Only one group type — header should NOT be shown
@@ -147,7 +177,11 @@ describe('PropertiesPanel — grouping', () => {
     render(
       <PropertiesPanel
         {...baseProps}
-        selectedNodeIds={['m-1', 'c-1', 'sg-1']}
+        selectedNodes={[
+          {id: 'm-1', nodeKind: 'module', systemId: 'm-1'},
+          {id: 'container-c-1:sg-1', nodeKind: 'container', systemId: 'c-1'},
+          {id: 'subgraph-sg-1', nodeKind: 'subgraph', systemId: 'sg-1'},
+        ]}
       />,
     );
 
@@ -158,5 +192,56 @@ describe('PropertiesPanel — grouping', () => {
     expect(headers[0]).toMatch(/Subgraphs/);
     expect(headers[1]).toMatch(/Containers/);
     expect(headers[2]).toMatch(/Modules/);
+  });
+
+  it('renders edge groups in fixed order with descriptor selections', () => {
+    render(
+      <PropertiesPanel
+        {...baseProps}
+        selectedEdges={[
+          {edgeKind: 'proxy-data', id: 'proxy-dl-1', systemId: 'proxy-dl-1'},
+          {edgeKind: 'control', id: 'cl-1', systemId: 'cl-1'},
+          {edgeKind: 'data', id: 'dl-1', systemId: 'dl-1'},
+          {
+            edgeKind: 'proxy-control',
+            id: 'proxy-cl-1',
+            systemId: 'proxy-cl-1',
+          },
+        ]}
+        virtualControlLinks={[
+          {
+            edgeKind: 'proxy-control',
+            id: 'proxy-cl-1',
+            kind: 'standard',
+            realConnectionIds: ['cl-1'],
+            sourceNodeId: 'm-1',
+            sourcePortId: '3',
+            targetNodeId: 'm-2',
+            targetPortId: '4',
+          },
+        ]}
+        virtualDataLinks={[
+          {
+            edgeKind: 'proxy-data',
+            id: 'proxy-dl-1',
+            kind: 'standard',
+            realConnectionIds: ['dl-1'],
+            sourceNodeId: 'm-1',
+            sourcePortId: '1',
+            targetNodeId: 'm-2',
+            targetPortId: '2',
+          },
+        ]}
+      />,
+    );
+
+    const headers = screen
+      .getAllByText(/\([0-9]+\)/)
+      .map((el) => el.textContent ?? '');
+
+    expect(headers[0]).toMatch(/Data Links/);
+    expect(headers[1]).toMatch(/Control Links/);
+    expect(headers[2]).toMatch(/Virtual Data Links/);
+    expect(headers[3]).toMatch(/Virtual Control Links/);
   });
 });

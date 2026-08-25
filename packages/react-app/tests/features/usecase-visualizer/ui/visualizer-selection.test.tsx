@@ -37,6 +37,7 @@ function makeModule(id: string): ModuleNode {
     height: 100,
     id,
     label: id,
+    meta: {systemId: `sys-${id}`},
     moduleId: 1,
     moduleType: 'GAIN',
     nodeKind: 'module',
@@ -79,7 +80,7 @@ describe('selection and delta', () => {
     expect(props?.panActivationKeyCode).toBe('Space');
   });
 
-  it('fires onSelectionChange with addedNodeIds on first node select', () => {
+  it('fires onSelectionChange with addedNodes on first node select', () => {
     const onSelectionChange = jest.fn<void, [SelectionChangePayload]>();
     render(
       <UsecaseVisualizer
@@ -94,9 +95,13 @@ describe('selection and delta', () => {
     });
 
     const payload = onSelectionChange.mock.calls[0][0];
-    expect(payload.selectedNodeIds).toEqual(['n1']);
-    expect(payload.delta.addedNodeIds).toEqual(['n1']);
-    expect(payload.delta.removedNodeIds).toEqual([]);
+    expect(payload.selectedNodes).toEqual([
+      {id: 'n1', nodeKind: 'module', systemId: 'sys-n1'},
+    ]);
+    expect(payload.delta.addedNodes).toEqual([
+      {id: 'n1', nodeKind: 'module', systemId: 'sys-n1'},
+    ]);
+    expect(payload.delta.removedNodes).toEqual([]);
   });
 
   it('reports only the newly added node on Ctrl+click of a second node', () => {
@@ -118,12 +123,17 @@ describe('selection and delta', () => {
     });
 
     const payload = onSelectionChange.mock.calls[1][0];
-    expect(payload.selectedNodeIds).toEqual(['n1', 'n2']);
-    expect(payload.delta.addedNodeIds).toEqual(['n2']);
-    expect(payload.delta.removedNodeIds).toEqual([]);
+    expect(payload.selectedNodes).toEqual([
+      {id: 'n1', nodeKind: 'module', systemId: 'sys-n1'},
+      {id: 'n2', nodeKind: 'module', systemId: 'sys-n2'},
+    ]);
+    expect(payload.delta.addedNodes).toEqual([
+      {id: 'n2', nodeKind: 'module', systemId: 'sys-n2'},
+    ]);
+    expect(payload.delta.removedNodes).toEqual([]);
   });
 
-  it('reports removedNodeIds when a selected node is deselected', () => {
+  it('reports removedNodes when a selected node is deselected', () => {
     const onSelectionChange = jest.fn<void, [SelectionChangePayload]>();
     render(
       <UsecaseVisualizer
@@ -142,11 +152,13 @@ describe('selection and delta', () => {
     });
 
     const payload = onSelectionChange.mock.calls[1][0];
-    expect(payload.delta.removedNodeIds).toEqual(['n2']);
-    expect(payload.delta.addedNodeIds).toEqual([]);
+    expect(payload.delta.removedNodes).toEqual([
+      {id: 'n2', nodeKind: 'module', systemId: 'sys-n2'},
+    ]);
+    expect(payload.delta.addedNodes).toEqual([]);
   });
 
-  it('reports prior selection in removedNodeIds when canvas is cleared', () => {
+  it('reports prior selection in removedNodes when canvas is cleared', () => {
     const onSelectionChange = jest.fn<void, [SelectionChangePayload]>();
     render(
       <UsecaseVisualizer
@@ -162,7 +174,40 @@ describe('selection and delta', () => {
     latestReactFlowProps.current?.onSelectionChange?.({edges: [], nodes: []});
 
     const payload = onSelectionChange.mock.calls[1][0];
-    expect(payload.selectedNodeIds).toEqual([]);
-    expect(payload.delta.removedNodeIds).toEqual(['n1', 'n2']);
+    expect(payload.selectedNodes).toEqual([]);
+    expect(payload.delta.removedNodes).toEqual([
+      {id: 'n1', nodeKind: 'module', systemId: 'sys-n1'},
+      {id: 'n2', nodeKind: 'module', systemId: 'sys-n2'},
+    ]);
+  });
+
+  it('fires an empty selection payload when graph level changes with a selection', () => {
+    const onSelectionChange = jest.fn<void, [SelectionChangePayload]>();
+    const {rerender} = render(
+      <UsecaseVisualizer
+        eventHandlers={{onSelectionChange}}
+        graph={makeGraph()}
+      />,
+    );
+
+    latestReactFlowProps.current?.onSelectionChange?.({
+      edges: [],
+      nodes: [nodeRef('n1')],
+    });
+    onSelectionChange.mockClear();
+
+    rerender(
+      <UsecaseVisualizer
+        eventHandlers={{onSelectionChange}}
+        graph={{...makeGraph(), levelId: 'child'}}
+      />,
+    );
+
+    const payload = onSelectionChange.mock.calls[0][0];
+    expect(payload.selectedNodes).toEqual([]);
+    expect(payload.selectedEdges).toEqual([]);
+    expect(payload.delta.removedNodes).toEqual([
+      {id: 'n1', nodeKind: 'module', systemId: 'sys-n1'},
+    ]);
   });
 });

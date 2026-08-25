@@ -65,13 +65,25 @@ export interface ContextMenuItem {
 
 export interface SelectionChangePayload {
   delta: {
-    addedEdgeIds: string[];
-    addedNodeIds: string[];
-    removedEdgeIds: string[];
-    removedNodeIds: string[];
+    addedEdges: SelectedEdgeRef[];
+    addedNodes: SelectedNodeRef[];
+    removedEdges: SelectedEdgeRef[];
+    removedNodes: SelectedNodeRef[];
   };
-  selectedEdgeIds: string[];
-  selectedNodeIds: string[];
+  selectedEdges: SelectedEdgeRef[];
+  selectedNodes: SelectedNodeRef[];
+}
+
+export interface SelectedNodeRef {
+  id: string;
+  nodeKind: NodeKind;
+  systemId: string;
+}
+
+export interface SelectedEdgeRef {
+  edgeKind: EdgeKind;
+  id: string;
+  systemId: string;
 }
 
 export interface NodeDragEndPayload {

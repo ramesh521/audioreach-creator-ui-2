@@ -7,6 +7,10 @@ import type {Viewport} from '@xyflow/react';
 import type {StoreApi} from 'zustand';
 
 import type {LevelView} from '~entities/graph';
+import type {
+  SelectedEdgeRef,
+  SelectedNodeRef,
+} from '~features/usecase-visualizer';
 import {logger} from '~shared/lib/logger';
 
 // ---------------------------------------------------------------------------
@@ -33,8 +37,8 @@ export interface VisualizerSlice {
   isLoading: boolean;
   levelView: LevelView | null;
   searchHighlight: SearchHighlight | null;
-  selectedEdgeIds: string[];
-  selectedNodeIds: string[];
+  selectedEdges: SelectedEdgeRef[];
+  selectedNodes: SelectedNodeRef[];
   setEffectiveLevelView: (lv: LevelView) => void;
   setGraphView: (graphView: GraphView | null) => void;
   setLevelView: (lv: LevelView) => void;
@@ -42,7 +46,10 @@ export interface VisualizerSlice {
     matchNodeIds: string[],
     activeNodeId: string | null,
   ) => void;
-  setSelection: (nodeIds: string[], edgeIds: string[]) => void;
+  setSelection: (
+    nodes: SelectedNodeRef[],
+    edges: SelectedEdgeRef[],
+  ) => void;
   setViewport: (viewport: Viewport) => void;
   viewport: Viewport;
 }
@@ -80,8 +87,8 @@ export function createVisualizerSlice<S extends VisualizerSlice>(
     clearSelection: () => {
       logger.debug('visualizerSlice: clearSelection');
       set({
-        selectedEdgeIds: [] as string[],
-        selectedNodeIds: [] as string[],
+        selectedEdges: [] as SelectedEdgeRef[],
+        selectedNodes: [] as SelectedNodeRef[],
       } as Partial<S>);
     },
 
@@ -97,9 +104,9 @@ export function createVisualizerSlice<S extends VisualizerSlice>(
 
     searchHighlight: null,
 
-    selectedEdgeIds: [],
+    selectedEdges: [],
 
-    selectedNodeIds: [],
+    selectedNodes: [],
 
     setEffectiveLevelView: (lv: LevelView) => {
       logger.debug('visualizerSlice: setEffectiveLevelView', {
@@ -141,14 +148,14 @@ export function createVisualizerSlice<S extends VisualizerSlice>(
       } as Partial<S>);
     },
 
-    setSelection: (nodeIds: string[], edgeIds: string[]) => {
+    setSelection: (nodes, edges) => {
       logger.debug('visualizerSlice: setSelection', {
         action: 'setSelection',
         component: 'visualizerSlice',
       });
       set({
-        selectedEdgeIds: edgeIds,
-        selectedNodeIds: nodeIds,
+        selectedEdges: edges,
+        selectedNodes: nodes,
       } as Partial<S>);
     },
 

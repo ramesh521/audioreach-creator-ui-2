@@ -7,7 +7,9 @@ import {Button} from '@qualcomm-ui/react/button';
 
 import type {ProxyControlLink} from '~entities/graph';
 import type {UsecaseGraphData} from '~features/graph-designer/model/graph-data-slice';
+import {CopyableId} from '~shared/controls/copyable-id';
 import {PropertyRow} from '~shared/controls/property-row';
+import {toHexId} from '~shared/lib/format';
 import {
   type ControlLinkCardCallbacks,
   useControlLinkCardData,
@@ -86,8 +88,38 @@ export function ControlLinkPropertiesCard({
         </span>
       </PropertyRow>
 
-      {/* TODO: Render intents table and heap select once ControlLinkPropertiesDto
-          shape is confirmed with the backend team (currently only carries propId). */}
+      {vm.isLoading && (
+        <p
+          className="text-xs"
+          style={{color: 'var(--color-text-neutral-secondary)'}}
+        >
+          Loading properties…
+        </p>
+      )}
+
+      {!vm.isLoading && vm.linkProperties && (
+        <>
+          <PropertyRow label="Allocated Intents">
+            <CopyableId
+              value={toHexId(String(vm.linkProperties.AllocatedIntents.propId))}
+            />
+          </PropertyRow>
+          {vm.linkProperties.SupportedIntents && (
+            <PropertyRow label="Supported Intents">
+              <CopyableId
+                value={toHexId(
+                  String(vm.linkProperties.SupportedIntents.propId),
+                )}
+              />
+            </PropertyRow>
+          )}
+          <PropertyRow label="Heap ID">
+            <CopyableId
+              value={toHexId(String(vm.linkProperties.HeapId.propId))}
+            />
+          </PropertyRow>
+        </>
+      )}
 
       {isEditing && (
         <div className="mt-2">

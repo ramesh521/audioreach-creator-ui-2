@@ -60,6 +60,8 @@ import {
 import {
   type ContextMenuItem,
   type ContextMenuTarget,
+  type SelectedEdgeRef,
+  type SelectedNodeRef,
   type UsecaseVisualizerProps,
   type ViewportState,
   VISUALIZER_MODE,
@@ -103,6 +105,49 @@ function buildNodeTarget(data: AnyNode): ContextMenuTarget {
 
 function buildEdgeTarget(data: AnyEdge): ContextMenuTarget {
   return {edge: data, kind: `${data.edgeKind}-link`} as ContextMenuTarget;
+}
+
+function stringMeta(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function selectedNodeFromReactFlowNode(node: Node): SelectedNodeRef {
+  const data = node.data as unknown as AnyNode;
+  const systemId =
+    stringMeta(data.meta?.systemId) ??
+    (data.nodeKind === NODE_KIND.CONTAINER
+      ? String(data.containerId)
+      : data.nodeKind === NODE_KIND.SUBGRAPH ||
+          data.nodeKind === NODE_KIND.SUBGRAPH_PROXY
+        ? String(data.subgraphId)
+        : data.nodeKind === NODE_KIND.SUBSYSTEM
+          ? data.subsystemId
+          : node.id);
+
+  return {
+    id: node.id,
+    nodeKind: data.nodeKind,
+    systemId,
+  };
+}
+
+function selectedEdgeFromReactFlowEdge(edge: Edge): SelectedEdgeRef {
+  const data = edge.data as unknown as AnyEdge;
+  return {
+    edgeKind: data.edgeKind,
+    id: edge.id,
+    systemId: stringMeta(data.meta?.systemId) ?? edge.id,
+  };
+}
+
+function refsAdded<T extends {id: string}>(next: T[], prev: T[]): T[] {
+  const prevIds = new Set(prev.map((ref) => ref.id));
+  return next.filter((ref) => !prevIds.has(ref.id));
+}
+
+function refsRemoved<T extends {id: string}>(next: T[], prev: T[]): T[] {
+  const nextIds = new Set(next.map((ref) => ref.id));
+  return prev.filter((ref) => !nextIds.has(ref.id));
 }
 
 function renderMenuItems(
@@ -320,7 +365,21 @@ function VisualizerCanvas({
     const proxiesChanged = proxiesCount !== prevProxiesCountRef.current;
 
     if (levelChanged || proxiesChanged) {
-      store.getState().clearSelection();
+      const state = store.getState();
+      const prior = state.selection;
+      if (prior.selectedNodes.length > 0 || prior.selectedEdges.length > 0) {
+        state.clearSelection();
+        state.eventHandlers?.onSelectionChange?.({
+          delta: {
+            addedEdges: [],
+            addedNodes: [],
+            removedEdges: prior.selectedEdges,
+            removedNodes: prior.selectedNodes,
+          },
+          selectedEdges: [],
+          selectedNodes: [],
+        });
+      }
     }
 
     const rafId = requestAnimationFrame(() => {
@@ -361,21 +420,21 @@ function VisualizerCanvas({
       if (event.key === 'Escape') {
         const prior = state.selection;
         if (
-          prior.selectedNodeIds.length === 0 &&
-          prior.selectedEdgeIds.length === 0
+          prior.selectedNodes.length === 0 &&
+          prior.selectedEdges.length === 0
         ) {
           return;
         }
         state.clearSelection();
         state.eventHandlers?.onSelectionChange?.({
           delta: {
-            addedEdgeIds: [],
-            addedNodeIds: [],
-            removedEdgeIds: prior.selectedEdgeIds,
-            removedNodeIds: prior.selectedNodeIds,
+            addedEdges: [],
+            addedNodes: [],
+            removedEdges: prior.selectedEdges,
+            removedNodes: prior.selectedNodes,
           },
-          selectedEdgeIds: [],
-          selectedNodeIds: [],
+          selectedEdges: [],
+          selectedNodes: [],
         });
         return;
       }
@@ -384,14 +443,20 @@ function VisualizerCanvas({
           return;
         }
         const sel = state.selection;
-        const nodeIds = sel.selectedNodeIds.filter(
-          (id) =>
-            rfNodesRef.current.find((n) => n.id === id)?.data.locked !== true,
-        );
-        const edgeIds = sel.selectedEdgeIds.filter(
-          (id) =>
-            rfEdgesRef.current.find((e) => e.id === id)?.data?.locked !== true,
-        );
+        const nodeIds = sel.selectedNodes
+          .map((ref) => ref.id)
+          .filter(
+            (id) =>
+              rfNodesRef.current.find((n) => n.id === id)?.data.locked !==
+              true,
+          );
+        const edgeIds = sel.selectedEdges
+          .map((ref) => ref.id)
+          .filter(
+            (id) =>
+              rfEdgesRef.current.find((e) => e.id === id)?.data?.locked !==
+              true,
+          );
         if (nodeIds.length > 0) {
           state.eventHandlers?.onNodesDeleted?.({nodeIds});
         }
@@ -595,27 +660,19 @@ function VisualizerCanvas({
 
   const handleSelectionChange = useCallback(
     ({edges, nodes}: {edges: Edge[]; nodes: Node[]}) => {
-      const nodeIds = nodes.map((n) => n.id);
-      const edgeIds = edges.map((e) => e.id);
+      const selectedNodes = nodes.map(selectedNodeFromReactFlowNode);
+      const selectedEdges = edges.map(selectedEdgeFromReactFlowEdge);
       const prev = store.getState().selection;
-      store.getState().setSelection(nodeIds, edgeIds);
+      store.getState().setSelection(selectedNodes, selectedEdges);
       store.getState().eventHandlers?.onSelectionChange?.({
         delta: {
-          addedEdgeIds: edgeIds.filter(
-            (id) => !prev.selectedEdgeIds.includes(id),
-          ),
-          addedNodeIds: nodeIds.filter(
-            (id) => !prev.selectedNodeIds.includes(id),
-          ),
-          removedEdgeIds: prev.selectedEdgeIds.filter(
-            (id) => !edgeIds.includes(id),
-          ),
-          removedNodeIds: prev.selectedNodeIds.filter(
-            (id) => !nodeIds.includes(id),
-          ),
+          addedEdges: refsAdded(selectedEdges, prev.selectedEdges),
+          addedNodes: refsAdded(selectedNodes, prev.selectedNodes),
+          removedEdges: refsRemoved(selectedEdges, prev.selectedEdges),
+          removedNodes: refsRemoved(selectedNodes, prev.selectedNodes),
         },
-        selectedEdgeIds: edgeIds,
-        selectedNodeIds: nodeIds,
+        selectedEdges,
+        selectedNodes,
       });
     },
     [store],
