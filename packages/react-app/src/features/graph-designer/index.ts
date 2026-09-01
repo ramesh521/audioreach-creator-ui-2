@@ -44,7 +44,21 @@ export {useModuleList} from './hooks/use-module-list';
 export {useSubgraphList} from './hooks/use-subgraph-list';
 export {useSubsystemBrowser} from './hooks/use-subsystem-browser';
 export {useValidationResults} from './hooks/use-validation-results';
+export {
+  buildContextMenuConfig,
+  DELETE_HANDLERS,
+  DELETE_HANDLERS_INNER,
+  resolveContextMenuNodeId,
+  resolveEdgeLinkType,
+} from './lib/context-menu-config';
 export {createLinkOperations} from './lib/link-operations';
+export {
+  deleteSelection,
+  filterCascadeRoots,
+  filterEdgesCoveredByCascade,
+  isAncestorOf,
+  resolveNodeKind,
+} from './lib/multi-select-delete';
 export {
   parseModuleDropPayload,
   resolveModuleDropTarget,
@@ -61,6 +75,7 @@ export {
 } from './model/graph-designer-store-context';
 export type {UseApplyDiscardReturn} from './hooks/use-apply-discard';
 export type {ContainerOperations} from './lib/container-operations';
+export type {LinkOperations} from './lib/link-operations';
 export type {
   ModuleDropPayload,
   ModuleDropResolution,
