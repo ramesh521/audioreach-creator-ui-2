@@ -687,6 +687,171 @@ describe('UsecaseSelectionControl — search filtering', () => {
   });
 });
 
+describe('UsecaseSelectionControl — frontend vs backend search routing', () => {
+  // ── Simple search (scope All, no prefix) → frontend only ─────────────────
+
+  it('does not pass a live term to useUsecaseSearch for a plain name search (scope All)', async () => {
+    const user = userEvent.setup();
+    renderControl([]);
+
+    await openDropdown(user);
+    fireEvent.change(screen.getByTestId('search-input'), {
+      target: {value: 'Speaker_Mic'},
+    });
+
+    await waitFor(() => {
+      const lastCall =
+        mockUseUsecaseSearch.mock.calls[
+          mockUseUsecaseSearch.mock.calls.length - 1
+        ];
+      // (projectId, searchTerm, scopeOption) — searchTerm should be '' since
+      // the search is simple and resolved locally instead.
+      expect(lastCall[1]).toBe('');
+    });
+  });
+
+  it('filters the panel to the matching usecase for a plain name search', async () => {
+    const user = userEvent.setup();
+    renderControl([]);
+
+    await openDropdown(user);
+    fireEvent.change(screen.getByTestId('search-input'), {
+      target: {value: 'Speaker_Mic'},
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Speaker_Mic').length).toBeGreaterThan(0);
+      expect(screen.queryByText('HFP_Rx_Playback')).not.toBeInTheDocument();
+    });
+  });
+
+  it('shows "No usecases match" for a plain name search with no matches', async () => {
+    const user = userEvent.setup();
+    renderControl([]);
+
+    await openDropdown(user);
+    fireEvent.change(screen.getByTestId('search-input'), {
+      target: {value: 'NonExistentUsecaseName'},
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('No usecases match')).toBeInTheDocument();
+    });
+  });
+
+  it('narrows results with a frontend AND (+) search across two usecase names', async () => {
+    const user = userEvent.setup();
+    renderControl([], [
+      {
+        expanded: true,
+        items: [
+          {
+            expanded: false,
+            keyValueCollection: [
+              {
+                keyInfo: {keyId: 10, keyLabel: 'DeviceRX', keySystemId: 'k10'},
+                valueInfo: {
+                  valueId: 10,
+                  valueLabel: 'BT_Rx',
+                  valueSystemId: 'v10',
+                },
+              },
+              {
+                keyInfo: {keyId: 11, keyLabel: 'BtProfile', keySystemId: 'k11'},
+                valueInfo: {
+                  valueId: 11,
+                  valueLabel: 'SCO',
+                  valueSystemId: 'v11',
+                },
+              },
+            ],
+            name: 'BT_Rx • SCO',
+            systemId: 'UC_010',
+          },
+          {
+            expanded: false,
+            keyValueCollection: [
+              {
+                keyInfo: {keyId: 12, keyLabel: 'DeviceRX', keySystemId: 'k12'},
+                valueInfo: {
+                  valueId: 12,
+                  valueLabel: 'BT_Rx',
+                  valueSystemId: 'v12',
+                },
+              },
+            ],
+            name: 'BT_Rx',
+            systemId: 'UC_011',
+          },
+        ],
+        name: 'Default',
+      },
+    ] as any);
+
+    await openDropdown(user);
+    fireEvent.change(screen.getByTestId('search-input'), {
+      target: {value: 'BT_Rx+SCO'},
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText('BT_Rx • SCO').length).toBeGreaterThan(0);
+      expect(screen.queryByText('BT_Rx')).not.toBeInTheDocument();
+    });
+  });
+
+  // ── Complex search (known prefix, scope All) → backend ────────────────────
+
+  it('passes the full term to useUsecaseSearch when a known prefix is present', async () => {
+    const user = userEvent.setup();
+    renderControl([]);
+
+    await openDropdown(user);
+    fireEvent.change(screen.getByTestId('search-input'), {
+      target: {value: 'sg:42'},
+    });
+
+    await waitFor(() => {
+      const lastCall =
+        mockUseUsecaseSearch.mock.calls[
+          mockUseUsecaseSearch.mock.calls.length - 1
+        ];
+      expect(lastCall[1]).toBe('sg:42');
+    });
+  });
+
+  // ── Complex search (scope other than All) → backend ────────────────────────
+
+  it('passes a plain term to useUsecaseSearch unchanged when scope is not All', async () => {
+    useUsecaseSelectionControlStore.setState({
+      stateByProject: {
+        [PROJECT_ID]: {
+          expandedCategories: [],
+          recentlySelected: [],
+          searchHistory: [],
+          searchScopeOption: 'Subgraphs',
+          searchTerm: '',
+        },
+      },
+    });
+
+    const user = userEvent.setup();
+    renderControl([]);
+
+    await openDropdown(user);
+    fireEvent.change(screen.getByTestId('search-input'), {
+      target: {value: '0x7656'},
+    });
+
+    await waitFor(() => {
+      const lastCall =
+        mockUseUsecaseSearch.mock.calls[
+          mockUseUsecaseSearch.mock.calls.length - 1
+        ];
+      expect(lastCall[1]).toBe('0x7656');
+    });
+  });
+});
+
 describe('UsecaseSelectionControl — placeholder text', () => {
   it('shows "No usecases selected" when nothing is selected and dropdown is closed', () => {
     renderControl([]);

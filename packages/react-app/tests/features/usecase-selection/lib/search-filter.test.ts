@@ -3,7 +3,10 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-import {buildUsecaseApiFilter} from '~features/usecase-selection/lib/search-filter';
+import {
+  buildUsecaseApiFilter,
+  isComplexSearchTerm,
+} from '~features/usecase-selection/lib/search-filter';
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -179,5 +182,77 @@ describe('buildUsecaseApiFilter — whitespace normalisation', () => {
   it('trims leading and trailing whitespace from the result', () => {
     const result = buildUsecaseApiFilter('  sg:42  ', 'All');
     expect(result).toBe('subgraphId:42');
+  });
+});
+
+describe('isComplexSearchTerm — scope: All — no prefix', () => {
+  it('returns false for a single plain term', () => {
+    expect(isComplexSearchTerm('AANC', 'All')).toBe(false);
+  });
+
+  it('returns false for a plain AND expression', () => {
+    expect(isComplexSearchTerm('AANC+SHARED_MIC_REF_PRESENT', 'All')).toBe(
+      false,
+    );
+  });
+
+  it('returns false for a plain OR expression', () => {
+    expect(isComplexSearchTerm('AANC|BT_SCO', 'All')).toBe(false);
+  });
+
+  it('returns false for a plain grouped expression', () => {
+    expect(isComplexSearchTerm('(AANC|BT_SCO)+HFP_Sink', 'All')).toBe(false);
+  });
+
+  it('returns false for empty input', () => {
+    expect(isComplexSearchTerm('', 'All')).toBe(false);
+  });
+});
+
+describe('isComplexSearchTerm — scope: All — known prefixes present', () => {
+  it('returns true when sg: prefix is present', () => {
+    expect(isComplexSearchTerm('sg:42', 'All')).toBe(true);
+  });
+
+  it('returns true when cnt: prefix is present', () => {
+    expect(isComplexSearchTerm('cnt:10', 'All')).toBe(true);
+  });
+
+  it('returns true when mod: prefix is present', () => {
+    expect(isComplexSearchTerm('mod:0x4726', 'All')).toBe(true);
+  });
+
+  it('returns true when ss: prefix is present', () => {
+    expect(isComplexSearchTerm('ss:0xF010002B', 'All')).toBe(true);
+  });
+
+  it('returns true when a prefix is embedded mid-expression', () => {
+    expect(isComplexSearchTerm('AANC + sg:42', 'All')).toBe(true);
+  });
+
+  it('is case-insensitive when detecting prefixes (SG:42)', () => {
+    expect(isComplexSearchTerm('SG:42', 'All')).toBe(true);
+  });
+});
+
+describe('isComplexSearchTerm — scope other than All', () => {
+  it('returns true for plain text with scope Subgraphs', () => {
+    expect(isComplexSearchTerm('0x7656', 'Subgraphs')).toBe(true);
+  });
+
+  it('returns true for plain text with scope Containers', () => {
+    expect(isComplexSearchTerm('0xE0000023', 'Containers')).toBe(true);
+  });
+
+  it('returns true for plain text with scope Modules', () => {
+    expect(isComplexSearchTerm('Volume', 'Modules')).toBe(true);
+  });
+
+  it('returns true for plain text with scope Subsystems', () => {
+    expect(isComplexSearchTerm('Rx_Devices', 'Subsystems')).toBe(true);
+  });
+
+  it('returns true even for empty input when scope is not All', () => {
+    expect(isComplexSearchTerm('', 'Subgraphs')).toBe(true);
   });
 });

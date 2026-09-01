@@ -27,6 +27,8 @@ import {showToast} from '~shared/controls/global-toaster';
 import {logger} from '~shared/lib/logger';
 
 import {useUsecaseSearch} from '../hooks/use-usecase-search';
+import {filterUsecasesLocally} from '../lib/local-usecase-search';
+import {isComplexSearchTerm} from '../lib/search-filter';
 import {
   SEARCH_SCOPE_OPTIONS,
   type SearchScopeOption,
@@ -265,12 +267,26 @@ export const UsecaseSelectionControl: React.FC<
     };
   }, [isDropdownOpen, isDeleting]);
 
-  // ── Backend search ───────────────────────────────────────────────────────────
+  // ── Search routing: complex (backend) vs simple (frontend) ─────────────────
+  const isComplex = useMemo(
+    () => isComplexSearchTerm(searchTerm, searchScopeOption),
+    [searchTerm, searchScopeOption],
+  );
+
+  // ── Backend search ─── only fires for complex queries ───────────────────────
   const {isSearching, searchData} = useUsecaseSearch(
     projectId,
-    searchTerm,
+    isComplex ? searchTerm : '',
     searchScopeOption,
   );
+
+  // ── Frontend search ─── only computed for simple queries ────────────────────
+  const localSearchData = useMemo(() => {
+    if (isComplex || !searchTerm.trim()) {
+      return null;
+    }
+    return filterUsecasesLocally(localUsecaseData, searchTerm);
+  }, [isComplex, searchTerm, localUsecaseData]);
 
   // ── Display data ─────────────────────────────────────────────────────────────
 
@@ -287,22 +303,21 @@ export const UsecaseSelectionControl: React.FC<
   // When a search is active use the search results; otherwise show the full list.
   // If no search is active and there are recently selected usecases, prepend a
   // virtual "Recently Selected" category at the top of the list.
-  const panelUsecaseData: UsecaseCategory[] = useMemo(
-    () =>
-      searchData !== null
-        ? searchData
-        : recentlySelected.length > 0
-          ? [
-              {
-                expanded: true,
-                items: recentlySelected,
-                name: 'Recently Selected',
-              },
-              ...localUsecaseData,
-            ]
-          : localUsecaseData,
-    [searchData, recentlySelected, localUsecaseData],
-  );
+  const panelUsecaseData: UsecaseCategory[] = useMemo(() => {
+    if (searchData !== null) {
+      return searchData;
+    }
+    if (localSearchData !== null) {
+      return localSearchData;
+    }
+    if (recentlySelected.length === 0) {
+      return localUsecaseData;
+    }
+    return [
+      {expanded: true, items: recentlySelected, name: 'Recently Selected'},
+      ...localUsecaseData,
+    ];
+  }, [searchData, localSearchData, recentlySelected, localUsecaseData]);
 
   const panelLeafItemsByName = useMemo(
     () =>
@@ -706,9 +721,7 @@ export const UsecaseSelectionControl: React.FC<
 
       {/* Dropdown Content — suppressed when disabled */}
       {isDropdownOpen && !disabled && (
-        <div
-          className="bg-raised border-neutral-02 absolute top-full right-0 left-0 z-10 mt-1 flex max-h-96 rounded-md border shadow-lg"
-        >
+        <div className="bg-raised border-neutral-02 absolute top-full right-0 left-0 z-10 mt-1 flex max-h-96 rounded-md border shadow-lg">
           <UsecaseListPanel
             allowDelete={allowDelete}
             expandedCategories={expandedCategories}
