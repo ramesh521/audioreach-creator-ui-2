@@ -746,7 +746,7 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
   const eventHandlers = useMemo(
     () => ({
       onEdgeConnected: (payload: EdgeConnectPayload) => {
-        if (payload.edgeKind !== 'data') {
+        if (payload.edgeKind !== 'data' && payload.edgeKind !== 'control') {
           return;
         }
         // Catches the case where another connect is already in flight, so it shows a toast instead of an unhandled rejection.
@@ -757,6 +757,7 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
             payload.sourcePortId,
             payload.targetNodeId,
             payload.targetPortId,
+            payload.edgeKind,
           )
           .catch(() => {
             showToast(
@@ -773,10 +774,11 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
         // Deletes one at a time, so an earlier delete can't get skipped while a later one is still in flight.
         void (async () => {
           for (const edgeId of payload.edgeIds) {
-            if (connectionTypeById.get(edgeId) !== 'data') {
+            const linkType = connectionTypeById.get(edgeId);
+            if (!linkType) {
               continue;
             }
-            await linkOperations.deleteLink(store.getState, edgeId);
+            await linkOperations.deleteLink(store.getState, edgeId, linkType);
           }
         })();
       },

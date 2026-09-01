@@ -4,6 +4,7 @@
  */
 
 import type {
+  ControlLinkDto,
   DataLinkDto,
   SpfModuleDto,
   SubsystemDto,
@@ -51,19 +52,26 @@ export function makeSpfModuleDto(
   };
 }
 
+const DEFAULT_LINK_DTO = {
+  connectionType: 'MODULE_MODULE',
+  destinationPortSystemId: '20',
+  destinationSystemId: '2',
+  isDangling: false,
+  sourcePortSystemId: '10',
+  sourceSystemId: '1',
+  systemId: 'link-1',
+} as const;
+
 export function makeDataLinkDto(
   overrides: Partial<DataLinkDto> = {},
 ): DataLinkDto {
-  return {
-    connectionType: 'MODULE_MODULE',
-    destinationPortSystemId: '20',
-    destinationSystemId: '2',
-    isDangling: false,
-    sourcePortSystemId: '10',
-    sourceSystemId: '1',
-    systemId: 'link-1',
-    ...overrides,
-  };
+  return {...DEFAULT_LINK_DTO, ...overrides};
+}
+
+export function makeControlLinkDto(
+  overrides: Partial<ControlLinkDto> = {},
+): ControlLinkDto {
+  return {...DEFAULT_LINK_DTO, ...overrides};
 }
 
 export function makeSubsystemDto(

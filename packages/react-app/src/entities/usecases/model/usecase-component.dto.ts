@@ -3,7 +3,9 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+import type {ApiIssueItem} from '~entities/api-issues';
 import type {CkvDto, TagInfoDto} from '~entities/spf-module-data';
+import type {ApiResult} from '~shared/api';
 
 export type PortIOType = 'Input' | 'Output';
 export type PortType = 'Static' | 'Dynamic';
@@ -164,6 +166,15 @@ export interface ControlLinkDto {
   systemId: string;
 }
 
+export interface CreateControlLinkRequest {
+  endComponentSystemId: string;
+  endPortSystemId: string;
+  isDangling: boolean;
+  parentSystemId?: string;
+  startComponentSystemId: string;
+  startPortSystemId: string;
+}
+
 export interface KeyValueInfo {
   keyInfo: KeyInfo;
   valueInfo: ValueInfo;
@@ -174,4 +185,9 @@ export interface ComponentCollectionDto {
   dataLinks: DataLinkDto[];
   spfModules: SpfModuleDto[];
   subsystems?: SubsystemDto[];
+}
+
+/** Link-creation response, including any warnings the backend returns. */
+export interface LinkOperationResult extends ApiResult<ComponentCollectionDto> {
+  issues?: ApiIssueItem[];
 }

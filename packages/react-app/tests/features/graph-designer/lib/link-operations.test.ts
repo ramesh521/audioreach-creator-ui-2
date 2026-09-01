@@ -15,8 +15,11 @@ jest.mock('~shared/store/project-store-registry', () => ({
 import {createStore} from 'zustand';
 
 import {
+  createControlLink,
+  createControlLinkWithSubsystems,
   createDataLink,
   createDataLinkWithSubsystems,
+  deleteControlLink,
   deleteDataLink,
 } from '~entities/usecases/api/usecases-api';
 import {createLinkOperations} from '~features/graph-designer/lib/link-operations';
@@ -35,12 +38,20 @@ import {
 } from '~features/graph-designer/model/module-list-slice';
 import {showToast} from '~shared/controls/global-toaster';
 
-import {makeDataLinkDto} from '../test-utils/component-dto-fixtures';
+import {
+  makeControlLinkDto,
+  makeDataLinkDto,
+} from '../test-utils/component-dto-fixtures';
 
+const mockCreateControlLink = jest.mocked(createControlLink);
+const mockCreateControlLinkWithSubsystems = jest.mocked(
+  createControlLinkWithSubsystems,
+);
 const mockCreateDataLink = jest.mocked(createDataLink);
 const mockCreateDataLinkWithSubsystems = jest.mocked(
   createDataLinkWithSubsystems,
 );
+const mockDeleteControlLink = jest.mocked(deleteControlLink);
 const mockDeleteDataLink = jest.mocked(deleteDataLink);
 const mockShowToast = jest.mocked(showToast);
 
@@ -90,7 +101,14 @@ describe('createLinkOperations — connectPorts', () => {
     });
 
     const {connectPorts} = createLinkOperations('proj-1');
-    const result = await connectPorts(get, 'mod-A', '10', 'mod-B', '20');
+    const result = await connectPorts(
+      get,
+      'mod-A',
+      '10',
+      'mod-B',
+      '20',
+      'data',
+    );
 
     expect(result).toBe(true);
     expect(mockCreateDataLink).toHaveBeenCalledWith('proj-1', {
@@ -100,6 +118,59 @@ describe('createLinkOperations — connectPorts', () => {
       sourcePortSystemId: '10',
     });
     expect(mockCreateDataLinkWithSubsystems).not.toHaveBeenCalled();
+    expect(
+      store
+        .getState()
+        .graphData?.connections.find((c) => c.connectionId === 'link-1'),
+    ).toBeDefined();
+  });
+
+  it('calls createControlLink when neither endpoint is a subsystem, and merges the result into graphData', async () => {
+    const {get, store} = makeStore();
+    store.setState({
+      graphData: {
+        connections: [],
+        containers: {},
+        moduleInstances: {},
+        selectedUsecases: [],
+        subgraphs: {},
+        subsystems: {},
+      },
+    });
+    mockCreateControlLink.mockResolvedValue({
+      data: {
+        controlLinks: [
+          makeControlLinkDto({
+            destinationSystemId: 'mod-B',
+            sourceSystemId: 'mod-A',
+          }),
+        ],
+        dataLinks: [],
+        spfModules: [],
+      },
+      message: 'ok',
+      success: true,
+    });
+
+    const {connectPorts} = createLinkOperations('proj-1');
+    const result = await connectPorts(
+      get,
+      'mod-A',
+      '10',
+      'mod-B',
+      '20',
+      'control',
+    );
+
+    expect(result).toBe(true);
+    expect(mockCreateControlLink).toHaveBeenCalledWith('proj-1', {
+      endComponentSystemId: 'mod-B',
+      endPortSystemId: '20',
+      isDangling: false,
+      startComponentSystemId: 'mod-A',
+      startPortSystemId: '10',
+    });
+    expect(mockCreateControlLinkWithSubsystems).not.toHaveBeenCalled();
     expect(
       store
         .getState()
@@ -134,7 +205,7 @@ describe('createLinkOperations — connectPorts', () => {
     });
 
     const {connectPorts} = createLinkOperations('proj-1');
-    await connectPorts(get, 'sys-ss-1', '10', 'mod-B', '20');
+    await connectPorts(get, 'sys-ss-1', '10', 'mod-B', '20', 'data');
 
     expect(mockCreateDataLinkWithSubsystems).toHaveBeenCalledWith('proj-1', {
       destinationNodeSystemId: 'mod-B',
@@ -143,6 +214,52 @@ describe('createLinkOperations — connectPorts', () => {
       sourcePortSystemId: '10',
     });
     expect(mockCreateDataLink).not.toHaveBeenCalled();
+  });
+
+  it('calls createControlLinkWithSubsystems when the source node is a subsystem', async () => {
+    const {get, store} = makeStore();
+    store.setState({
+      graphData: {
+        connections: [],
+        containers: {},
+        moduleInstances: {},
+        selectedUsecases: [],
+        subgraphs: {},
+        subsystems: {
+          'sys-ss-1': {
+            controlPorts: [],
+            dataPorts: [],
+            subgraphs: [],
+            subsystemId: 'sys-ss-1',
+            subsystemName: 'Subsystem A',
+          },
+        },
+      },
+    });
+    mockCreateControlLinkWithSubsystems.mockResolvedValue({
+      data: {
+        controlLinks: [makeControlLinkDto()],
+        dataLinks: [],
+        spfModules: [],
+      },
+      message: 'ok',
+      success: true,
+    });
+
+    const {connectPorts} = createLinkOperations('proj-1');
+    await connectPorts(get, 'sys-ss-1', '10', 'mod-B', '20', 'control');
+
+    expect(mockCreateControlLinkWithSubsystems).toHaveBeenCalledWith(
+      'proj-1',
+      {
+        endComponentSystemId: 'mod-B',
+        endPortSystemId: '20',
+        isDangling: false,
+        startComponentSystemId: 'sys-ss-1',
+        startPortSystemId: '10',
+      },
+    );
+    expect(mockCreateControlLink).not.toHaveBeenCalled();
   });
 
   it('calls createDataLinkWithSubsystems when both endpoints are subsystems', async () => {
@@ -179,7 +296,7 @@ describe('createLinkOperations — connectPorts', () => {
     });
 
     const {connectPorts} = createLinkOperations('proj-1');
-    await connectPorts(get, 'sys-ss-1', '10', 'sys-ss-2', '20');
+    await connectPorts(get, 'sys-ss-1', '10', 'sys-ss-2', '20', 'data');
 
     expect(mockCreateDataLinkWithSubsystems).toHaveBeenCalledWith('proj-1', {
       destinationNodeSystemId: 'sys-ss-2',
@@ -190,6 +307,59 @@ describe('createLinkOperations — connectPorts', () => {
     expect(mockCreateDataLink).not.toHaveBeenCalled();
   });
 
+  it('calls createControlLinkWithSubsystems when both endpoints are subsystems', async () => {
+    const {get, store} = makeStore();
+    store.setState({
+      graphData: {
+        connections: [],
+        containers: {},
+        moduleInstances: {},
+        selectedUsecases: [],
+        subgraphs: {},
+        subsystems: {
+          'sys-ss-1': {
+            controlPorts: [],
+            dataPorts: [],
+            subgraphs: [],
+            subsystemId: 'sys-ss-1',
+            subsystemName: 'Subsystem A',
+          },
+          'sys-ss-2': {
+            controlPorts: [],
+            dataPorts: [],
+            subgraphs: [],
+            subsystemId: 'sys-ss-2',
+            subsystemName: 'Subsystem B',
+          },
+        },
+      },
+    });
+    mockCreateControlLinkWithSubsystems.mockResolvedValue({
+      data: {
+        controlLinks: [makeControlLinkDto()],
+        dataLinks: [],
+        spfModules: [],
+      },
+      message: 'ok',
+      success: true,
+    });
+
+    const {connectPorts} = createLinkOperations('proj-1');
+    await connectPorts(get, 'sys-ss-1', '10', 'sys-ss-2', '20', 'control');
+
+    expect(mockCreateControlLinkWithSubsystems).toHaveBeenCalledWith(
+      'proj-1',
+      {
+        endComponentSystemId: 'sys-ss-2',
+        endPortSystemId: '20',
+        isDangling: false,
+        startComponentSystemId: 'sys-ss-1',
+        startPortSystemId: '10',
+      },
+    );
+    expect(mockCreateControlLink).not.toHaveBeenCalled();
+  });
+
   it('shows a danger toast and returns false when the backend call fails', async () => {
     const {get, store} = makeStore();
     mockCreateDataLink.mockResolvedValue({
@@ -198,7 +368,14 @@ describe('createLinkOperations — connectPorts', () => {
     });
 
     const {connectPorts} = createLinkOperations('proj-1');
-    const result = await connectPorts(get, 'mod-A', '10', 'mod-B', '20');
+    const result = await connectPorts(
+      get,
+      'mod-A',
+      '10',
+      'mod-B',
+      '20',
+      'data',
+    );
 
     expect(result).toBe(false);
     expect(mockShowToast).toHaveBeenCalledWith(
@@ -215,7 +392,7 @@ describe('createLinkOperations — connectPorts', () => {
     const {connectPorts} = createLinkOperations('proj-1');
 
     await expect(
-      connectPorts(get, 'mod-A', '10', 'mod-B', '20'),
+      connectPorts(get, 'mod-A', '10', 'mod-B', '20', 'data'),
     ).rejects.toThrow('withMutationLock called outside Edit mode');
   });
 });
@@ -250,10 +427,50 @@ describe('createLinkOperations — deleteLink', () => {
     });
 
     const {deleteLink} = createLinkOperations('proj-1');
-    const result = await deleteLink(get, 'link-1');
+    const result = await deleteLink(get, 'link-1', 'data');
 
     expect(result).toBe(true);
     expect(mockDeleteDataLink).toHaveBeenCalledWith('proj-1', 'link-1');
+    expect(
+      store
+        .getState()
+        .graphData?.connections.find((c) => c.connectionId === 'link-1'),
+    ).toBeUndefined();
+  });
+
+  it('calls deleteControlLink and removes the connection from graphData on success', async () => {
+    const {get, store} = makeStore();
+    store.setState({
+      graphData: {
+        connections: [
+          {
+            connectionId: 'link-1',
+            connectionType: 'control',
+            fromModuleId: 'mod-A',
+            fromPortId: '10',
+            isDangling: false,
+            toModuleId: 'mod-B',
+            toPortId: '20',
+          },
+        ],
+        containers: {},
+        moduleInstances: {},
+        selectedUsecases: [],
+        subgraphs: {},
+        subsystems: {},
+      },
+    });
+    mockDeleteControlLink.mockResolvedValue({
+      data: makeControlLinkDto({systemId: 'link-1'}),
+      message: 'ok',
+      success: true,
+    });
+
+    const {deleteLink} = createLinkOperations('proj-1');
+    const result = await deleteLink(get, 'link-1', 'control');
+
+    expect(result).toBe(true);
+    expect(mockDeleteControlLink).toHaveBeenCalledWith('proj-1', 'link-1');
     expect(
       store
         .getState()
@@ -269,7 +486,21 @@ describe('createLinkOperations — deleteLink', () => {
     });
 
     const {deleteLink} = createLinkOperations('proj-1');
-    const result = await deleteLink(get, 'link-1');
+    const result = await deleteLink(get, 'link-1', 'data');
+
+    expect(result).toBe(false);
+    expect(mockShowToast).toHaveBeenCalledWith('Link not found', 'danger');
+  });
+
+  it('shows a danger toast and returns false when deleteControlLink fails', async () => {
+    const {get} = makeStore();
+    mockDeleteControlLink.mockResolvedValue({
+      message: 'Link not found',
+      success: false,
+    });
+
+    const {deleteLink} = createLinkOperations('proj-1');
+    const result = await deleteLink(get, 'link-1', 'control');
 
     expect(result).toBe(false);
     expect(mockShowToast).toHaveBeenCalledWith('Link not found', 'danger');

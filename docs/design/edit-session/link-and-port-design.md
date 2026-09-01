@@ -82,7 +82,7 @@ export function createLinkOperations(
   async function connectPorts(
     get: () => GraphDesignerStore,
     /* §2.1's remaining params */
-  ): Promise<void> { /* ... */ }
+  ): Promise<boolean> { /* ... */ }
 
   async function updatePortCount(
     get: () => GraphDesignerStore,
@@ -155,7 +155,8 @@ async function connectPorts(
   sourcePortId: string,
   targetNodeId: string,
   targetPortId: string,
-): Promise<void>
+  edgeKind: 'control' | 'data',
+): Promise<boolean>
 ```
 
 - **Drag-connect** — `UsecaseVisualizer`'s existing `handleConnect` already
@@ -260,12 +261,13 @@ target union.
    (`/data-links/with-subsystems`, `/control-links/with-subsystems`);
    otherwise the plain `createDataLink`/`createControlLink`
    (`/data-links`, `/control-links`). All four return a single flat
-   `ComponentCollectionDto`/`ComponentCollectionWithSubsystemsDto` — not an
+   `ComponentCollectionDto` — not an
    added/updated/deleted triple — per
    [design.md §7.1](design.md#71-confirmed-endpoints).
 3. `withMutationLock(get, async () => {...})` wraps steps 4–6.
 4. Backend call with the resolved endpoint.
-5. On success: `get().applyComponentCollection(result.data)`. **This is
+5. On success: `get().applyComponentCollection({added: result.data, deleted:
+   EMPTY_DELETED_COLLECTION, updated: EMPTY_COLLECTION})`. **This is
    what makes FR-LINK-04's cross-subsystem auto-bridging work with no special
    frontend logic**: when the user connects a module inside Subsystem A to
    a module inside Subsystem B, the backend's response already contains
@@ -402,7 +404,7 @@ async function deleteLinkInner(
     projectId,
     connectionId,
   );
-  if (!result.success) {
+  if (!result.success || !result.data) {
     if (!options?.suppressToast) {
       showToast(result.message ?? 'Failed to delete connection', 'danger');
     }
@@ -413,8 +415,8 @@ async function deleteLinkInner(
     updated: EMPTY_COLLECTION,
     deleted: {
       spfModules: [],
-      dataLinks: linkType === 'data' ? [result.data] : [],
-      controlLinks: linkType === 'control' ? [result.data] : [],
+      dataLinks: linkType === 'data' ? [connectionId] : [],
+      controlLinks: linkType === 'control' ? [connectionId] : [],
     },
   });
   return true;
@@ -455,14 +457,14 @@ against the current backend swagger, per
 | --- | --- | --- | --- | --- |
 | `createDataLink` | POST | `/data-links` | `CreateDataLinkRequest` | `ComponentCollectionDto` |
 | `createControlLink` | POST | `/control-links` | `CreateControlLinkRequest` | `ComponentCollectionDto` |
-| `createDataLinkWithSubsystems` | POST | `/data-links/with-subsystems` | `CreateDataLinkRequest` | `ComponentCollectionWithSubsystemsDto` |
-| `createControlLinkWithSubsystems` | POST | `/control-links/with-subsystems` | `CreateControlLinkRequest` | `ComponentCollectionWithSubsystemsDto` |
+| `createDataLinkWithSubsystems` | POST | `/data-links/with-subsystems` | `CreateDataLinkRequest` | `ComponentCollectionDto` |
+| `createControlLinkWithSubsystems` | POST | `/control-links/with-subsystems` | `CreateControlLinkRequest` | `ComponentCollectionDto` |
 | `deleteDataLink` | DELETE | `/data-links/{dataLinkSystemId}` | — | Deleted link's own DTO |
 | `deleteControlLink` | DELETE | `/control-links/{controlLinkSystemId}` | — | Deleted link's own DTO |
 | `patchSpfModule` (port-count fields) | PATCH | `/spf-modules/{id}` | `{maxInputPortsSupported?, maxOutputPortsSupported?, maxControlPortsSupported?}` | `SpfModuleDto` |
 | `patchSubsystem` (port-count fields) | PATCH | `/subsystems/{id}` | `{maxInputDataPortsSupported?, maxOutputDataPortsSupported?, maxControlPortsSupported?}` | `SubsystemDto` |
 
-### 6.1 Request shape (data links)
+### 6.1 Request shapes
 
 `CreateDataLinkRequest` — every field is a **systemId string**, and the four
 endpoint fields are required:
@@ -475,6 +477,20 @@ interface CreateDataLinkRequest {
   sourcePortSystemId: string;
   /** Defaults to 'normal' server-side when omitted. */
   type?: 'EC' | 'interUsecase' | 'normal';
+}
+```
+
+`CreateControlLinkRequest` — start/end field names instead of
+source/destination, and `isDangling` is required:
+
+```typescript
+interface CreateControlLinkRequest {
+  endComponentSystemId: string;
+  endPortSystemId: string;
+  isDangling: boolean;
+  parentSystemId?: string;
+  startComponentSystemId: string;
+  startPortSystemId: string;
 }
 ```
 

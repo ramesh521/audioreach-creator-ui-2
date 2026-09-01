@@ -12,8 +12,11 @@ import {type ApiResult, httpClient} from '~shared/api';
 
 import type {
   ComponentCollectionDto,
+  ControlLinkDto,
+  CreateControlLinkRequest,
   CreateDataLinkRequest,
   DataLinkDto,
+  LinkOperationResult,
 } from '../model/usecase-component.dto';
 import type {
   SubsystemFilteredUsecasesDto,
@@ -172,7 +175,7 @@ export async function renameSubgraph(
 export async function createDataLink(
   projectId: string,
   request: CreateDataLinkRequest,
-): Promise<ApiResult<ComponentCollectionDto>> {
+): Promise<LinkOperationResult> {
   return httpClient.post<ComponentCollectionDto>(
     `/projects/${projectId}/data-links`,
     request,
@@ -190,7 +193,7 @@ export async function createDataLink(
 export async function createDataLinkWithSubsystems(
   projectId: string,
   request: CreateDataLinkRequest,
-): Promise<ApiResult<ComponentCollectionDto>> {
+): Promise<LinkOperationResult> {
   return httpClient.post<ComponentCollectionDto>(
     `/projects/${projectId}/data-links/with-subsystems`,
     request,
@@ -209,5 +212,54 @@ export async function deleteDataLink(
 ): Promise<ApiResult<DataLinkDto>> {
   return httpClient.delete<DataLinkDto>(
     `/projects/${projectId}/data-links/${connectionId}`,
+  );
+}
+
+/**
+ * Create a control link between two module ports.
+ * @param projectId - The unique identifier of the project
+ * @param request - The start/end module and port ids to connect
+ * @returns The created link, wrapped in a component collection
+ */
+export async function createControlLink(
+  projectId: string,
+  request: CreateControlLinkRequest,
+): Promise<LinkOperationResult> {
+  return httpClient.post<ComponentCollectionDto>(
+    `/projects/${projectId}/control-links`,
+    request,
+  );
+}
+
+/**
+ * Create a control link where either endpoint is a subsystem, letting the
+ * backend resolve and return every intermediate module/subsystem hop.
+ * @param projectId - The unique identifier of the project
+ * @param request - The start/end module and port ids to connect
+ * @returns The created link and every intermediate hop, wrapped in a
+ * component collection
+ */
+export async function createControlLinkWithSubsystems(
+  projectId: string,
+  request: CreateControlLinkRequest,
+): Promise<LinkOperationResult> {
+  return httpClient.post<ComponentCollectionDto>(
+    `/projects/${projectId}/control-links/with-subsystems`,
+    request,
+  );
+}
+
+/**
+ * Delete a control link.
+ * @param projectId - The unique identifier of the project
+ * @param connectionId - The control link's systemId
+ * @returns The deleted link's own DTO
+ */
+export async function deleteControlLink(
+  projectId: string,
+  connectionId: string,
+): Promise<ApiResult<ControlLinkDto>> {
+  return httpClient.delete<ControlLinkDto>(
+    `/projects/${projectId}/control-links/${connectionId}`,
   );
 }

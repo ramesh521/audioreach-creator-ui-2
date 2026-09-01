@@ -1,6 +1,9 @@
 export {
+  createControlLink,
+  createControlLinkWithSubsystems,
   createDataLink,
   createDataLinkWithSubsystems,
+  deleteControlLink,
   deleteDataLink,
   deleteUsecases,
   getAllUsecases,
@@ -12,7 +15,10 @@ export {
   getUsecasesWithFilter,
   renameSubgraph,
 } from './api/usecases-api';
-export type {CreateDataLinkRequest} from './model/usecase-component.dto';
+export type {
+  CreateControlLinkRequest,
+  CreateDataLinkRequest,
+} from './model/usecase-component.dto';
 export type {
   KeyValueInfo as KeyValue,
   RelatedEndPointLink,
