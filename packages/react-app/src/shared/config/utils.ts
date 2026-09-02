@@ -21,6 +21,7 @@ export const MODULE_LIST_COMPONENT_NAME = 'module-list';
 export const LOG_VIEW_COMPONENT_NAME = 'log-view';
 export const SUBGRAPH_LIST_COMPONENT_NAME = 'subgraph-list';
 export const KEY_CONFIGURATOR_COMPONENT_NAME = 'key-configurator';
+export const PROPERTIES_PANEL_COMPONENT_NAME = 'properties-panel';
 export const VALIDATION_RESULTS_COMPONENT_NAME = 'validation-results';
 export const PLACEHOLDER_COMPONENT_NAME = 'placeholder';
 export const MAIN_TAB_TITLE = 'Graph Designer';
@@ -28,6 +29,7 @@ export const MODULE_LIST_TAB_TITLE = 'Module List';
 export const LOG_VIEW_TAB_TITLE = 'Log View';
 export const SUBGRAPH_LIST_TAB_TITLE = 'Subgraph List';
 export const KEY_CONFIGURATOR_TAB_TITLE = 'Key Configurator';
+export const PROPERTIES_PANEL_TAB_TITLE = 'Properties';
 export const VALIDATION_RESULTS_TAB_TITLE = 'Validation Results';
 export const LEFT_TABSET_ID = 'left-tabset';
 export const CENTER_TABSET_ID = 'center-tabset';
@@ -117,6 +119,14 @@ export function GetFlexLayoutConfig(): IJsonModel {
     type: 'tab',
   };
 
+  const propertiesPanelTab: IJsonTabNode = {
+    component: PROPERTIES_PANEL_COMPONENT_NAME,
+    enableClose: false,
+    id: PROPERTIES_PANEL_COMPONENT_NAME,
+    name: PROPERTIES_PANEL_TAB_TITLE,
+    type: 'tab',
+  };
+
   const validationResultTab: IJsonTabNode = {
     component: VALIDATION_RESULTS_COMPONENT_NAME,
     enableClose: false,
@@ -164,7 +174,7 @@ export function GetFlexLayoutConfig(): IJsonModel {
   };
 
   const rightTabset: IJsonTabSetNode = {
-    children: [keyConfiguratorTab],
+    children: [keyConfiguratorTab, propertiesPanelTab],
     id: RIGHT_TABSET_ID,
     type: 'tabset',
     weight: 20,
@@ -331,8 +341,7 @@ function insertTabAtPosition(
     insertIntoFirstTabsetOrCreate(
       (savedRoot.children ?? []).filter((child) => child !== topAreaNode),
       tab,
-      () =>
-        (savedRoot.children ??= []).push({children: [tab], type: 'tabset'}),
+      () => (savedRoot.children ??= []).push({children: [tab], type: 'tabset'}),
     );
     return;
   }

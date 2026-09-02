@@ -164,6 +164,7 @@ export function applyCollapses(
     proxyDataLinks.push({
       edgeKind: 'proxy-data',
       id: `proxy-${e.id}`,
+      kind: 'standard',
       label: e.label,
       locked: true,
       meta: e.meta,
