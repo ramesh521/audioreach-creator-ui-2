@@ -28,6 +28,7 @@ export default defineConfig({
       '~data': resolve(import.meta.dirname, './src/data'),
       '~entities': resolve(import.meta.dirname, './src/entities'),
       '~features': resolve(import.meta.dirname, './src/features'),
+      '~root': resolve(import.meta.dirname, '../../'),
       '~shared': resolve(import.meta.dirname, './src/shared'),
       '~widgets': resolve(import.meta.dirname, './src/widgets'),
     },

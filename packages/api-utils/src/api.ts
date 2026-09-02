@@ -29,6 +29,7 @@ export type ApiResponse = {
 };
 
 export interface Versions {
+  appVersion: () => string;
   chromeVersion: () => string;
   electronVersion: () => string;
   nodeVersion: () => string;

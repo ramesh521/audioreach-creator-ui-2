@@ -3,6 +3,7 @@
   "compilerOptions": {
     "outDir": "./dist",
     "paths": {
+      "~root/*": ["../../*"],
       "~assets/*": ["./src/assets/*"],
       "~data/*": ["./src/data/*"],
       "~entities/*": ["./src/entities/*"],

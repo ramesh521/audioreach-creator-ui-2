@@ -15,12 +15,14 @@ import type {
   SaveFileApi,
 } from '@audioreach-creator-ui/api-utils';
 import {contextBridge, ipcRenderer} from 'electron';
+import packageJson from '../package.json';
 
 const api: ElectronApi = {
   send: (request: ApiRequestType): Promise<ApiResponse> => {
     return ipcRenderer.invoke('ipc::message', request);
   },
   versions: {
+    appVersion: () => packageJson.version,
     chromeVersion: () => process.versions.chrome || '',
     electronVersion: () => process.versions.electron || '',
     nodeVersion: () => process.versions.node || '',

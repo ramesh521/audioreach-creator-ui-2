@@ -18,6 +18,7 @@ import {
   SideNavProvider,
   useSideNavContext,
 } from '~shared/controls/side-nav-provider';
+import {StatusBar} from '~shared/controls/status-bar';
 import {logger} from '~shared/lib/logger';
 import {useKeyboardShortcuts} from '~shared/lib/side-nav';
 import {Theme} from '~entities/appearance';
@@ -62,6 +63,7 @@ const EditorShellContent: React.FC = () => {
           <ProjectLayoutManager />
         </div>
       </div>
+      <StatusBar />
     </div>
   );
 };

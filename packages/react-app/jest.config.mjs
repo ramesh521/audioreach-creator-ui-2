@@ -43,6 +43,7 @@ export default {
     '^~entities/(.*)$': '<rootDir>/src/entities/$1',
     '^~features/(.*)$': '<rootDir>/src/features/$1',
     '^~pages/(.*)$': '<rootDir>/src/pages/$1',
+    '^~root/(.*)$': '<rootDir>/../../$1',
     '^~shared/(.*)$': '<rootDir>/src/shared/$1',
     '^~widgets/(.*)$': '<rootDir>/src/widgets/$1',
   },
