@@ -45,10 +45,12 @@ import {
   type ModuleDefinition,
   type ModuleListSlice,
 } from '~features/graph-designer/model/module-list-slice';
+import type {SubgraphDefinition} from '~features/graph-designer/model/subgraph-list-slice';
 import {
   createSubsystemSlice,
   type SubsystemSlice,
 } from '~shared/store/tab-store-slices/subsystem-slice';
+import type {SliceStatus} from '~shared/store/global-store.types';
 
 import {
   makeDataLinkDto,
@@ -62,6 +64,7 @@ const mockGetSubgraphsByIds = jest.mocked(getSubgraphsByIds);
 const mockPatchSpfModule = jest.mocked(patchSpfModule);
 
 beforeEach(() => {
+  jest.clearAllMocks();
   mockGetContainersBySystemIds.mockResolvedValue({
     data: [],
     message: undefined as never,
@@ -77,7 +80,10 @@ beforeEach(() => {
 type TestStore = GraphDataSlice &
   ModuleListSlice &
   EditSessionSlice &
-  SubsystemSlice;
+  SubsystemSlice & {
+    subgraphList: SubgraphDefinition[];
+    subgraphListStatus: SliceStatus;
+  };
 
 /**
  * Composes the production slices needed to verify the actual SGKV lifecycle.
@@ -89,6 +95,8 @@ function makeStore(moduleList: ModuleDefinition[] = []) {
     ...createModuleListSlice(set, get, 'proj-1'),
     ...createEditSessionSlice(set, get, 'proj-1'),
     ...createSubsystemSlice(set, get),
+    subgraphList: [],
+    subgraphListStatus: 'uninitialized',
   }));
   if (moduleList.length > 0) {
     store.setState({moduleList});
@@ -276,7 +284,163 @@ describe('createGraphDataSlice — moduleType resolution', () => {
   });
 });
 
+describe('createGraphDataSlice — recursive component responses', () => {
+  it('loads modules and links nested under subsystem children', async () => {
+    const store = makeStore([]);
+
+    mockGetUsecaseComponents.mockResolvedValueOnce({
+      data: {
+        controlLinks: [],
+        dataLinks: [],
+        spfModules: [],
+        subsystems: [
+          makeSubsystemDto({
+            children: {
+              controlLinks: [],
+              dataLinks: [
+                makeDataLinkDto({
+                  destinationSystemId: 'rx-mod-2',
+                  sourceSystemId: 'rx-mod-1',
+                  systemId: 'rx-link-1',
+                }),
+              ],
+              spfModules: [
+                makeSpfModuleDto({
+                  containerSystemId: '55742300201',
+                  parentSystemId: undefined,
+                  subgraphSystemId: '26180845609',
+                  systemId: 'rx-mod-1',
+                }),
+                makeSpfModuleDto({
+                  containerSystemId: '55742300201',
+                  parentSystemId: undefined,
+                  subgraphSystemId: '26180845609',
+                  systemId: 'rx-mod-2',
+                }),
+              ],
+              subsystems: [],
+            },
+            name: 'Rx_Devices',
+            naturalId: 4027580468,
+            systemId: '100201922601',
+          }),
+        ],
+      },
+      message: undefined as never,
+      success: true,
+    });
+
+    await store.getState().loadGraphData(['uc-1']);
+
+    const graphData = store.getState().graphData!;
+    expect(Object.keys(graphData.moduleInstances).sort()).toEqual([
+      'rx-mod-1',
+      'rx-mod-2',
+    ]);
+    expect(graphData.subsystems['100201922601'].subgraphs).toEqual([
+      '26180845609',
+      '26180845609',
+    ]);
+    expect(graphData.containers['55742300201']).toMatchObject({
+      moduleInstances: ['rx-mod-1', 'rx-mod-2'],
+      subgraphSystemId: '26180845609',
+    });
+    expect(graphData.subgraphs['26180845609'].containers).toEqual([
+      '55742300201',
+    ]);
+    expect(graphData.connections).toHaveLength(1);
+    expect(graphData.connections[0]).toMatchObject({
+      destinationSystemId: 'rx-mod-2',
+      sourceSystemId: 'rx-mod-1',
+      systemId: 'rx-link-1',
+    });
+  });
+});
+
 describe('createGraphDataSlice — subgraph name enrichment', () => {
+  it('uses already-loaded subgraph list metadata without querying subgraphs by id', async () => {
+    const store = makeStore([]);
+    store.setState({
+      subgraphList: [
+        {
+          category: '',
+          description: '',
+          naturalId: 7,
+          subgraphName: 'PaletteSubgraphName',
+          subgraphType: 'AUDIO_RECORD',
+          systemId: 'sys-sg-1',
+        },
+      ],
+      subgraphListStatus: 'ready',
+    });
+    mockGetUsecaseComponents.mockResolvedValueOnce({
+      data: minimalDto as never,
+      message: undefined,
+      success: true,
+    });
+
+    await store.getState().loadGraphData(['uc-1']);
+
+    expect(mockGetSubgraphsByIds).not.toHaveBeenCalled();
+    const subgraph = store.getState().graphData?.subgraphs['sys-sg-1'];
+    expect(subgraph?.naturalId).toBe(7);
+    expect(subgraph?.subgraphName).toBe('PaletteSubgraphName');
+    expect(subgraph?.subgraphType).toBe('AUDIO_RECORD');
+  });
+
+  it('queries only subgraph ids missing from the loaded subgraph list', async () => {
+    const store = makeStore([]);
+    store.setState({
+      subgraphList: [
+        {
+          category: '',
+          description: '',
+          naturalId: 7,
+          subgraphName: 'PaletteSubgraphName',
+          subgraphType: 'AUDIO_RECORD',
+          systemId: 'sys-sg-1',
+        },
+      ],
+      subgraphListStatus: 'ready',
+    });
+    mockGetUsecaseComponents.mockResolvedValueOnce({
+      data: {
+        ...minimalDto,
+        spfModules: [
+          minimalDto.spfModules[0],
+          makeSpfModuleDto({
+            containerSystemId: '11',
+            subgraphSystemId: 'sys-sg-2',
+            systemId: 'sys-mod-2',
+          }),
+        ],
+      } as never,
+      message: undefined,
+      success: true,
+    });
+    mockGetSubgraphsByIds.mockResolvedValueOnce({
+      data: [
+        {
+          name: 'FetchedSubgraphName',
+          naturalId: 8,
+          relatedEndPointLinks: [],
+          SGKV: [],
+          subGraphSharedType: 'AUDIO_PLAYBACK',
+          systemId: 'sys-sg-2',
+        },
+      ],
+      message: undefined,
+      success: true,
+    });
+
+    await store.getState().loadGraphData(['uc-1']);
+
+    expect(mockGetSubgraphsByIds).toHaveBeenCalledWith('proj-1', ['sys-sg-2']);
+    const subgraphs = store.getState().graphData?.subgraphs;
+    expect(subgraphs?.['sys-sg-1'].subgraphName).toBe('PaletteSubgraphName');
+    expect(subgraphs?.['sys-sg-2'].subgraphName).toBe('FetchedSubgraphName');
+  });
+
   it('reconciles Graph Data vectors into Edit Session only in Edit mode', async () => {
     const store = makeStore([]);
     store.setState({
@@ -1681,12 +1845,26 @@ describe('createGraphDataSlice - store-only property updates', () => {
 
   it('updates subgraph name locally', () => {
     const store = makeStoreWithGraphData();
+    store.setState({
+      subgraphList: [
+        {
+          category: '',
+          description: '',
+          naturalId: 1,
+          subgraphName: 'Subgraph 1',
+          subgraphType: '',
+          systemId: 'sg-1',
+        },
+      ],
+      subgraphListStatus: 'ready',
+    });
 
     store.getState().updateSubgraphNameLocal('sg-1', 'Main');
 
     expect(store.getState().graphData?.subgraphs['sg-1'].subgraphName).toBe(
       'Main',
     );
+    expect(store.getState().subgraphList[0].subgraphName).toBe('Main');
     expect(mockPatchSpfModule).not.toHaveBeenCalled();
     expect(store.getState().isDirty).toBe(true);
   });

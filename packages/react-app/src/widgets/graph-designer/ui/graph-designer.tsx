@@ -36,7 +36,6 @@ import {type LevelView, NODE_KIND, type NodeKind} from '~entities/graph';
 import {
   formatUsecaseDisplay,
   getSystemIdsFromFormattedUsecases,
-  type UsecaseCategory,
   type UsecaseDto,
 } from '~entities/usecases';
 import {
@@ -119,7 +118,6 @@ interface GraphDesignerProps {
   projectId: string;
   screenshotRegistry: Map<string, () => Promise<string | null>>;
   tabId?: string;
-  usecaseData: UsecaseCategory[];
 }
 
 const EMPTY_SET: ReadonlySet<number> = new Set<number>();
@@ -154,7 +152,6 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
   projectId,
   screenshotRegistry,
   tabId,
-  usecaseData: initialUsecaseData,
 }) => {
   // Get selected usecases from tab store
   const selectedUsecases = useGraphDesignerStoreShallow(
@@ -163,8 +160,6 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
   const setSelectedUsecases = useGraphDesignerStoreShallow(
     (state) => state.setSelectedUsecases,
   );
-
-  const usecaseData = initialUsecaseData;
 
   const {preferences, updatePreference} = useUserPreferences();
   const {
@@ -189,7 +184,6 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
     projectId,
     workflowType,
     workflowLevel,
-    usecaseData,
   );
 
   // Derived flags for UsecaseSelectionControl
@@ -230,6 +224,12 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
     (s) => s.moduleListStatus,
   );
   const loadModuleList = useGraphDesignerStoreShallow((s) => s.loadModuleList);
+  const subgraphListStatus = useGraphDesignerStoreShallow(
+    (s) => s.subgraphListStatus,
+  );
+  const loadSubgraphList = useGraphDesignerStoreShallow(
+    (s) => s.loadSubgraphList,
+  );
   const syncEnableOverlays = useGraphDesignerStoreShallow(
     (s) => s.syncEnableOverlays,
   );
@@ -617,6 +617,12 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
       void loadModuleList();
     }
   }, [moduleListStatus, loadModuleList]);
+
+  useEffect(() => {
+    if (subgraphListStatus === 'uninitialized') {
+      void loadSubgraphList();
+    }
+  }, [subgraphListStatus, loadSubgraphList]);
 
   // Effect A — trigger load when selection changes
   useEffect(() => {
@@ -1372,7 +1378,7 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
       {isExpandCollapsePending &&
         createPortal(
           <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm"
+            className="fixed inset-0 z-9999 flex items-center justify-center backdrop-blur-sm"
             style={{
               backgroundColor:
                 'color-mix(in oklab, var(--color-surface-overlay) 50%, transparent)',
@@ -1394,7 +1400,7 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
       {state.status === 'loading-links' &&
         createPortal(
           <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm"
+            className="fixed inset-0 z-9999 flex items-center justify-center backdrop-blur-sm"
             style={{
               backgroundColor:
                 'color-mix(in oklab, var(--color-surface-overlay) 50%, transparent)',
@@ -1423,7 +1429,7 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
         state={state}
       />
       {/* Usecase Selection Control at the top */}
-      <div className="bg-primary border-neutral-02 flex-shrink-0 border-b p-4">
+      <div className="bg-primary border-neutral-02 shrink-0 border-b p-4">
         <div className="flex items-center gap-4">
           <div className="flex-1">
             <UsecaseSelectionControl
@@ -1452,7 +1458,7 @@ const GraphDesigner: React.FC<GraphDesignerProps> = ({
 
         {/* Search overlay – floats above the graph canvas at top-right */}
         <div
-          className={`absolute top-[5px] right-3 z-10 w-[380px] max-w-[calc(100%-24px)] transition-[opacity,transform] duration-300 ease-in-out ${
+          className={`absolute top-1.25 right-3 z-10 w-95 max-w-[calc(100%-24px)] transition-[opacity,transform] duration-300 ease-in-out ${
             isSearchVisible
               ? 'pointer-events-auto translate-y-0 opacity-100'
               : 'pointer-events-none -translate-y-2 opacity-0'

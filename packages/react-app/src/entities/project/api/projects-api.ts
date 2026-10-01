@@ -146,5 +146,6 @@ export async function openWorkspaceProject(
   return httpClient.post<ProjectInfoResponseDto>(
     'projects/offline/upload-files',
     formData,
+    {timeoutMs: 180000},
   );
 }

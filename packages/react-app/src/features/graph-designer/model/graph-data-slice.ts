@@ -98,6 +98,16 @@ export interface Subgraph {
   systemId: string;
 }
 
+interface SubgraphMetadataSource {
+  subgraphList?: Array<{
+    naturalId: number;
+    subgraphName: string;
+    subgraphType: string;
+    systemId: string;
+  }>;
+  subgraphListStatus?: SliceStatus;
+}
+
 export interface Container {
   moduleInstances: string[];
   naturalId?: number;
@@ -326,8 +336,23 @@ async function hydrateContainerNaturalIds(
 async function applySubgraphDetails(
   projectId: string,
   subgraphs: Record<string, Subgraph>,
+  metadataSource?: SubgraphMetadataSource,
 ): Promise<void> {
-  const subgraphIds = Object.keys(subgraphs);
+  const missingSubgraphIds = new Set(Object.keys(subgraphs));
+  if (metadataSource?.subgraphListStatus === 'ready') {
+    for (const definition of metadataSource.subgraphList ?? []) {
+      const sg = subgraphs[definition.systemId];
+      if (!sg) {
+        continue;
+      }
+      sg.naturalId = definition.naturalId;
+      sg.subgraphName = definition.subgraphName;
+      sg.subgraphType = definition.subgraphType;
+      missingSubgraphIds.delete(definition.systemId);
+    }
+  }
+
+  const subgraphIds = Array.from(missingSubgraphIds);
   if (subgraphIds.length === 0) {
     return;
   }
@@ -363,6 +388,48 @@ function getSgKvVectorsBySubgraphId(
       subgraph.kvVectors,
     ]),
   );
+}
+
+function flattenComponentCollection(
+  collection: ComponentCollectionDto,
+): ComponentCollectionDto {
+  const controlLinks: ControlLinkDto[] = [...collection.controlLinks];
+  const dataLinks: DataLinkDto[] = [...collection.dataLinks];
+  const spfModules: SpfModuleDto[] = [...collection.spfModules];
+  const subsystems: SubsystemDto[] = [...(collection.subsystems ?? [])];
+  const pendingSubsystems = [...subsystems];
+
+  while (pendingSubsystems.length > 0) {
+    const subsystem = pendingSubsystems.pop();
+    if (!subsystem?.children) {
+      continue;
+    }
+
+    controlLinks.push(...subsystem.children.controlLinks);
+    dataLinks.push(...subsystem.children.dataLinks);
+    spfModules.push(
+      ...subsystem.children.spfModules.map((module) => ({
+        ...module,
+        parentSystemId: module.parentSystemId ?? subsystem.systemId,
+      })),
+    );
+
+    const childSubsystems = (subsystem.children.subsystems ?? []).map(
+      (childSubsystem) => ({
+        ...childSubsystem,
+        parentSystemId: childSubsystem.parentSystemId ?? subsystem.systemId,
+      }),
+    );
+    subsystems.push(...childSubsystems);
+    pendingSubsystems.push(...childSubsystems);
+  }
+
+  return {
+    controlLinks,
+    dataLinks,
+    spfModules,
+    subsystems,
+  };
 }
 
 /**
@@ -743,7 +810,8 @@ export function createGraphDataSlice<
   S extends GraphDataSlice &
     ModuleListSlice &
     EditSessionSlice &
-    SubsystemSlice,
+    SubsystemSlice &
+    SubgraphMetadataSource,
 >(
   set: StoreApi<S>['setState'],
   get: StoreApi<S>['getState'],
@@ -1035,7 +1103,7 @@ export function createGraphDataSlice<
           return;
         }
 
-        const dto = result.data;
+        const dto = flattenComponentCollection(result.data);
         const spfModules = dto.spfModules ?? [];
         const subsystemDtos = dto.subsystems ?? [];
 
@@ -1091,7 +1159,7 @@ export function createGraphDataSlice<
         const {containers, newSubgraphs, subgraphs} =
           deriveContainersAndSubgraphs(moduleInstances);
         // The component response identifies subgraphs; detail data supplies SGKV.
-        await applySubgraphDetails(projectId, newSubgraphs);
+        await applySubgraphDetails(projectId, newSubgraphs, get());
         await hydrateContainerNaturalIds(projectId, containers);
 
         const subsystemIdToChildSubsystemIds = new Map<string, string[]>();
@@ -1240,7 +1308,7 @@ export function createGraphDataSlice<
       // A newly derived subgraph has only its placeholder fields and needs its
       // full details, the same way a full Graph Data load does.
       if (Object.keys(newSubgraphs).length > 0) {
-        await applySubgraphDetails(projectId, newSubgraphs);
+        await applySubgraphDetails(projectId, newSubgraphs, get());
       }
 
       await hydrateContainerNaturalIds(projectId, containers);
@@ -1430,19 +1498,37 @@ export function createGraphDataSlice<
     },
 
     updateSubgraphNameLocal: (subgraphSystemId: string, name: string): void => {
-      const {graphData} = get();
+      const {graphData, subgraphList} = get();
       const current = graphData?.subgraphs[subgraphSystemId];
-      if (!graphData || !current) {
+      const hasSubgraphListMatch =
+        subgraphList?.some(
+          (subgraph) => subgraph.systemId === subgraphSystemId,
+        ) ?? false;
+      if ((!graphData || !current) && !hasSubgraphListMatch) {
         return;
       }
-      set({
-        graphData: {
+      const nextState: {
+        graphData?: UsecaseGraphData;
+        subgraphList?: SubgraphMetadataSource['subgraphList'];
+      } = {};
+      if (graphData && current) {
+        nextState.graphData = {
           ...graphData,
           subgraphs: {
             ...graphData.subgraphs,
             [subgraphSystemId]: {...current, subgraphName: name},
           },
-        },
+        };
+      }
+      if (hasSubgraphListMatch) {
+        nextState.subgraphList = subgraphList?.map((subgraph) =>
+          subgraph.systemId === subgraphSystemId
+            ? {...subgraph, subgraphName: name}
+            : subgraph,
+        );
+      }
+      set({
+        ...nextState,
       } as unknown as Partial<S>);
       get().markDirty();
     },

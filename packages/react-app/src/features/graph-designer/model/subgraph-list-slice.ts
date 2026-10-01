@@ -63,6 +63,10 @@ function toSubgraphDefinition(dto: SubgraphResponseDto): SubgraphDefinition {
   };
 }
 
+function isSubgraphType(value: unknown): value is string {
+  return typeof value === 'string';
+}
+
 // ---------------------------------------------------------------------------
 // Slice creator
 // ---------------------------------------------------------------------------
@@ -108,12 +112,15 @@ export function createSubgraphListSlice(
 
         const subgraphs = result.data.map(toSubgraphDefinition);
         const allSubgraphTypes = [
-          ...new Set(subgraphs.map((s) => s.subgraphType)),
+          ...new Set(
+            subgraphs.map((s) => s.subgraphType).filter(isSubgraphType),
+          ),
         ].sort();
+        const cachedSubgraphTypes =
+          subgraphFilterCache.get(projectId)?.filter(isSubgraphType);
 
         setSlice({
-          selectedSubgraphTypes:
-            subgraphFilterCache.get(projectId) ?? allSubgraphTypes,
+          selectedSubgraphTypes: cachedSubgraphTypes ?? allSubgraphTypes,
           subgraphList: subgraphs,
           subgraphListStatus: 'ready',
         });
@@ -138,8 +145,9 @@ export function createSubgraphListSlice(
     selectedSubgraphTypes: [],
 
     setSelectedSubgraphTypes: (types: string[]) => {
-      subgraphFilterCache.set(projectId, types);
-      setSlice({selectedSubgraphTypes: types});
+      const validTypes = types.filter(isSubgraphType);
+      subgraphFilterCache.set(projectId, validTypes);
+      setSlice({selectedSubgraphTypes: validTypes});
     },
 
     setSubgraphListSearchQuery: (query: string) => {

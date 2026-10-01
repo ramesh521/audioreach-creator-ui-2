@@ -194,6 +194,47 @@ describe('SubgraphList drag source', () => {
     expect(row).toHaveAttribute('draggable', 'true');
   });
 
+  it('ignores subgraphs with missing types when building filters', () => {
+    const graphDesignerStore = createGraphDesignerStore('tab-1', PROJECT_ID);
+    const projectStore = createProjectStore(PROJECT_ID);
+    projectStore.setState({editModeState: 'edit'});
+    graphDesignerStore.setState({
+      graphData: null,
+      graphDataStatus: 'uninitialized',
+      selectedSubgraphTypes: ['stream'],
+      subgraphList: [
+        {
+          category: '',
+          description: 'Subgraph description',
+          naturalId: 1,
+          subgraphName: 'Stream Subgraph',
+          subgraphType: 'stream',
+          systemId: 'subgraph-system-1',
+        },
+        {
+          category: '',
+          description: 'Missing type description',
+          naturalId: 2,
+          subgraphName: 'Missing Type Subgraph',
+          subgraphType: undefined as unknown as string,
+          systemId: 'subgraph-system-2',
+        },
+      ],
+      subgraphListStatus: 'ready',
+    });
+
+    render(
+      <ProjectStoreContext.Provider value={projectStore}>
+        <GraphDesignerStoreContext.Provider value={graphDesignerStore}>
+          <SubgraphList />
+        </GraphDesignerStoreContext.Provider>
+      </ProjectStoreContext.Provider>,
+    );
+
+    expect(screen.getAllByText('STREAM').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Missing Type Subgraph')).not.toBeInTheDocument();
+  });
+
   it('writes the subgraph payload and MIME sentinel on drag start', () => {
     renderSubgraphList({editModeState: 'edit'});
     const row = screen.getByText('Stream Subgraph').closest('li');

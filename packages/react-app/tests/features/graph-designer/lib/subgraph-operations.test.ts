@@ -76,7 +76,9 @@ import {
   createModuleListSlice,
   type ModuleListSlice,
 } from '~features/graph-designer/model/module-list-slice';
+import type {SubgraphDefinition} from '~features/graph-designer/model/subgraph-list-slice';
 import {showToast} from '~shared/controls/global-toaster';
+import type {SliceStatus} from '~shared/store/global-store.types';
 
 import {
   makeDataLinkDto,
@@ -136,7 +138,12 @@ beforeEach(() => {
   mockGetProjectById.mockReset();
 });
 
-type TestStore = GraphDataSlice & ModuleListSlice & EditSessionSlice;
+type TestStore = GraphDataSlice &
+  ModuleListSlice &
+  EditSessionSlice & {
+    subgraphList: SubgraphDefinition[];
+    subgraphListStatus: SliceStatus;
+  };
 
 const EMPTY_GRAPH_DATA: TestStore['graphData'] = {
   connections: [],
@@ -152,6 +159,8 @@ function makeTestStore(projectId = 'proj-sg-ops-1') {
     ...createGraphDataSlice(set, get, projectId),
     ...createModuleListSlice(set, get, projectId),
     ...createEditSessionSlice(set, get, projectId),
+    subgraphList: [],
+    subgraphListStatus: 'uninitialized',
   }));
   store.setState({graphData: EMPTY_GRAPH_DATA});
 
@@ -1152,6 +1161,17 @@ describe('createSubgraphOperations — renameSubgraph', () => {
           },
         },
       },
+      subgraphList: [
+        {
+          category: '',
+          description: '',
+          naturalId: 1,
+          subgraphName: 'Old',
+          subgraphType: 'A',
+          systemId: 'sg-1',
+        },
+      ],
+      subgraphListStatus: 'ready',
     });
     mockRenameSubgraphApi.mockResolvedValueOnce({
       data: {
@@ -1170,6 +1190,7 @@ describe('createSubgraphOperations — renameSubgraph', () => {
 
     const subgraph = store.getState().graphData!.subgraphs['sg-1'];
     expect(subgraph.subgraphName).toBe('New');
+    expect(store.getState().subgraphList[0].subgraphName).toBe('New');
     expect(subgraph.subgraphType).toBe('A');
     expect(subgraph.containers).toEqual(['cnt-1']);
     expect(store.getState().isDirty).toBe(true);

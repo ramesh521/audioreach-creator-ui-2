@@ -16,7 +16,6 @@ export {
   getUsecaseComponents,
   getUsecaseComponentsFilteredBySubsystem,
   getUsecasesFilteredBySubsystem,
-  getUsecasesWithFilter,
   renameSubgraph,
 } from './api/usecases-api';
 export type {
@@ -38,6 +37,7 @@ export type {
   KeyValueInfo,
   RelatedEndPointLink,
   SubsystemFilteredKv,
+  SubsystemFilterInfo,
   UsecaseDto,
   UsecaseIdentifier,
 } from './model/usecase.dto';
