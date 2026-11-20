@@ -56,5 +56,7 @@ export {
   formatAsKeysValues,
   formatAsKeysValuesWithIds,
   formatAsSearchKey,
+  formatUsecaseName,
   formatUsecaseDisplay,
 } from './lib/usecase-format';
+export type {UsecaseNamePreference} from './lib/usecase-format';
